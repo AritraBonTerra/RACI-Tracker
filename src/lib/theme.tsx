@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { Button } from "../components/ui";
 
 // Three-way theme: an explicit Light or Dark sticks, System follows the OS and
 // keeps following it live. The resolved theme lands on <html data-theme="...">,
@@ -9,13 +8,6 @@ import { Button } from "../components/ui";
 export type ThemePreference = "light" | "dark" | "system";
 
 const STORAGE_KEY = "raci-theme";
-
-// One button, three stops: each press moves to the next preference.
-const CYCLE: Record<ThemePreference, ThemePreference> = {
-  system: "light",
-  light: "dark",
-  dark: "system",
-};
 
 function savedPreference(): ThemePreference {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -46,32 +38,33 @@ function useThemePreference() {
     return () => media.removeEventListener("change", onChange);
   }, [preference]);
 
-  return { preference, cycle: () => setPreference((current) => CYCLE[current]) };
+  return { preference, setPreference };
 }
 
-const ICONS: Record<ThemePreference, { label: string; icon: string }> = {
-  light: { label: "Light", icon: "☀" },
-  dark: { label: "Dark", icon: "☾" },
-  system: { label: "System", icon: "◐" },
-};
+const OPTIONS: Array<{ value: ThemePreference; label: string }> = [
+  { value: "light", label: "☀ Light" },
+  { value: "dark", label: "☾ Dark" },
+  { value: "system", label: "◐ System" },
+];
 
 export function ThemeToggle() {
-  const { preference, cycle } = useThemePreference();
-  const current = ICONS[preference];
-  const next = ICONS[CYCLE[preference]];
+  const { preference, setPreference } = useThemePreference();
 
   return (
-    <Button
-      variant="ghost"
-      size="xs"
-      onClick={cycle}
-      title={`Theme: ${current.label} — switch to ${next.label}`}
-      aria-label={`Theme: ${current.label} — switch to ${next.label}`}
+    <select
+      aria-label="Theme"
+      value={preference}
+      onChange={(event) => {
+        const { value } = event.target;
+        if (value === "light" || value === "dark" || value === "system") setPreference(value);
+      }}
+      className="h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500"
     >
-      <span aria-hidden className="text-sm leading-none">
-        {current.icon}
-      </span>
-      <span className="hidden text-2xs sm:inline">{current.label}</span>
-    </Button>
+      {OPTIONS.map((option) => (
+        <option key={option.value} value={option.value}>
+          {option.label}
+        </option>
+      ))}
+    </select>
   );
 }
