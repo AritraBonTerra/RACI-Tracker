@@ -1,4 +1,4 @@
-import type { Doc } from "../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 // Display vocabulary for the domain: the nine phases of the Integrated
 // Commercial Cycle and the four task statuses. Kept in one place so the phase
@@ -103,6 +103,18 @@ const ROLE_LETTER = {
 /** "A/R" for the slide-16 matrix cell a phase header shows as guidance. */
 export function roleLetters(roles: readonly (keyof typeof ROLE_LETTER)[]): string {
   return roles.map((role) => ROLE_LETTER[role]).join("/");
+}
+
+/**
+ * The Responsible list, whichever generation of document arrived: old rows
+ * carry a single `responsiblePersonId`, new writes carry the list. Client twin
+ * of the server helper in convex/model.ts — keep the two in step.
+ */
+export function responsiblesOf(
+  task: Pick<Doc<"tasks">, "responsiblePersonId" | "responsiblePersonIds">,
+): ReadonlyArray<Id<"people">> {
+  if (task.responsiblePersonIds !== undefined) return task.responsiblePersonIds;
+  return task.responsiblePersonId === undefined ? [] : [task.responsiblePersonId];
 }
 
 /** Coerces an unvalidated number (a URL fragment, a select value) to a phase. */

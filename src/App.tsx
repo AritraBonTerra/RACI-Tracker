@@ -4,10 +4,11 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
 import { NotFound, TierSkeleton, ViewBoundary } from "./components/page";
-import { Button } from "./components/ui";
+import { Button, Field, Modal, inputClass } from "./components/ui";
 import { formatDay, todayIso } from "./lib/dates";
 import { usePeople } from "./lib/people";
 import { href, navigate, useRoute } from "./lib/router";
+import { useReportedMutation } from "./lib/toast";
 import { ThemeToggle } from "./lib/theme";
 import { ChainPlanView } from "./views/ChainPlanView";
 import { DashboardSkeleton, HomeView } from "./views/HomeView";
@@ -32,6 +33,7 @@ export default function App() {
   const route = useRoute();
   const people = usePeople();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [newYearOpen, setNewYearOpen] = useState(false);
 
   const seasons = useQuery(api.seasons.list);
 
@@ -109,9 +111,15 @@ export default function App() {
           <ThemeToggle />
           {seasons !== undefined && seasons.length > 0 && seasonId !== undefined && (
             <select
-              aria-label="Season"
+              aria-label="Plan year"
               value={seasonId}
               onChange={(event) => {
+                // The last option is an action, not a year — the select's value
+                // stays controlled on the current year, so no flicker.
+                if (event.target.value === "__new__") {
+                  setNewYearOpen(true);
+                  return;
+                }
                 const next = seasons.find((season) => season._id === event.target.value);
                 if (next !== undefined) navigate({ name: "season", seasonId: next._id });
               }}
@@ -119,9 +127,10 @@ export default function App() {
             >
               {seasons.map((season) => (
                 <option key={season._id} value={season._id}>
-                  Season {season.label}
+                  Year {season.label}
                 </option>
               ))}
+              <option value="__new__">+ New year…</option>
             </select>
           )}
         </div>
@@ -158,6 +167,13 @@ export default function App() {
               <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
             </aside>
           </>
+        )}
+
+        {newYearOpen && (
+          <NewYearModal
+            takenYears={(seasons ?? []).map((season) => season.year)}
+            onClose={() => setNewYearOpen(false)}
+          />
         )}
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-5 lg:px-8">
@@ -234,7 +250,7 @@ function SeasonPage({
 }) {
   const tree = useQuery(api.seasons.tree, { seasonId, today });
   if (tree === undefined) return <TierSkeleton panels={2} />;
-  if (tree === null) return <NotFound what="season" />;
+  if (tree === null) return <NotFound what="plan year" />;
   return (
     <SeasonView
       seasonId={seasonId}
@@ -246,13 +262,76 @@ function SeasonPage({
   );
 }
 
+/**
+ * Creating the next plan year, right where you looked for it — the year
+ * dropdown. Comes pre-filled with the year after the latest one, because that
+ * is almost always the year being planned.
+ */
+function NewYearModal({
+  takenYears,
+  onClose,
+}: {
+  takenYears: readonly number[];
+  onClose: () => void;
+}) {
+  const create = useReportedMutation(api.seasons.create);
+  const [draft, setDraft] = useState(() =>
+    String(takenYears.length === 0 ? new Date().getFullYear() : Math.max(...takenYears) + 1),
+  );
+
+  const year = Number(draft.trim());
+  const ready = Number.isInteger(year) && year >= 2000 && year <= 2100;
+
+  const submit = async () => {
+    if (!ready) return;
+    const created = await create({ year });
+    if (!created.ok) return;
+    onClose();
+    navigate({ name: "season", seasonId: created.value });
+  };
+
+  return (
+    <Modal
+      title="New plan year"
+      onClose={onClose}
+      footer={
+        <>
+          <Button size="md" variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="md" variant="primary" disabled={!ready} onClick={submit}>
+            Create year
+          </Button>
+        </>
+      }
+    >
+      <Field label="Year">
+        <input
+          autoFocus
+          inputMode="numeric"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") void submit();
+          }}
+          className={`${inputClass} tabular-nums`}
+        />
+      </Field>
+      <p className="text-2xs text-ink-500">
+        One plan year per calendar year. It starts with the phase-0 template
+        checklist; chain plans and promotions hang off it from there.
+      </p>
+    </Modal>
+  );
+}
+
 function NoSeasons() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="max-w-md rounded-xl border border-ink-800 bg-ink-900/60 p-6 text-center">
-        <h1 className="text-lg font-semibold text-ink-100">No seasons yet</h1>
+        <h1 className="text-lg font-semibold text-ink-100">No plan years yet</h1>
         <p className="mt-1.5 text-sm text-ink-400">
-          A season is the planning year everything else hangs off — phase 0, then a chain
+          A plan year is what everything else hangs off — phase 0, then a chain
           plan per account, then the promotions under it. Create one to start.
         </p>
         <Button

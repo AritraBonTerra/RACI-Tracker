@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import {
   byEta,
   isOverdue,
@@ -8,6 +8,7 @@ import {
   optionalText,
   placeResolver,
   requiredText,
+  responsiblesOf,
   fromUrl,
 } from "./model";
 
@@ -41,18 +42,15 @@ export const listFunctions = query({
 });
 
 /**
- * Every task one person is named on, as Responsible or Accountable or both.
+ * Every task one person is named on, as Responsible or Accountable or both,
+ * picked out of a scan the caller already paid for. Responsible is a list, and
+ * no index covers array membership — but every checklist in the system together
+ * is a few dozen rows, so one read of the table serves the whole directory.
  * Deduplicated: a task where they are A/R is one row on their plate, not two.
  */
-async function tasksOf(ctx: QueryCtx, personId: Id<"people">) {
-  const responsible = await ctx.db
-    .query("tasks")
-    .withIndex("by_responsible", (q) => q.eq("responsiblePersonId", personId))
-    .collect();
-  const accountable = await ctx.db
-    .query("tasks")
-    .withIndex("by_accountable", (q) => q.eq("accountablePersonId", personId))
-    .collect();
+function tasksOf(tasks: readonly Doc<"tasks">[], personId: Id<"people">) {
+  const responsible = tasks.filter((task) => responsiblesOf(task).includes(personId));
+  const accountable = tasks.filter((task) => task.accountablePersonId === personId);
 
   const merged = new Map<Id<"tasks">, Doc<"tasks">>();
   for (const task of [...responsible, ...accountable]) merged.set(task._id, task);
@@ -74,21 +72,20 @@ export const directory = query({
       a.name.localeCompare(b.name),
     );
 
-    const loaded = await Promise.all(
-      people.map(async (person) => {
-        const { responsible, accountable, all } = await tasksOf(ctx, person._id);
-        return {
-          person,
-          load: {
-            responsible: responsible.length,
-            accountable: accountable.length,
-            open: all.filter((task) => task.status !== "delivered").length,
-            overdue: all.filter((task) => isOverdue(task, args.today)).length,
-            blocked: all.filter((task) => task.status === "blocked").length,
-          },
-        };
-      }),
-    );
+    const tasks = await ctx.db.query("tasks").collect();
+    const loaded = people.map((person) => {
+      const { responsible, accountable, all } = tasksOf(tasks, person._id);
+      return {
+        person,
+        load: {
+          responsible: responsible.length,
+          accountable: accountable.length,
+          open: all.filter((task) => task.status !== "delivered").length,
+          overdue: all.filter((task) => isOverdue(task, args.today)).length,
+          blocked: all.filter((task) => task.status === "blocked").length,
+        },
+      };
+    });
 
     return functions.map((fn) => ({
       function: fn,
@@ -109,7 +106,10 @@ export const workload = query({
     if (person === null) return null;
 
     const placeOf = placeResolver(ctx);
-    const { responsible, accountable, all } = await tasksOf(ctx, person._id);
+    const { responsible, accountable, all } = tasksOf(
+      await ctx.db.query("tasks").collect(),
+      person._id,
+    );
     const responsibleIds = new Set(responsible.map((task) => task._id));
     const accountableIds = new Set(accountable.map((task) => task._id));
 
@@ -192,16 +192,9 @@ export const update = mutation({
 export const remove = mutation({
   args: { personId: v.id("people") },
   handler: async (ctx, args) => {
-    const responsible = await ctx.db
-      .query("tasks")
-      .withIndex("by_responsible", (q) => q.eq("responsiblePersonId", args.personId))
-      .collect();
-    const accountable = await ctx.db
-      .query("tasks")
-      .withIndex("by_accountable", (q) => q.eq("accountablePersonId", args.personId))
-      .collect();
+    const { all } = tasksOf(await ctx.db.query("tasks").collect(), args.personId);
 
-    const held = responsible.length + accountable.length;
+    const held = all.length;
     if (held > 0) {
       throw new ConvexError(
         `This person is Responsible or Accountable on ${held} task(s). Reassign those first.`,

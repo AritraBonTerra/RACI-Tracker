@@ -50,7 +50,7 @@ export function PromotionView({
           <Breadcrumb
             trail={[
               {
-                label: `Season ${data.season.label}`,
+                label: `Year ${data.season.label}`,
                 to: { name: "season", seasonId: data.season._id },
               },
               {
