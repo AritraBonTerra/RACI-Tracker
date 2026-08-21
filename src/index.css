@@ -40,6 +40,10 @@
   /* The app's one header height, shared by the sticky header, the sidebar's
      offset and the mobile drawer. */
   --spacing-header: 3.25rem;
+
+  /* Ink that ignores the theme: text sitting on the tan accent needs to stay
+     dark in light mode too, where the rest of the ramp flips. */
+  --color-ink-fixed: #101a2e;
 }
 
 /* Dark by default: this is an ops tool that sits open next to a spreadsheet all
@@ -48,6 +52,47 @@
   html {
     color-scheme: dark;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* Light mode is the same palette with the ramps re-tuned, not a second set of
+     class names: every utility resolves through these variables, so flipping
+     them here restyles the whole app. `data-theme` is set before first paint by
+     the inline script in index.html and kept current by src/lib/theme.tsx.
+     The ramp keeps its dark-first numbering — in light mode low steps are dark
+     text and high steps are pale surfaces, so `text-ink-100` on `bg-ink-950`
+     reads correctly in both themes. */
+  html[data-theme="light"] {
+    color-scheme: light;
+
+    --color-ink-50: #0a1120;
+    --color-ink-100: #182338;
+    --color-ink-200: #29364f;
+    --color-ink-300: #3b4a66;
+    --color-ink-400: #4d5d7d;
+    --color-ink-500: #5e6e8b;
+    --color-ink-600: #8fa0ba;
+    --color-ink-700: #c9d3e4;
+    --color-ink-800: #dfe6f1;
+    --color-ink-900: #ffffff;
+    --color-ink-950: #f2f5fa;
+
+    /* Sand text steps darken for white surfaces; 400+ (fills, focus, the
+       primary button) hold their value in both themes. */
+    --color-sand-100: #5f4620;
+    --color-sand-200: #6f5326;
+    --color-sand-300: #82612d;
+
+    /* Status text was tuned as pale-on-navy; on white it swaps to the deep end
+       of each hue. Washes (`/10`–`/20`) and solid 500+ fills stay put. */
+    --color-rose-100: #881337;
+    --color-rose-200: #9f1239;
+    --color-rose-300: #be123c;
+    --color-rose-950: #ffe4e6; /* the error toast's surface */
+    --color-amber-200: #92400e;
+    --color-amber-300: #b45309;
+    --color-emerald-200: #065f46;
+    --color-emerald-300: #047857;
+    --color-sky-300: #0369a1;
   }
 
   body {

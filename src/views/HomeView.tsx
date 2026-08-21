@@ -265,7 +265,7 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
           <h2 className="flex flex-wrap items-baseline gap-x-2">
             <a
               href={href({ name: "plan", chainPlanId: group.plan._id })}
-              className="text-base font-semibold tracking-tight text-ink-50 transition hover:text-white"
+              className="text-base font-semibold tracking-tight text-ink-50 transition hover:underline"
             >
               {group.chain?.name ?? "Chain"}
             </a>
@@ -619,7 +619,7 @@ function AttentionRow({
           {/* Deep link: the task's own row, opened and scrolled to. */}
           <a
             href={href(placeRoute(place, task._id))}
-            className="block truncate text-xs font-medium text-ink-100 hover:text-white hover:underline"
+            className="block truncate text-xs font-medium text-ink-100 hover:underline"
             title={task.spec ?? task.name}
           >
             {task.name}

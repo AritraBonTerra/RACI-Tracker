@@ -8,6 +8,7 @@ import { Button } from "./components/ui";
 import { formatDay, todayIso } from "./lib/dates";
 import { usePeople } from "./lib/people";
 import { href, navigate, useRoute } from "./lib/router";
+import { ThemeToggle } from "./lib/theme";
 import { ChainPlanView } from "./views/ChainPlanView";
 import { DashboardSkeleton, HomeView } from "./views/HomeView";
 import { ManageView } from "./views/ManageView";
@@ -105,6 +106,7 @@ export default function App() {
           <span className="hidden text-2xs text-ink-500 md:inline">
             Today {formatDay(today)}
           </span>
+          <ThemeToggle />
           {seasons !== undefined && seasons.length > 0 && seasonId !== undefined && (
             <select
               aria-label="Season"
@@ -139,7 +141,7 @@ export default function App() {
               onClick={() => setDrawerOpen(false)}
               className="fixed inset-0 z-40 bg-ink-950/70 backdrop-blur-sm lg:hidden"
             />
-            <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-ink-800 bg-ink-950 shadow-2xl shadow-ink-950 lg:hidden">
+            <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-ink-800 bg-ink-950 shadow-2xl shadow-black/50 lg:hidden">
               <div className="flex h-header shrink-0 items-center justify-between border-b border-ink-800 px-3">
                 <span className="text-sm font-semibold tracking-tight text-ink-50">
                   RACI Tracker

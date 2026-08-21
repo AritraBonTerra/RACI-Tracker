@@ -315,7 +315,7 @@ function BlockReasonPrompt({
             if (event.key === "Enter") onSave();
             if (event.key === "Escape") onCancel();
           }}
-          className="flex-1 rounded border border-rose-500/50 bg-ink-950 px-2 py-1 text-xs text-rose-50 placeholder:text-rose-300/40 focus:border-rose-400 focus:outline-none"
+          className="flex-1 rounded border border-rose-500/50 bg-ink-950 px-2 py-1 text-xs text-rose-100 placeholder:text-rose-300/40 focus:border-rose-400 focus:outline-none"
         />
         <Button
           variant="danger"

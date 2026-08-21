@@ -559,7 +559,7 @@ function PickerPanel({
     <div
       ref={ref}
       style={position}
-      className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900 shadow-2xl shadow-ink-950/80"
+      className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900 shadow-2xl shadow-black/50"
     >
       <div className="flex items-center gap-2 border-b border-ink-800 px-2 py-1.5">
         <span className="text-3xs font-semibold tracking-wider text-ink-500 uppercase">

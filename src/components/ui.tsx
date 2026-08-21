@@ -4,8 +4,9 @@ import { useEffect, useState, type ComponentProps, type ReactNode } from "react"
 // ops-tool look (dense rows, quiet chrome, loud problems) consistent everywhere.
 
 const BUTTON_VARIANTS = {
-  // Tan, not green: green is Delivered everywhere else in the app.
-  primary: "bg-sand-400 text-ink-950 hover:bg-sand-300",
+  // Tan, not green: green is Delivered everywhere else in the app. Fixed ink
+  // and a 500-step hover because sand 400/500 hold their value in both themes.
+  primary: "bg-sand-400 text-ink-fixed hover:bg-sand-500",
   secondary: "bg-ink-800 text-ink-100 ring-1 ring-inset ring-ink-700 hover:bg-ink-700",
   ghost: "text-ink-400 hover:bg-ink-800 hover:text-ink-100",
   danger: "bg-rose-600 text-white hover:bg-rose-500",
@@ -187,7 +188,7 @@ export function Modal({
       <div
         role="dialog"
         aria-label={title}
-        className="mt-6 w-full max-w-lg rounded-xl border border-ink-700 bg-ink-900 shadow-2xl shadow-ink-950/80 sm:mt-12"
+        className="mt-6 w-full max-w-lg rounded-xl border border-ink-700 bg-ink-900 shadow-2xl shadow-black/50 sm:mt-12"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-3">
           <h2 className="text-sm font-semibold text-ink-100">{title}</h2>
