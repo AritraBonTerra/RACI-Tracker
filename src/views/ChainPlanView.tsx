@@ -58,7 +58,7 @@ export function ChainPlanView({
           <Breadcrumb
             trail={[
               {
-                label: `Season ${data.season.label}`,
+                label: `Year ${data.season.label}`,
                 to: { name: "season", seasonId: data.season._id },
               },
               { label: "Chain plan" },

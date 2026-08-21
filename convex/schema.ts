@@ -145,9 +145,12 @@ export default defineSchema({
   // 5-8 -> promotion). Three nullable columns rather than a union because index
   // lookups ("tasks of this promotion") need a flat field to point at.
   //
-  // RACI: only `responsiblePersonId` decides assigned vs. unassigned. The
-  // phase-default matrix in `phaseRaciDefaults` says which *function* owns the
-  // work, and a function is never a substitute for a named person.
+  // RACI: only the Responsible list decides assigned vs. unassigned — at least
+  // one named person, or the task is the red state the tool exists to surface.
+  // Accountable stays a single person on purpose: when a task is late, there is
+  // exactly one name to chase (CONTEXT.md: RACI). The phase-default
+  // matrix in `phaseRaciDefaults` says which *function* owns the work, and a
+  // function is never a substitute for a named person.
   //
   // `blockedReason` is required whenever status is "blocked"; the schema cannot
   // express that without giving up the `by_status` index, so mutations enforce it.
@@ -170,7 +173,13 @@ export default defineSchema({
     deliveredTo: v.optional(v.string()),
     proofOfExecution: v.optional(v.string()),
 
+    // Legacy single-Responsible column, kept only so documents written before
+    // the list existed still validate. Never read directly — `responsiblesOf`
+    // (model.ts) folds it into the list, and every write clears it.
     responsiblePersonId: v.optional(v.id("people")),
+    // Optional rather than required for the same migration reason; undefined
+    // means "not yet rewritten", not "unassigned".
+    responsiblePersonIds: v.optional(v.array(v.id("people"))),
     accountablePersonId: v.optional(v.id("people")),
     consultedPersonIds: v.array(v.id("people")),
     informedPersonIds: v.array(v.id("people")),
@@ -182,10 +191,24 @@ export default defineSchema({
     .index("by_chain_plan", ["chainPlanId"])
     .index("by_season", ["seasonId"])
     .index("by_status", ["status"])
-    .index("by_responsible", ["responsiblePersonId"])
     .index("by_accountable", ["accountablePersonId"])
     .index("by_eta", ["eta"])
     .index("by_promotion_and_phase", ["promotionId", "phase"]),
+
+  // The Task Template (CONTEXT.md): one global default checklist per phase,
+  // stamped onto a new plan year / chain plan / promotion at creation. A
+  // stencil, not a live link — editing a template never touches existing
+  // checklists. No ETAs on purpose: dates are negotiated per chain, and a
+  // fresh plan screaming "overdue" over fictional deadlines would cheapen the
+  // red states the tool runs on.
+  taskTemplates: defineTable({
+    phase,
+    name: v.string(),
+    spec: v.optional(v.string()),
+    category: v.optional(v.string()),
+    quantity: v.optional(v.number()),
+    order: v.number(),
+  }).index("by_phase", ["phase"]),
 
   // The slide-16 matrix: for each phase, which role(s) each function plays by
   // default. Seeded from the deck and editable in-app later, which is why it is

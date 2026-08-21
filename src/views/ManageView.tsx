@@ -1,8 +1,8 @@
 import { useQuery } from "convex/react";
 import { useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
-import type { Id } from "../../convex/_generated/dataModel";
-import { InlineText } from "../components/inline";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
+import { InlineNumber, InlineText } from "../components/inline";
 import { Breadcrumb, PageHeader } from "../components/page";
 import {
   Button,
@@ -13,12 +13,13 @@ import {
   Skeleton,
   inputClass,
 } from "../components/ui";
+import { ALL_PHASES, PHASES, type PhaseNumber } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 
-// Reference data, all editable in one place: chains, brands, people, functions
-// and seasons. Nothing here is deleted out from under something that still uses
-// it — the mutations refuse and say what is in the way.
+// Reference data, all editable in one place: chains, brands, people, functions,
+// plan years and the task template. Nothing here is deleted out from under
+// something that still uses it — the mutations refuse and say what is in the way.
 
 export function ManageView({ people }: { people: PeopleDirectory }) {
   return (
@@ -37,6 +38,7 @@ export function ManageView({ people }: { people: PeopleDirectory }) {
       <BrandsPanel />
       <PeoplePanel people={people} />
       <SeasonsPanel />
+      <TaskTemplatesPanel />
     </div>
   );
 }
@@ -354,13 +356,13 @@ function SeasonsPanel() {
   const remove = useReportedMutation(api.seasons.remove);
 
   return (
-    <Panel title="Seasons" subtitle="Planning years. Phase 0 hangs off each one.">
+    <Panel title="Plan years" subtitle="One per calendar year. Phase 0 hangs off each one.">
       {seasons === undefined ? (
         <RowsSkeleton rows={2} />
       ) : seasons.length === 0 ? (
-        <EmptyState title="No seasons yet">
-          A season is the planning year every plan and promotion hangs off. Add the year
-          below and the phase-0 checklist comes with it.
+        <EmptyState title="No plan years yet">
+          A plan year is what every plan and promotion hangs off. Add the year below and
+          the phase-0 template checklist comes with it.
         </EmptyState>
       ) : (
         seasons.map((season) => (
@@ -387,7 +389,7 @@ function SeasonsPanel() {
       )}
       <AddRow
         placeholder="2027"
-        label="Add season"
+        label="Add year"
         onAdd={async (value) => {
           const year = Number(value.trim());
           if (!Number.isInteger(year)) return false;
@@ -395,5 +397,158 @@ function SeasonsPanel() {
         }}
       />
     </Panel>
+  );
+}
+
+// Which tier a phase's template stamps onto — shown so an edit here is
+// understood as "this changes what a new X starts with".
+const TIER_TAG: Record<"season" | "chainPlan" | "promotion", string> = {
+  season: "new plan years",
+  chainPlan: "new chain plans",
+  promotion: "new promotions",
+};
+
+const tierOf = (phase: PhaseNumber) =>
+  phase === 0 ? "season" : phase <= 4 ? "chainPlan" : "promotion";
+
+function TaskTemplatesPanel() {
+  const templates = useQuery(api.taskTemplates.list);
+  const create = useReportedMutation(api.taskTemplates.create);
+  const update = useReportedMutation(api.taskTemplates.update);
+  const remove = useReportedMutation(api.taskTemplates.remove);
+  const move = useReportedMutation(api.taskTemplates.move);
+  const loadDefaults = useReportedMutation(api.taskTemplates.loadDefaults);
+
+  return (
+    <Panel
+      title="Task templates"
+      subtitle="The default checklist stamped onto every new plan year, chain plan and promotion — undated, unassigned. Edits change what future creations start with; existing checklists keep theirs."
+    >
+      {templates === undefined ? (
+        <RowsSkeleton rows={6} />
+      ) : templates.length === 0 ? (
+        <EmptyState
+          title="No template yet"
+          action={
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => void loadDefaults({})}
+            >
+              Load the deck's default menu
+            </Button>
+          }
+        >
+          Without a template, every new plan year, chain plan and promotion starts with a
+          blank checklist. The default menu is the deck's slide-11 list plus the phase 0–4
+          items.
+        </EmptyState>
+      ) : (
+        ALL_PHASES.map((phase) => {
+          const rows = templates.filter((row) => row.phase === phase);
+          return (
+            <div key={phase}>
+              <p className="flex items-baseline justify-between gap-2 border-b border-ink-800/70 bg-ink-950/40 px-4 py-1.5">
+                <span className="text-3xs font-semibold tracking-wider text-ink-400 uppercase">
+                  Phase {phase} · {PHASES[phase].title}
+                </span>
+                <span className="text-3xs text-ink-600">
+                  stamped onto {TIER_TAG[tierOf(phase)]}
+                </span>
+              </p>
+              {rows.map((row, index) => (
+                <TemplateRow
+                  key={row._id}
+                  row={row}
+                  isFirst={index === 0}
+                  isLast={index === rows.length - 1}
+                  onUpdate={update}
+                  onRemove={remove}
+                  onMove={move}
+                />
+              ))}
+              <AddRow
+                placeholder="New template task…"
+                label="Add"
+                onAdd={async (name) => (await create({ phase, name })).ok}
+              />
+            </div>
+          );
+        })
+      )}
+    </Panel>
+  );
+}
+
+function TemplateRow({
+  row,
+  isFirst,
+  isLast,
+  onUpdate,
+  onRemove,
+  onMove,
+}: {
+  row: Doc<"taskTemplates">;
+  isFirst: boolean;
+  isLast: boolean;
+  onUpdate: ReturnType<typeof useReportedMutation<typeof api.taskTemplates.update>>;
+  onRemove: ReturnType<typeof useReportedMutation<typeof api.taskTemplates.remove>>;
+  onMove: ReturnType<typeof useReportedMutation<typeof api.taskTemplates.move>>;
+}) {
+  return (
+    <Row>
+      <div className="w-full text-sm font-medium text-ink-100 sm:w-56 sm:shrink-0">
+        <InlineText
+          value={row.name}
+          onCommit={(name) => void onUpdate({ templateId: row._id, name })}
+        />
+      </div>
+      <div className="min-w-32 flex-1 text-xs text-ink-400">
+        <InlineText
+          value={row.spec}
+          placeholder="Add a spec…"
+          onCommit={(spec) => void onUpdate({ templateId: row._id, spec })}
+        />
+      </div>
+      <div className="w-36 shrink-0 text-xs text-ink-500">
+        <InlineText
+          value={row.category}
+          placeholder="Ungrouped"
+          title="Category — the slide-11 group heading"
+          onCommit={(category) => void onUpdate({ templateId: row._id, category })}
+        />
+      </div>
+      <div className="w-12 shrink-0 text-xs text-ink-400">
+        <InlineNumber
+          value={row.quantity}
+          onCommit={(quantity) => void onUpdate({ templateId: row._id, quantity })}
+        />
+      </div>
+      <div className="flex shrink-0 gap-0.5">
+        <Button
+          variant="ghost"
+          size="xs"
+          className="px-1"
+          disabled={isFirst}
+          title="Move up"
+          aria-label="Move up"
+          onClick={() => void onMove({ templateId: row._id, direction: "up" })}
+        >
+          ↑
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          className="px-1"
+          disabled={isLast}
+          title="Move down"
+          aria-label="Move down"
+          onClick={() => void onMove({ templateId: row._id, direction: "down" })}
+        >
+          ↓
+        </Button>
+        <ConfirmButton onConfirm={() => void onRemove({ templateId: row._id })} />
+      </div>
+    </Row>
   );
 }

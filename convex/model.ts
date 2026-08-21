@@ -36,7 +36,7 @@ export function tierForPhase(value: PhaseNumber): TaskOwner["tier"] {
 }
 
 const TIER_LABEL = {
-  season: "the season (phase 0)",
+  season: "the plan year (phase 0)",
   chainPlan: "a chain plan (phases 1-4)",
   promotion: "a promotion (phases 5-8)",
 } as const satisfies Record<TaskOwner["tier"], string>;
@@ -163,6 +163,51 @@ export async function raciDefaults(ctx: QueryCtx, phases: readonly PhaseNumber[]
   );
 }
 
+/**
+ * The Responsible list, whichever generation of document it is stored on.
+ * Old documents carry a single `responsiblePersonId`; new writes carry the
+ * `responsiblePersonIds` list and clear the legacy column. Everything that
+ * reads "who is doing this?" goes through here (client twin: lib/domain.ts).
+ */
+export function responsiblesOf(task: Doc<"tasks">): ReadonlyArray<Id<"people">> {
+  if (task.responsiblePersonIds !== undefined) return task.responsiblePersonIds;
+  return task.responsiblePersonId === undefined ? [] : [task.responsiblePersonId];
+}
+
+/**
+ * Stamps the Task Template (CONTEXT.md) onto a freshly created owner: the
+ * default checklist for each of the tier's phases, undated and unassigned.
+ * Creation-time only — template edits never reach back into existing checklists.
+ */
+export async function stampTemplates(
+  ctx: MutationCtx,
+  owner: TaskOwner,
+  phases: readonly PhaseNumber[],
+) {
+  const wanted = new Set<PhaseNumber>(phases);
+  const templates = (await ctx.db.query("taskTemplates").collect())
+    .filter((template) => wanted.has(template.phase))
+    .sort((a, b) => a.phase - b.phase || a.order - b.order);
+
+  const fields = ownerFields(owner);
+  for (const [index, template] of templates.entries()) {
+    await ctx.db.insert("tasks", {
+      ...fields,
+      phase: template.phase,
+      name: template.name,
+      spec: template.spec,
+      category: template.category,
+      quantity: template.quantity,
+      status: "not_started",
+      responsiblePersonIds: [],
+      consultedPersonIds: [],
+      informedPersonIds: [],
+      order: index,
+    });
+  }
+  return templates.length;
+}
+
 /** Health counts for one checklist, used by every navigation surface. */
 export type Rollup = ReturnType<typeof rollup>;
 
@@ -183,7 +228,7 @@ export function rollup(tasks: readonly Doc<"tasks">[], today: string) {
 
     // Overdue is derived, never stored: past ETA and not yet delivered.
     if (isOverdue(task, today)) overdue += 1;
-    if (task.responsiblePersonId === undefined) unassigned += 1;
+    if (responsiblesOf(task).length === 0) unassigned += 1;
     // The softer warning: nobody owns the outcome, even if someone is doing it.
     if (task.accountablePersonId === undefined) missingAccountable += 1;
   }
@@ -275,11 +320,11 @@ export function placeResolver(ctx: QueryCtx) {
       return {
         tier: "season",
         seasonId: task.seasonId,
-        label: season === null ? "Season" : `Season ${season.label}`,
+        label: season === null ? "Plan year" : `Year ${season.label}`,
         chain: null,
       };
     }
-    throw new ConvexError("Task is not attached to a season, chain plan or promotion.");
+    throw new ConvexError("Task is not attached to a plan year, chain plan or promotion.");
   };
 }
 

@@ -13,7 +13,7 @@ import {
 import { AssignButton } from "../components/RaciEditor";
 import { EmptyState, Pill, Skeleton } from "../components/ui";
 import { dueLabel, formatDay, formatRange, isOverdue } from "../lib/dates";
-import { PHASES, STATUSES } from "../lib/domain";
+import { PHASES, STATUSES, responsiblesOf } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { href, placeRoute } from "../lib/router";
 
@@ -40,7 +40,7 @@ export function HomeView({
   const data = useQuery(api.home.dashboard, { seasonId, today });
 
   if (data === undefined) return <DashboardSkeleton />;
-  if (data === null) return <NotFound what="season" />;
+  if (data === null) return <NotFound what="plan year" />;
 
   const promotionCount = data.chains.reduce(
     (count, group) => count + group.promotions.length,
@@ -55,7 +55,7 @@ export function HomeView({
             Integrated Commercial Cycle
           </p>
         }
-        title={`Season ${data.season.label}`}
+        title={`Year ${data.season.label}`}
         meta={
           <>
             <span className="text-ink-300">{formatDay(today)}</span>
@@ -87,7 +87,7 @@ export function HomeView({
           ))}
           {data.chains.length === 0 && (
             <section className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40">
-              <EmptyState title="No chain plans in this season yet">
+              <EmptyState title="No chain plans in this year yet">
                 A chain plan is one account for one year — Safeway 2026, Kroger 2026.
                 Start one from the chain list in the sidebar and phases 1–4 appear
                 underneath it.
@@ -241,7 +241,7 @@ function SeasonCard({ data }: { data: Dashboard }) {
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-sm font-semibold text-ink-100">
-          Season {data.season.label}
+          Year {data.season.label}
           <span className="ml-2 text-xs font-normal text-ink-500">
             Phase 0 · {PHASES[0].title}
           </span>
@@ -469,7 +469,7 @@ function NeedsAttention({
       {total === 0 ? (
         <EmptyState tone="good" title="Nothing needs attention">
           Every task has a named Responsible, nothing is blocked, and nothing is past its
-          ETA. This is what the season is supposed to look like.
+          ETA. This is what the year is supposed to look like.
         </EmptyState>
       ) : (
         <>
@@ -601,10 +601,9 @@ function AttentionRow({
 }) {
   const { task, place } = item;
   const late = isOverdue(task.eta, task.status, today);
-  const responsible =
-    task.responsiblePersonId === undefined
-      ? undefined
-      : people.byId.get(task.responsiblePersonId);
+  const responsibles = responsiblesOf(task)
+    .map((id) => people.byId.get(id))
+    .filter((person) => person !== undefined);
 
   return (
     <li className="relative border-b border-ink-800/60 last:border-b-0">
@@ -643,13 +642,15 @@ function AttentionRow({
                 {formatDay(task.eta, today)} · {dueLabel(task.eta, today)}
               </span>
             )}
-            {!assignable && task.responsiblePersonId === undefined && (
+            {!assignable && responsibles.length === 0 && (
               <span className="rounded bg-rose-500 px-1 font-semibold text-rose-50">
                 unassigned
               </span>
             )}
-            {responsible !== undefined && (
-              <span className="truncate text-ink-500">R {responsible.name}</span>
+            {responsibles.length > 0 && (
+              <span className="truncate text-ink-500">
+                R {responsibles.map((person) => person.name).join(", ")}
+              </span>
             )}
             {task.status !== "not_started" && (
               <span className={`rounded px-1 ${STATUSES[task.status].pill}`}>

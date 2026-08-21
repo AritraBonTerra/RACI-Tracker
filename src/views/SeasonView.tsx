@@ -44,14 +44,14 @@ export function SeasonView({
   const update = useReportedMutation(api.seasons.update);
 
   if (data === undefined) return <TierSkeleton panels={2} />;
-  if (data === null) return <NotFound what="season" />;
+  if (data === null) return <NotFound what="plan year" />;
 
   const planCount = tree.chains.reduce((count, chain) => count + chain.plans.length, 0);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={<Breadcrumb trail={[{ label: "Season" }]} />}
+        eyebrow={<Breadcrumb trail={[{ label: "Plan year" }]} />}
         title={
           <InlineText
             value={data.season.label}
@@ -71,7 +71,7 @@ export function SeasonView({
           <InlineText
             value={data.season.notes}
             multiline
-            placeholder="Add a note about this season…"
+            placeholder="Add a note about this year…"
             onCommit={(notes) => void update({ seasonId, notes })}
           />
         </div>
@@ -97,7 +97,7 @@ export function SeasonView({
         subtitle="Phases 1–4 live here. Start one from the sidebar for any chain without a plan."
       >
         {planCount === 0 ? (
-          <EmptyState title="No chain plans for this season yet">
+          <EmptyState title="No chain plans for this year yet">
             One plan per retail account per year. Every chain in Manage is listed in the
             sidebar with a <span className="text-ink-300">+ Plan</span> button beside it —
             starting one lays down the phase 1–4 checklist.
