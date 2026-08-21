@@ -40,10 +40,44 @@ function Tile({ label, value, tone }: { label: string; value: number; tone: stri
   );
 }
 
+/** Adds up the rollups hanging off a navigation tree, for a "whole season" node. */
+export function mergeRollups(rollups: readonly Rollup[]): Rollup {
+  return rollups.reduce(
+    (total, one) => ({
+      total: total.total + one.total,
+      delivered: total.delivered + one.delivered,
+      inProgress: total.inProgress + one.inProgress,
+      blocked: total.blocked + one.blocked,
+      notStarted: total.notStarted + one.notStarted,
+      overdue: total.overdue + one.overdue,
+      unassigned: total.unassigned + one.unassigned,
+      missingAccountable: total.missingAccountable + one.missingAccountable,
+    }),
+    {
+      total: 0,
+      delivered: 0,
+      inProgress: 0,
+      blocked: 0,
+      notStarted: 0,
+      overdue: 0,
+      unassigned: 0,
+      missingAccountable: 0,
+    },
+  );
+}
+
 /** The compact form: only the numbers worth interrupting someone for. */
 export function RollupChips({ rollup }: { rollup: Rollup }) {
   return (
     <span className="flex shrink-0 items-center gap-1 text-[10px] font-semibold tabular-nums">
+      {rollup.unassigned > 0 && (
+        <span
+          title={`${rollup.unassigned} unassigned — no named Responsible`}
+          className="rounded bg-rose-500 px-1 text-rose-50"
+        >
+          {rollup.unassigned}U
+        </span>
+      )}
       {rollup.blocked > 0 && (
         <span
           title={`${rollup.blocked} blocked`}

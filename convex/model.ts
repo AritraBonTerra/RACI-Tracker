@@ -24,6 +24,9 @@ export type TaskOwner = Infer<typeof taskOwner>;
 export const SEASON_PHASES = [0] as const satisfies readonly PhaseNumber[];
 export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly PhaseNumber[];
 export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
+export const ALL_PHASES = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8,
+] as const satisfies readonly PhaseNumber[];
 
 /** The tier a phase belongs to: 0 -> season, 1-4 -> chain plan, 5-8 -> promotion. */
 export function tierForPhase(value: PhaseNumber): TaskOwner["tier"] {
@@ -122,7 +125,17 @@ export async function raciDefaults(ctx: QueryCtx, phases: readonly PhaseNumber[]
           const fn = byId.get(row.functionId);
           if (fn === undefined) return [];
           if (row.roles.length === 0 && row.note === undefined) return [];
-          return [{ order: fn.order, functionName: fn.name, roles: row.roles, note: row.note }];
+          // `functionId` lets a person picker match the matrix against the
+          // directory without comparing display names.
+          return [
+            {
+              order: fn.order,
+              functionId: fn._id,
+              functionName: fn.name,
+              roles: row.roles,
+              note: row.note,
+            },
+          ];
         })
         .sort((a, b) => a.order - b.order);
 
@@ -141,6 +154,7 @@ export function rollup(tasks: readonly Doc<"tasks">[], today: string) {
   let notStarted = 0;
   let overdue = 0;
   let unassigned = 0;
+  let missingAccountable = 0;
 
   for (const task of tasks) {
     if (task.status === "delivered") delivered += 1;
@@ -149,10 +163,10 @@ export function rollup(tasks: readonly Doc<"tasks">[], today: string) {
     else notStarted += 1;
 
     // Overdue is derived, never stored: past ETA and not yet delivered.
-    if (task.status !== "delivered" && task.eta !== undefined && task.eta < today) {
-      overdue += 1;
-    }
+    if (isOverdue(task, today)) overdue += 1;
     if (task.responsiblePersonId === undefined) unassigned += 1;
+    // The softer warning: nobody owns the outcome, even if someone is doing it.
+    if (task.accountablePersonId === undefined) missingAccountable += 1;
   }
 
   return {
@@ -163,7 +177,92 @@ export function rollup(tasks: readonly Doc<"tasks">[], today: string) {
     notStarted,
     overdue,
     unassigned,
+    missingAccountable,
   };
+}
+
+/** Past ETA and not yet delivered (CONTEXT.md: Overdue). Never stored. */
+export function isOverdue(task: Doc<"tasks">, today: string): boolean {
+  return task.status !== "delivered" && task.eta !== undefined && task.eta < today;
+}
+
+/**
+ * Where a task lives, in the shape a cross-cutting view needs: enough to name
+ * the owner and to build a deep link back to the page the task is edited on.
+ * The season/plan/promotion split mirrors `TaskOwner` so the client can turn a
+ * place straight into a route.
+ */
+export type TaskPlace =
+  | { tier: "season"; seasonId: Id<"seasons">; label: string; chain: string | null }
+  | { tier: "chainPlan"; chainPlanId: Id<"chainPlans">; label: string; chain: string | null }
+  | { tier: "promotion"; promotionId: Id<"promotions">; label: string; chain: string | null };
+
+/** A read-through cache for one query's worth of lookups in a single table. */
+function memo<Table extends TableNames>(ctx: QueryCtx) {
+  const seen = new Map<Id<Table>, Doc<Table> | null>();
+  return async (id: Id<Table>): Promise<Doc<Table> | null> => {
+    const hit = seen.get(id);
+    if (hit !== undefined) return hit;
+    const doc = await ctx.db.get(id);
+    seen.set(id, doc);
+    return doc;
+  };
+}
+
+/**
+ * Resolves the owner of tasks drawn from every tier at once — the dashboard's
+ * needs-attention rail, a person's workload. Owners are cached per resolver, so
+ * a promotion's twelve rows cost one read, not twelve.
+ */
+export function placeResolver(ctx: QueryCtx) {
+  const seasonOf = memo<"seasons">(ctx);
+  const planOf = memo<"chainPlans">(ctx);
+  const promotionOf = memo<"promotions">(ctx);
+  const chainOf = memo<"chains">(ctx);
+
+  return async function placeOf(task: Doc<"tasks">): Promise<TaskPlace> {
+    if (task.promotionId !== undefined) {
+      const promotion = await promotionOf(task.promotionId);
+      const chain = promotion === null ? null : await chainOf(promotion.chainId);
+      return {
+        tier: "promotion",
+        promotionId: task.promotionId,
+        label: promotion?.name ?? "Deleted promotion",
+        chain: chain?.name ?? null,
+      };
+    }
+    if (task.chainPlanId !== undefined) {
+      const plan = await planOf(task.chainPlanId);
+      const chain = plan === null ? null : await chainOf(plan.chainId);
+      return {
+        tier: "chainPlan",
+        chainPlanId: task.chainPlanId,
+        label: chain === null ? "Chain plan" : `${chain.name} plan`,
+        chain: chain?.name ?? null,
+      };
+    }
+    if (task.seasonId !== undefined) {
+      const season = await seasonOf(task.seasonId);
+      return {
+        tier: "season",
+        seasonId: task.seasonId,
+        label: season === null ? "Season" : `Season ${season.label}`,
+        chain: null,
+      };
+    }
+    throw new ConvexError("Task is not attached to a season, chain plan or promotion.");
+  };
+}
+
+/**
+ * The order the needs-attention rail lists work in: soonest ETA first, because
+ * the thing that is latest is the thing to argue about. Tasks with no ETA sit
+ * at the end — undated work cannot be late, only unowned.
+ */
+export function byEta(a: Doc<"tasks">, b: Doc<"tasks">) {
+  if (a.eta === undefined) return b.eta === undefined ? a.order - b.order : 1;
+  if (b.eta === undefined) return -1;
+  return a.eta.localeCompare(b.eta);
 }
 
 /** Appends to a checklist: one past the current highest `order`. */

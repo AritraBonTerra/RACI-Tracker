@@ -1,16 +1,18 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
-import type { Doc, Id } from "../../convex/_generated/dataModel";
+import type { Doc } from "../../convex/_generated/dataModel";
 import { dueLabel, formatDay, isOverdue } from "../lib/dates";
 import { STATUSES, STATUS_ORDER, type TaskStatus } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 import { InlineDate, InlineNumber, InlineText } from "./inline";
-import { Button, ConfirmButton, Pill } from "./ui";
+import { AssignButton, RaciEditor } from "./RaciEditor";
+import { Button, ConfirmButton } from "./ui";
 
 // One checklist row. Everything visible on it is editable where it sits: status,
-// ETA, spec, quantity, and — behind the caret — the RACI names and the delivery
-// evidence. Overdue and Blocked are the two states that get to shout.
+// ETA, spec, quantity, who is Responsible, and — behind the caret — the full
+// RACI block and the delivery evidence. Overdue and Blocked are the two states
+// that get to shout; Unassigned shouts loudest, from the assign button itself.
 
 export function TaskRow({
   task,
@@ -18,27 +20,34 @@ export function TaskRow({
   people,
   isFirst,
   isLast,
+  focused = false,
 }: {
   task: Doc<"tasks">;
   today: string;
   people: PeopleDirectory;
   isFirst: boolean;
   isLast: boolean;
+  /** Arrived here from a needs-attention link: open the row and scroll to it. */
+  focused?: boolean;
 }) {
   const update = useReportedMutation(api.tasks.update);
   const setStatus = useReportedMutation(api.tasks.setStatus);
   const remove = useReportedMutation(api.tasks.remove);
   const move = useReportedMutation(api.tasks.move);
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(focused);
   // Non-null while the row is asking for the reason a task is being blocked.
   const [blockDraft, setBlockDraft] = useState<string | null>(null);
+  const row = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    if (!focused) return;
+    setExpanded(true);
+    row.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused]);
 
   const status = STATUSES[task.status];
   const overdue = isOverdue(task.eta, task.status, today);
-  const responsible = task.responsiblePersonId
-    ? people.byId.get(task.responsiblePersonId)
-    : undefined;
 
   const changeStatus = (next: TaskStatus) => {
     if (next === "blocked") {
@@ -51,7 +60,12 @@ export function TaskRow({
   };
 
   return (
-    <li className="group relative border-b border-slate-800/70 last:border-b-0">
+    <li
+      ref={row}
+      className={`group relative border-b border-slate-800/70 last:border-b-0 ${
+        focused ? "bg-sky-500/5 ring-1 ring-sky-400/50 ring-inset" : ""
+      }`}
+    >
       <span
         aria-hidden
         className={`absolute inset-y-0 left-0 w-[3px] ${overdue ? "bg-amber-400" : status.edge}`}
@@ -143,19 +157,9 @@ export function TaskRow({
           />
         </div>
 
+        {/* The fast path: assigning a Responsible without opening the row. */}
         <div className="hidden w-40 shrink-0 pt-0.5 xl:block">
-          {responsible === undefined ? (
-            <Pill className="bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/40 ring-inset">
-              Unassigned
-            </Pill>
-          ) : (
-            <span
-              className="block truncate text-xs text-slate-300"
-              title={responsible.function?.name}
-            >
-              {responsible.name}
-            </span>
-          )}
+          <AssignButton task={task} people={people} />
         </div>
 
         <div className="shrink-0 pt-0.5">
@@ -206,60 +210,46 @@ export function TaskRow({
       </div>
 
       {expanded && (
-        <div className="grid gap-x-6 gap-y-3 border-t border-slate-800/70 bg-slate-950/40 px-4 py-3 pl-8 md:grid-cols-2 xl:grid-cols-4">
-          <Detail label="Responsible">
-            <PersonSelect
-              value={task.responsiblePersonId}
-              people={people}
-              emptyLabel="— Unassigned —"
-              onChange={(responsiblePersonId) =>
-                void update({ taskId: task._id, responsiblePersonId })
-              }
-            />
-          </Detail>
-          <Detail label="Accountable">
-            <PersonSelect
-              value={task.accountablePersonId}
-              people={people}
-              emptyLabel="— No owner —"
-              onChange={(accountablePersonId) =>
-                void update({ taskId: task._id, accountablePersonId })
-              }
-            />
-          </Detail>
-          <Detail label="Category">
-            <InlineText
-              value={task.category}
-              placeholder="Ungrouped"
-              onCommit={(category) => void update({ taskId: task._id, category })}
-              className="text-xs text-slate-300"
-            />
-          </Detail>
-          <Detail label="Delivered to">
-            <InlineText
-              value={task.deliveredTo}
-              placeholder="Who received it?"
-              onCommit={(deliveredTo) => void update({ taskId: task._id, deliveredTo })}
-              className="text-xs text-slate-300"
-            />
-          </Detail>
-          <Detail label="Proof of execution" className="md:col-span-2">
-            <InlineText
-              value={task.proofOfExecution}
-              placeholder="Photo audit, receipt, deck…"
-              onCommit={(proofOfExecution) => void update({ taskId: task._id, proofOfExecution })}
-              className="text-xs text-slate-300"
-            />
-          </Detail>
-          <Detail label="Notes" className="md:col-span-2">
-            <InlineText
-              value={task.notes}
-              multiline
-              placeholder="Add a note…"
-              onCommit={(notes) => void update({ taskId: task._id, notes })}
-              className="text-xs text-slate-300"
-            />
-          </Detail>
+        <div className="border-t border-slate-800/70 bg-slate-950/40 px-4 py-3 pl-8">
+          <RaciEditor task={task} people={people} />
+
+          <div className="mt-3 grid gap-x-6 gap-y-3 md:grid-cols-2 xl:grid-cols-4">
+            <Detail label="Category">
+              <InlineText
+                value={task.category}
+                placeholder="Ungrouped"
+                onCommit={(category) => void update({ taskId: task._id, category })}
+                className="text-xs text-slate-300"
+              />
+            </Detail>
+            <Detail label="Delivered to">
+              <InlineText
+                value={task.deliveredTo}
+                placeholder="Who received it?"
+                onCommit={(deliveredTo) => void update({ taskId: task._id, deliveredTo })}
+                className="text-xs text-slate-300"
+              />
+            </Detail>
+            <Detail label="Proof of execution" className="md:col-span-2">
+              <InlineText
+                value={task.proofOfExecution}
+                placeholder="Photo audit, receipt, deck…"
+                onCommit={(proofOfExecution) =>
+                  void update({ taskId: task._id, proofOfExecution })
+                }
+                className="text-xs text-slate-300"
+              />
+            </Detail>
+            <Detail label="Notes" className="md:col-span-4">
+              <InlineText
+                value={task.notes}
+                multiline
+                placeholder="Add a note…"
+                onCommit={(notes) => void update({ taskId: task._id, notes })}
+                className="text-xs text-slate-300"
+              />
+            </Detail>
+          </div>
         </div>
       )}
     </li>
@@ -322,42 +312,5 @@ function BlockReasonPrompt({
         </Button>
       </div>
     </div>
-  );
-}
-
-/** People grouped by their Function, with Unassigned as a first-class choice. */
-export function PersonSelect({
-  value,
-  people,
-  onChange,
-  emptyLabel = "— None —",
-  className = "",
-}: {
-  value: Id<"people"> | undefined;
-  people: PeopleDirectory;
-  onChange: (next: Id<"people"> | null) => void;
-  emptyLabel?: string;
-  className?: string;
-}) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(event) => {
-        const person = people.list.find((candidate) => candidate._id === event.target.value);
-        onChange(person?._id ?? null);
-      }}
-      className={`w-full cursor-pointer rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 hover:border-slate-500 focus:border-emerald-500 focus:outline-none ${className}`}
-    >
-      <option value="">{emptyLabel}</option>
-      {people.byFunction.map((group) => (
-        <optgroup key={group.name} label={group.name}>
-          {group.people.map((person) => (
-            <option key={person._id} value={person._id}>
-              {person.name}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
   );
 }

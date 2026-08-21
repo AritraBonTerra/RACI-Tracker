@@ -81,7 +81,7 @@ export function NotFound({ what }: { what: string }) {
         href="#/"
         className="text-xs font-medium text-emerald-400 hover:text-emerald-300"
       >
-        Back to the season
+        Back to the dashboard
       </a>
     </div>
   );

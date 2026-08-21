@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api } from "../../convex/_generated/api";
-import type { Doc } from "../../convex/_generated/dataModel";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
 import type { TaskOwner } from "../../convex/model";
 import { PHASES, roleLetters, type PhaseNumber } from "../lib/domain";
@@ -23,6 +23,7 @@ export function PhaseChecklist({
   today,
   people,
   raciDefault,
+  focusTaskId,
 }: {
   phase: PhaseNumber;
   owner: TaskOwner;
@@ -30,6 +31,8 @@ export function PhaseChecklist({
   today: string;
   people: PeopleDirectory;
   raciDefault?: RaciDefault;
+  /** The row a needs-attention link pointed at, if it lives in this phase. */
+  focusTaskId?: Id<"tasks">;
 }) {
   const rows = tasks.filter((task) => task.phase === phase);
   const meta = PHASES[phase];
@@ -109,6 +112,7 @@ export function PhaseChecklist({
                   people={people}
                   isFirst={index === 0 && group === groups[0]}
                   isLast={index === group.tasks.length - 1 && group === groups.at(-1)}
+                  focused={task._id === focusTaskId}
                 />
               ))}
             </ul>

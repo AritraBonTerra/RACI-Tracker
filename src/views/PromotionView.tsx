@@ -21,10 +21,12 @@ export function PromotionView({
   promotionId,
   today,
   people,
+  focusTaskId,
 }: {
   promotionId: Id<"promotions">;
   today: string;
   people: PeopleDirectory;
+  focusTaskId?: Id<"tasks">;
 }) {
   const data = useQuery(api.promotions.get, { promotionId, today });
   const update = useReportedMutation(api.promotions.update);
@@ -152,6 +154,7 @@ export function PromotionView({
           today={today}
           people={people}
           raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
+          focusTaskId={focusTaskId}
         />
       ))}
 

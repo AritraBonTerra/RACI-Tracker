@@ -11,9 +11,11 @@
 import type * as brands from "../brands.js";
 import type * as chainPlans from "../chainPlans.js";
 import type * as chains from "../chains.js";
+import type * as home from "../home.js";
 import type * as model from "../model.js";
 import type * as people from "../people.js";
 import type * as promotions from "../promotions.js";
+import type * as raci from "../raci.js";
 import type * as seasons from "../seasons.js";
 import type * as seed from "../seed.js";
 import type * as tasks from "../tasks.js";
@@ -28,9 +30,11 @@ declare const fullApi: ApiFromModules<{
   brands: typeof brands;
   chainPlans: typeof chainPlans;
   chains: typeof chains;
+  home: typeof home;
   model: typeof model;
   people: typeof people;
   promotions: typeof promotions;
+  raci: typeof raci;
   seasons: typeof seasons;
   seed: typeof seed;
   tasks: typeof tasks;

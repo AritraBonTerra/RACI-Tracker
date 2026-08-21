@@ -1,39 +1,60 @@
 import { useSyncExternalStore } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 
-// Hash routing, hand-rolled: five views and no nested layouts do not justify a
-// router dependency, and a hash keeps every view linkable on a static host.
+// Hash routing, hand-rolled: a handful of views and no nested layouts do not
+// justify a router dependency, and a hash keeps every view linkable on a static
+// host.
+//
+// A tier route may carry a task to focus (`#/promotion/<id>/task/<taskId>`),
+// which is how the dashboard's needs-attention rail lands you on the exact row
+// rather than somewhere on the right page.
 
 export type Route =
   | { name: "home" }
-  | { name: "season"; seasonId: Id<"seasons"> }
-  | { name: "plan"; chainPlanId: Id<"chainPlans"> }
-  | { name: "promotion"; promotionId: Id<"promotions"> }
+  | { name: "season"; seasonId: Id<"seasons">; focusTaskId?: Id<"tasks"> }
+  | { name: "plan"; chainPlanId: Id<"chainPlans">; focusTaskId?: Id<"tasks"> }
+  | { name: "promotion"; promotionId: Id<"promotions">; focusTaskId?: Id<"tasks"> }
+  | { name: "people"; personId?: Id<"people"> }
   | { name: "manage" };
+
+function withTask(base: string, focusTaskId: Id<"tasks"> | undefined) {
+  return focusTaskId === undefined ? base : `${base}/task/${focusTaskId}`;
+}
 
 export function href(route: Route): string {
   switch (route.name) {
     case "home":
       return "#/";
     case "season":
-      return `#/season/${route.seasonId}`;
+      return withTask(`#/season/${route.seasonId}`, route.focusTaskId);
     case "plan":
-      return `#/plan/${route.chainPlanId}`;
+      return withTask(`#/plan/${route.chainPlanId}`, route.focusTaskId);
     case "promotion":
-      return `#/promotion/${route.promotionId}`;
+      return withTask(`#/promotion/${route.promotionId}`, route.focusTaskId);
+    case "people":
+      return route.personId === undefined ? "#/people" : `#/people/${route.personId}`;
     case "manage":
       return "#/manage";
   }
 }
 
 function parse(hash: string): Route {
-  const [view, id] = hash.replace(/^#\/?/, "").split("/");
+  const [view, id, sub, subId] = hash.replace(/^#\/?/, "").split("/");
   // Ids only ever arrive as opaque strings from the URL bar; Convex rejects a
   // fabricated one at the query boundary, which surfaces as "no longer exists".
-  if (view === "season" && id) return { name: "season", seasonId: id as Id<"seasons"> };
-  if (view === "plan" && id) return { name: "plan", chainPlanId: id as Id<"chainPlans"> };
+  const focusTaskId = sub === "task" && subId ? (subId as Id<"tasks">) : undefined;
+
+  if (view === "season" && id) {
+    return { name: "season", seasonId: id as Id<"seasons">, focusTaskId };
+  }
+  if (view === "plan" && id) {
+    return { name: "plan", chainPlanId: id as Id<"chainPlans">, focusTaskId };
+  }
   if (view === "promotion" && id) {
-    return { name: "promotion", promotionId: id as Id<"promotions"> };
+    return { name: "promotion", promotionId: id as Id<"promotions">, focusTaskId };
+  }
+  if (view === "people") {
+    return { name: "people", personId: id ? (id as Id<"people">) : undefined };
   }
   if (view === "manage") return { name: "manage" };
   return { name: "home" };
@@ -55,4 +76,22 @@ export function useRoute(): Route {
 
 export function navigate(route: Route) {
   window.location.hash = href(route);
+}
+
+/** The page a task is edited on, from the place the backend resolved for it. */
+export function placeRoute(
+  place:
+    | { tier: "season"; seasonId: Id<"seasons"> }
+    | { tier: "chainPlan"; chainPlanId: Id<"chainPlans"> }
+    | { tier: "promotion"; promotionId: Id<"promotions"> },
+  focusTaskId?: Id<"tasks">,
+): Route {
+  switch (place.tier) {
+    case "season":
+      return { name: "season", seasonId: place.seasonId, focusTaskId };
+    case "chainPlan":
+      return { name: "plan", chainPlanId: place.chainPlanId, focusTaskId };
+    case "promotion":
+      return { name: "promotion", promotionId: place.promotionId, focusTaskId };
+  }
 }

@@ -3,25 +3,47 @@ import { api } from "../../convex/_generated/api";
 import { formatRange } from "../lib/dates";
 import { href, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
-import { RollupChips, type Rollup } from "./Rollup";
+import { RollupChips, mergeRollups, type Rollup } from "./Rollup";
 import { Button } from "./ui";
 
-// The three-tier navigation: Season -> Chain Plans -> Promotions, with each
-// node carrying its own health so the sidebar answers "where is the trouble?"
-// before anything is clicked.
+// The navigation: the dashboard at the root, then the three tiers —
+// Season -> Chain Plans -> Promotions — with each node carrying its own health,
+// so the sidebar answers "where is the trouble?" before anything is clicked.
 
 type Tree = NonNullable<FunctionReturnType<typeof api.seasons.tree>>;
 
 export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
   const createPlan = useReportedMutation(api.chainPlans.create);
 
-  const seasonActive = route.name === "season" || route.name === "home";
+  // The root node speaks for the whole season, so it adds up every node below it.
+  const everything = mergeRollups([
+    tree.seasonRollup,
+    ...tree.chains.flatMap((chain) =>
+      chain.plans.flatMap((plan) => [
+        plan.rollup,
+        ...plan.promotions.map((promotion) => promotion.rollup),
+      ]),
+    ),
+  ]);
 
   return (
     <nav className="flex flex-col gap-1 overflow-y-auto px-3 py-4">
       <NodeLink
+        to={{ name: "home" }}
+        active={route.name === "home"}
+        depth={0}
+        label="Dashboard"
+        meta="Everything that needs attention"
+        rollup={everything}
+      />
+
+      <p className="mt-4 mb-1 px-2 text-[10px] font-semibold tracking-wider text-slate-600 uppercase">
+        Season
+      </p>
+
+      <NodeLink
         to={{ name: "season", seasonId: tree.season._id }}
-        active={seasonActive}
+        active={route.name === "season"}
         depth={0}
         label={`Season ${tree.season.label}`}
         meta="Phase 0 · Strategic foundation"
@@ -81,6 +103,22 @@ export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
           )}
         </div>
       ))}
+
+      <a
+        href={href({ name: "people" })}
+        className={`mt-4 flex items-center justify-between gap-2 rounded-lg px-2 py-1.5 transition ${
+          route.name === "people"
+            ? "bg-slate-800 text-slate-50 ring-1 ring-slate-700 ring-inset"
+            : "text-slate-300 hover:bg-slate-800/60"
+        }`}
+      >
+        <span className="min-w-0">
+          <span className="block text-sm font-medium">People</span>
+          <span className="block text-[11px] text-slate-500">
+            Directory and who is loaded
+          </span>
+        </span>
+      </a>
     </nav>
   );
 }

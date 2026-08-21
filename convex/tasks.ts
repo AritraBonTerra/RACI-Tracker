@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type QueryCtx } from "./_generated/server";
 import { phase, taskStatus } from "./schema";
 import {
@@ -35,6 +35,15 @@ function checkedQuantity(quantity: number | null | undefined): number | undefine
     throw new ConvexError("Quantity must be zero or more.");
   }
   return Math.round(quantity);
+}
+
+/**
+ * Cleans a Consulted/Informed list: no duplicates, and no ids whose person has
+ * since been deleted — an unresolvable id would render as a blank chip forever.
+ */
+async function livePeople(ctx: QueryCtx, ids: readonly Id<"people">[]) {
+  const found = await Promise.all([...new Set(ids)].map((id) => ctx.db.get(id)));
+  return found.filter((person) => person !== null).map((person) => person._id);
 }
 
 /** Adds a row to a phase checklist. Freeform: a name is the only requirement. */
@@ -89,6 +98,9 @@ export const update = mutation({
     proofOfExecution: v.optional(v.union(v.string(), v.null())),
     responsiblePersonId: v.optional(v.union(v.id("people"), v.null())),
     accountablePersonId: v.optional(v.union(v.id("people"), v.null())),
+    // C and I are whole-list replacements: the editor sends the set it wants.
+    consultedPersonIds: v.optional(v.array(v.id("people"))),
+    informedPersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
     const task = await mustGet(ctx, args.taskId, "task");
@@ -109,6 +121,12 @@ export const update = mutation({
     }
     if (args.accountablePersonId !== undefined) {
       patch.accountablePersonId = args.accountablePersonId ?? undefined;
+    }
+    if (args.consultedPersonIds !== undefined) {
+      patch.consultedPersonIds = await livePeople(ctx, args.consultedPersonIds);
+    }
+    if (args.informedPersonIds !== undefined) {
+      patch.informedPersonIds = await livePeople(ctx, args.informedPersonIds);
     }
 
     await ctx.db.patch(task._id, patch);

@@ -9,13 +9,16 @@ import { formatDay, todayIso } from "./lib/dates";
 import { usePeople } from "./lib/people";
 import { href, navigate, useRoute } from "./lib/router";
 import { ChainPlanView } from "./views/ChainPlanView";
+import { HomeView } from "./views/HomeView";
 import { ManageView } from "./views/ManageView";
+import { PeopleView } from "./views/PeopleView";
 import { PromotionView } from "./views/PromotionView";
 import { SeasonView } from "./views/SeasonView";
 
-// The shell: a season-scoped navigation tree on the left, one tier view on the
-// right. Every route is a hash link, so the browser's back button and a pasted
-// URL both land on the same promotion.
+// The shell: a season-scoped navigation tree on the left, one view on the right.
+// Every route is a hash link, so the browser's back button and a pasted URL both
+// land on the same promotion. `#/` is the dashboard — the screen the tool opens
+// on, because the first question is always "what needs attention?".
 
 export default function App() {
   // "Today" is fixed for the session so a long-lived tab does not silently
@@ -39,10 +42,15 @@ export default function App() {
 
   if (seasons === undefined) return <Splash>Connecting…</Splash>;
   if (seasons.length === 0) {
-    // Manage is the one view that still works with an empty database.
-    return route.name === "manage" ? (
+    // Manage and the directory are the two views that still work with an empty
+    // database — everything else hangs off a season.
+    return route.name === "manage" || route.name === "people" ? (
       <div className="min-h-screen bg-slate-950 px-6 py-8 text-slate-100">
-        <ManageView people={people} />
+        {route.name === "manage" ? (
+          <ManageView people={people} />
+        ) : (
+          <PeopleView today={today} personId={route.personId} />
+        )}
       </div>
     ) : (
       <NoSeasons />
@@ -58,7 +66,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-slate-800 bg-slate-950/95 px-5 py-3 backdrop-blur">
-        <a href={href({ name: "season", seasonId })} className="flex items-baseline gap-2.5">
+        <a href={href({ name: "home" })} className="flex items-baseline gap-2.5">
           <span className="text-sm font-semibold tracking-tight text-slate-50">
             RACI Tracker
           </span>
@@ -86,6 +94,12 @@ export default function App() {
             ))}
           </select>
           <Button
+            variant={route.name === "people" ? "secondary" : "ghost"}
+            onClick={() => navigate({ name: "people" })}
+          >
+            People
+          </Button>
+          <Button
             variant={route.name === "manage" ? "secondary" : "ghost"}
             onClick={() => navigate({ name: "manage" })}
           >
@@ -102,12 +116,31 @@ export default function App() {
         <main className="min-w-0 flex-1 px-5 py-6 lg:px-8">
           {route.name === "manage" ? (
             <ManageView people={people} />
+          ) : route.name === "people" ? (
+            <PeopleView today={today} personId={route.personId} />
           ) : route.name === "plan" ? (
-            <ChainPlanView chainPlanId={route.chainPlanId} today={today} people={people} />
+            <ChainPlanView
+              chainPlanId={route.chainPlanId}
+              today={today}
+              people={people}
+              focusTaskId={route.focusTaskId}
+            />
           ) : route.name === "promotion" ? (
-            <PromotionView promotionId={route.promotionId} today={today} people={people} />
+            <PromotionView
+              promotionId={route.promotionId}
+              today={today}
+              people={people}
+              focusTaskId={route.focusTaskId}
+            />
+          ) : route.name === "season" ? (
+            <SeasonPage
+              seasonId={seasonId}
+              today={today}
+              people={people}
+              focusTaskId={route.focusTaskId}
+            />
           ) : (
-            <SeasonPage seasonId={seasonId} today={today} people={people} />
+            <HomeView seasonId={seasonId} today={today} people={people} />
           )}
         </main>
       </div>
@@ -134,15 +167,25 @@ function SeasonPage({
   seasonId,
   today,
   people,
+  focusTaskId,
 }: {
   seasonId: Id<"seasons">;
   today: string;
   people: ReturnType<typeof usePeople>;
+  focusTaskId?: Id<"tasks">;
 }) {
   const tree = useQuery(api.seasons.tree, { seasonId, today });
   if (tree === undefined) return <Loading what="the season" />;
   if (tree === null) return <NotFound what="season" />;
-  return <SeasonView seasonId={seasonId} today={today} people={people} tree={tree} />;
+  return (
+    <SeasonView
+      seasonId={seasonId}
+      today={today}
+      people={people}
+      tree={tree}
+      focusTaskId={focusTaskId}
+    />
+  );
 }
 
 function Splash({ children }: { children: string }) {

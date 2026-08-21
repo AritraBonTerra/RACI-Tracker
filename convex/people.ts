@@ -1,6 +1,14 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { mustGet, optionalText, requiredText } from "./model";
+import type { Doc, Id } from "./_generated/dataModel";
+import { mutation, query, type QueryCtx } from "./_generated/server";
+import {
+  byEta,
+  isOverdue,
+  mustGet,
+  optionalText,
+  placeResolver,
+  requiredText,
+} from "./model";
 
 // Named humans and the stakeholder buckets they belong to. A person is what
 // makes a task assigned; a function alone never is (CONTEXT.md: Unassigned).
@@ -28,6 +36,93 @@ export const listFunctions = query({
   handler: async (ctx) => {
     const functions = await ctx.db.query("functions").collect();
     return functions.sort((a, b) => a.order - b.order);
+  },
+});
+
+/**
+ * Every task one person is named on, as Responsible or Accountable or both.
+ * Deduplicated: a task where they are A/R is one row on their plate, not two.
+ */
+async function tasksOf(ctx: QueryCtx, personId: Id<"people">) {
+  const responsible = await ctx.db
+    .query("tasks")
+    .withIndex("by_responsible", (q) => q.eq("responsiblePersonId", personId))
+    .collect();
+  const accountable = await ctx.db
+    .query("tasks")
+    .withIndex("by_accountable", (q) => q.eq("accountablePersonId", personId))
+    .collect();
+
+  const merged = new Map<Id<"tasks">, Doc<"tasks">>();
+  for (const task of [...responsible, ...accountable]) merged.set(task._id, task);
+  return { responsible, accountable, all: [...merged.values()] };
+}
+
+/**
+ * The people directory: everyone grouped by Function, each carrying the load
+ * that answers "can this person take one more thing?" — how many tasks they are
+ * Responsible for, how many they are Accountable for, and how much of it is late.
+ */
+export const directory = query({
+  args: { today: v.string() },
+  handler: async (ctx, args) => {
+    const functions = (await ctx.db.query("functions").collect()).sort(
+      (a, b) => a.order - b.order,
+    );
+    const people = (await ctx.db.query("people").collect()).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+
+    const loaded = await Promise.all(
+      people.map(async (person) => {
+        const { responsible, accountable, all } = await tasksOf(ctx, person._id);
+        return {
+          person,
+          load: {
+            responsible: responsible.length,
+            accountable: accountable.length,
+            open: all.filter((task) => task.status !== "delivered").length,
+            overdue: all.filter((task) => isOverdue(task, args.today)).length,
+            blocked: all.filter((task) => task.status === "blocked").length,
+          },
+        };
+      }),
+    );
+
+    return functions.map((fn) => ({
+      function: fn,
+      people: loaded.filter((entry) => entry.person.functionId === fn._id),
+    }));
+  },
+});
+
+/**
+ * One person's plate, for the drill-down: their tasks across every tier with
+ * enough context to link back to the page each one is edited on.
+ */
+export const workload = query({
+  args: { personId: v.id("people"), today: v.string() },
+  handler: async (ctx, args) => {
+    const person = await ctx.db.get(args.personId);
+    if (person === null) return null;
+
+    const placeOf = placeResolver(ctx);
+    const { responsible, accountable, all } = await tasksOf(ctx, person._id);
+    const responsibleIds = new Set(responsible.map((task) => task._id));
+    const accountableIds = new Set(accountable.map((task) => task._id));
+
+    return {
+      person,
+      function: await ctx.db.get(person.functionId),
+      tasks: await Promise.all(
+        [...all].sort(byEta).map(async (task) => ({
+          task,
+          place: await placeOf(task),
+          isResponsible: responsibleIds.has(task._id),
+          isAccountable: accountableIds.has(task._id),
+        })),
+      ),
+    };
   },
 });
 

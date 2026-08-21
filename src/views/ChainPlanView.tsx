@@ -20,10 +20,12 @@ export function ChainPlanView({
   chainPlanId,
   today,
   people,
+  focusTaskId,
 }: {
   chainPlanId: Id<"chainPlans">;
   today: string;
   people: PeopleDirectory;
+  focusTaskId?: Id<"tasks">;
 }) {
   const data = useQuery(api.chainPlans.get, { chainPlanId, today });
   const update = useReportedMutation(api.chainPlans.update);
@@ -152,6 +154,7 @@ export function ChainPlanView({
           today={today}
           people={people}
           raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
+          focusTaskId={focusTaskId}
         />
       ))}
 

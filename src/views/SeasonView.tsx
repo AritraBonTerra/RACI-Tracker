@@ -24,11 +24,13 @@ export function SeasonView({
   today,
   people,
   tree,
+  focusTaskId,
 }: {
   seasonId: Id<"seasons">;
   today: string;
   people: PeopleDirectory;
   tree: Tree;
+  focusTaskId?: Id<"tasks">;
 }) {
   const data = useQuery(api.seasons.overview, { seasonId, today });
   const update = useReportedMutation(api.seasons.update);
@@ -78,6 +80,7 @@ export function SeasonView({
           today={today}
           people={people}
           raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
+          focusTaskId={focusTaskId}
         />
       ))}
 

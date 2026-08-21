@@ -10,10 +10,16 @@ import type { Id } from "../../convex/_generated/dataModel";
 
 export type Person = FunctionReturnType<typeof api.people.list>[number];
 
+export type PeopleGroup = {
+  functionId: Id<"functions">;
+  name: string;
+  people: readonly Person[];
+};
+
 export type PeopleDirectory = {
   list: readonly Person[];
   byId: ReadonlyMap<Id<"people">, Person>;
-  byFunction: ReadonlyArray<{ name: string; people: readonly Person[] }>;
+  byFunction: readonly PeopleGroup[];
 };
 
 const EMPTY: readonly Person[] = [];
@@ -26,12 +32,18 @@ export function usePeople(): PeopleDirectory {
     const byId = new Map(list.map((person) => [person._id, person]));
 
     // `list` already arrives ordered by function, so grouping is a single pass.
-    const byFunction: Array<{ name: string; people: Person[] }> = [];
+    const byFunction: Array<{ functionId: Id<"functions">; name: string; people: Person[] }> =
+      [];
     for (const person of list) {
-      const name = person.function?.name ?? "Unassigned function";
       const group = byFunction.at(-1);
-      if (group?.name === name) group.people.push(person);
-      else byFunction.push({ name, people: [person] });
+      if (group?.functionId === person.functionId) group.people.push(person);
+      else {
+        byFunction.push({
+          functionId: person.functionId,
+          name: person.function?.name ?? "Unassigned function",
+          people: [person],
+        });
+      }
     }
 
     return { list, byId, byFunction };
