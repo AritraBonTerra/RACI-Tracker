@@ -12,6 +12,7 @@ import type * as brands from "../brands.js";
 import type * as chainPlans from "../chainPlans.js";
 import type * as chains from "../chains.js";
 import type * as home from "../home.js";
+import type * as kpi from "../kpi.js";
 import type * as model from "../model.js";
 import type * as people from "../people.js";
 import type * as promotions from "../promotions.js";
@@ -31,6 +32,7 @@ declare const fullApi: ApiFromModules<{
   chainPlans: typeof chainPlans;
   chains: typeof chains;
   home: typeof home;
+  kpi: typeof kpi;
   model: typeof model;
   people: typeof people;
   promotions: typeof promotions;

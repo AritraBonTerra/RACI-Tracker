@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { phase } from "./schema";
+import { removeForPromotion } from "./kpi";
 import {
   PROMOTION_PHASES,
   deleteTasks,
@@ -122,10 +123,15 @@ export const update = mutation({
   },
 });
 
-/** A promotion owns its whole 5-8 checklist, so removing it removes those tasks. */
+/**
+ * A promotion owns its whole 5-8 checklist, so removing it removes those tasks —
+ * and its phase-7/8 measurement rows.
+ */
 export const remove = mutation({
   args: { promotionId: v.id("promotions") },
   handler: async (ctx, args) => {
+    // Detachable feature (#14): drop this line with `convex/kpi.ts`.
+    await removeForPromotion(ctx, args.promotionId);
     await deleteTasks(
       ctx,
       await ctx.db

@@ -1,7 +1,8 @@
 import { useQuery } from "convex/react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { KpiTable, RetroPanel } from "../components/KpiAndRetro";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import { RollupTiles } from "../components/Rollup";
 import { Breadcrumb, Loading, MetaItem, NotFound, PageHeader } from "../components/page";
@@ -146,16 +147,21 @@ export function PromotionView({
       <RollupTiles rollup={data.rollup} />
 
       {PROMOTION_PHASES.map((phase) => (
-        <PhaseChecklist
-          key={phase}
-          phase={phase}
-          owner={{ tier: "promotion", promotionId }}
-          tasks={data.tasks}
-          today={today}
-          people={people}
-          raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
-          focusTaskId={focusTaskId}
-        />
+        <Fragment key={phase}>
+          <PhaseChecklist
+            phase={phase}
+            owner={{ tier: "promotion", promotionId }}
+            tasks={data.tasks}
+            today={today}
+            people={people}
+            raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
+            focusTaskId={focusTaskId}
+          />
+          {/* Detachable phase-7/8 feature (#14): the KPI grid and the retro sit
+              under the checklist of the phase they belong to. */}
+          {phase === 7 && <KpiTable promotionId={promotionId} />}
+          {phase === 8 && <RetroPanel promotionId={promotionId} />}
+        </Fragment>
       ))}
 
       {editingBrands && (

@@ -36,6 +36,29 @@ export const raciRole = v.union(
 // Functions split into the deck's internal/external stakeholder groups.
 export const functionKind = v.union(v.literal("internal"), v.literal("external"));
 
+// --- Phase 7-8 measurement (detachable feature, #14) ----------------------
+// The two validators and the two tables at the bottom of the schema are the
+// whole storage footprint of the KPI table and the retro. Removing the feature
+// means deleting these four blocks plus `convex/kpi.ts`.
+
+// The slide-14 rows of the phase-7 KPI table. A closed set: the grid is the
+// deck's grid, and a promotion the sales team cannot compare to last year's is
+// worth less than one with five agreed metrics.
+export const kpiMetric = v.union(
+  v.literal("depletions"),
+  v.literal("pos"),
+  v.literal("cwd"),
+  v.literal("dollars_per_store_week"),
+  v.literal("investment"),
+);
+
+// The phase-8 verdict. "Maybe" is a real answer — most retros land there.
+export const repeatVerdict = v.union(
+  v.literal("yes"),
+  v.literal("no"),
+  v.literal("maybe"),
+);
+
 // Dates are ISO calendar days ("2026-10-31"), not timestamps: an ETA is a day a
 // human agreed to, with no timezone attached. ISO strings also sort
 // chronologically, so range indexes on them work.
@@ -177,4 +200,36 @@ export default defineSchema({
     .index("by_phase", ["phase"])
     .index("by_phase_and_function", ["phase", "functionId"])
     .index("by_function", ["functionId"]),
+
+  // --- Phase 7-8 measurement (detachable feature, #14) --------------------
+
+  // One row of the phase-7 KPI grid: a metric measured across the baseline and
+  // the promotional period. Every number is typed by a human — there are no
+  // data integrations, so a value is present only because someone entered it,
+  // and an absent value is left absent rather than defaulted to zero.
+  //
+  // Uplift is derived from the two columns, never stored. `upliftOverride` is
+  // the escape hatch for the row where subtraction says nothing useful ("$1.62
+  // margin per $1 spent" against an investment line), and it is free text
+  // because the thing it replaces is a sentence, not a number.
+  kpiEntries: defineTable({
+    promotionId: v.id("promotions"),
+    metric: kpiMetric,
+    baseline: v.optional(v.number()),
+    promotional: v.optional(v.number()),
+    upliftOverride: v.optional(v.string()),
+    note: v.optional(v.string()),
+  })
+    .index("by_promotion", ["promotionId"])
+    .index("by_promotion_and_metric", ["promotionId", "metric"]),
+
+  // The phase-8 review: at most one per promotion. Every field is optional
+  // because a retro gets written in the order the room talks, not top to bottom.
+  retros: defineTable({
+    promotionId: v.id("promotions"),
+    worked: v.optional(v.string()),
+    didntWork: v.optional(v.string()),
+    repeatNextYear: v.optional(repeatVerdict),
+    notes: v.optional(v.string()),
+  }).index("by_promotion", ["promotionId"]),
 });

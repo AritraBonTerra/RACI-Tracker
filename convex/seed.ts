@@ -18,6 +18,9 @@ type TaskFields = WithoutSystemFields<Doc<"tasks">>;
 // leaves a dangling reference behind.
 const SEEDED_TABLES = [
   "tasks",
+  // Detachable phase-7/8 feature (#14).
+  "kpiEntries",
+  "retros",
   "phaseRaciDefaults",
   "promotions",
   "chainPlans",
@@ -288,6 +291,53 @@ const PEOPLE = [
   title: string;
   organization: string;
 }[];
+
+// --- Phase 7-8 measurement (detachable feature, #14) ----------------------
+
+// The finished promotion's numbers: a 45-store, six-week Rosé feature that
+// worked. Baseline is the six weeks before the window, so $/store/wk lines up
+// with POS divided by 45 stores and 6 weeks — a demo where the figures do not
+// reconcile invites the wrong conversation.
+const SUMMER_ROSE_KPIS = [
+  {
+    metric: "depletions",
+    baseline: 1240,
+    promotional: 1980,
+    note: "9L cases into Albertsons DCs, Mendocino + Bonterra combined.",
+  },
+  {
+    metric: "pos",
+    baseline: 168400,
+    promotional: 261900,
+    note: "Circana scan, 45 stores, six weeks either side of the window.",
+  },
+  {
+    metric: "cwd",
+    baseline: 62,
+    promotional: 88,
+    note: "Four stores never built the display, so 88% is the ceiling we hit.",
+  },
+  { metric: "dollars_per_store_week", baseline: 623.7, promotional: 970 },
+  {
+    metric: "investment",
+    promotional: 18400,
+    upliftOverride: "$1.62 margin per $1 spent",
+    note: "Scan-back at $1.50/bottle plus display fees. Baseline spend was zero, so the return is the honest read, not a difference.",
+  },
+] as const satisfies readonly Omit<
+  WithoutSystemFields<Doc<"kpiEntries">>,
+  "promotionId"
+>[];
+
+const SUMMER_ROSE_RETRO = {
+  worked:
+    "The quarter-pallet at the head of the wine aisle. 41 of 45 stores had it built in week one, and rate of sale went from $624 to $970 per store per week — the best summer number the account has posted.",
+  didntWork:
+    "The four stores that never built it, and the fact that nobody noticed until the audit. Depletion data also landed three weeks after the window closed, so there was no chance to react mid-flight.",
+  repeatNextYear: "yes",
+  notes:
+    "Repeat in 2027 with the same six-week window, but pull POS weekly instead of at the end, and hold the distributor to a build photo in week one. Feed the $970 rate of sale into next season's phase-0 targets.",
+} as const satisfies Omit<WithoutSystemFields<Doc<"retros">>, "promotionId">;
 
 // --- Insert helpers -------------------------------------------------------
 
@@ -995,7 +1045,17 @@ export const run = internalMutation({
       endDate: "2026-07-06",
       storeCount: 45,
       currentPhase: 7,
-      notes: "Completed in market; measurement and retro outstanding.",
+      notes:
+        "Completed in market. Numbers are in and the retro is written up; the phase 7-8 tasks behind them were never closed out.",
+    });
+
+    // The one promotion far enough along to have a filled KPI grid and a retro.
+    for (const entry of SUMMER_ROSE_KPIS) {
+      await ctx.db.insert("kpiEntries", { promotionId: summerRoseId, ...entry });
+    }
+    await ctx.db.insert("retros", {
+      promotionId: summerRoseId,
+      ...SUMMER_ROSE_RETRO,
     });
 
     taskCount += await insertChecklist(
@@ -1149,6 +1209,8 @@ export const run = internalMutation({
       promotions: 4,
       phaseRaciDefaults: matrixRows,
       tasks: taskCount,
+      kpiEntries: SUMMER_ROSE_KPIS.length,
+      retros: 1,
     };
   },
 });
