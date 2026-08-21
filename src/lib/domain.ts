@@ -34,7 +34,10 @@ export const PHASES: Record<PhaseNumber, PhaseMeta> = {
     title: "Activation planning",
     summary: "Stores, mechanics, brand support, distributor execution.",
   },
-  6: { title: "Retail execution", summary: "Sell-in, CWD, compliance, proof of execution." },
+  6: {
+    title: "Retail execution",
+    summary: "Sell-in, CWD, compliance, proof of execution.",
+  },
   7: { title: "Tracking & measurement", summary: "Depletions, POS, $/store/wk, ROI." },
   8: { title: "Review", summary: "Worked / didn't / repeat next year." },
 };
@@ -42,7 +45,9 @@ export const PHASES: Record<PhaseNumber, PhaseMeta> = {
 export const SEASON_PHASES = [0] as const satisfies readonly PhaseNumber[];
 export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly PhaseNumber[];
 export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
-export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
+export const ALL_PHASES = [
+  0, 1, 2, 3, 4, 5, 6, 7, 8,
+] as const satisfies readonly PhaseNumber[];
 
 type StatusMeta = {
   label: string;
@@ -57,9 +62,9 @@ type StatusMeta = {
 export const STATUSES: Record<TaskStatus, StatusMeta> = {
   not_started: {
     label: "Not started",
-    pill: "bg-slate-800 text-slate-300 ring-1 ring-inset ring-slate-700",
-    dot: "border-2 border-slate-600",
-    edge: "bg-slate-700",
+    pill: "bg-ink-800 text-ink-300 ring-1 ring-inset ring-ink-700",
+    dot: "border-2 border-ink-600",
+    edge: "bg-ink-700",
   },
   in_progress: {
     label: "In progress",

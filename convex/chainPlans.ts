@@ -8,6 +8,7 @@ import {
   optionalText,
   raciDefaults,
   rollup,
+  fromUrl,
 } from "./model";
 
 // The middle tier: one chain x one season, carrying phases 1-4 (internal
@@ -18,9 +19,10 @@ import {
  * Null when the id no longer resolves — a deleted plan is a message, not a crash.
  */
 export const get = query({
-  args: { chainPlanId: v.id("chainPlans"), today: v.string() },
+  // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
+  args: { chainPlanId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const plan = await ctx.db.get(args.chainPlanId);
+    const plan = await fromUrl(ctx, "chainPlans", args.chainPlanId);
     if (plan === null) return null;
     const chain = await mustGet(ctx, plan.chainId, "chain");
     const season = await mustGet(ctx, plan.seasonId, "season");

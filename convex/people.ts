@@ -8,6 +8,7 @@ import {
   optionalText,
   placeResolver,
   requiredText,
+  fromUrl,
 } from "./model";
 
 // Named humans and the stakeholder buckets they belong to. A person is what
@@ -101,9 +102,10 @@ export const directory = query({
  * enough context to link back to the page each one is edited on.
  */
 export const workload = query({
-  args: { personId: v.id("people"), today: v.string() },
+  // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
+  args: { personId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const person = await ctx.db.get(args.personId);
+    const person = await fromUrl(ctx, "people", args.personId);
     if (person === null) return null;
 
     const placeOf = placeResolver(ctx);
@@ -130,7 +132,9 @@ export const renameFunction = mutation({
   args: { functionId: v.id("functions"), name: v.string() },
   handler: async (ctx, args) => {
     await mustGet(ctx, args.functionId, "function");
-    await ctx.db.patch(args.functionId, { name: requiredText(args.name, "Function name") });
+    await ctx.db.patch(args.functionId, {
+      name: requiredText(args.name, "Function name"),
+    });
   },
 });
 
@@ -168,7 +172,9 @@ export const update = mutation({
     if (args.functionId !== undefined) await mustGet(ctx, args.functionId, "function");
 
     await ctx.db.patch(args.personId, {
-      ...(args.name === undefined ? {} : { name: requiredText(args.name, "Person name") }),
+      ...(args.name === undefined
+        ? {}
+        : { name: requiredText(args.name, "Person name") }),
       ...(args.functionId === undefined ? {} : { functionId: args.functionId }),
       ...(args.title === undefined ? {} : { title: optionalText(args.title) }),
       ...(args.email === undefined ? {} : { email: optionalText(args.email) }),

@@ -93,6 +93,25 @@ export function requiredText(value: string, field: string): string {
   return trimmed;
 }
 
+/**
+ * Loads a document from an id that arrived off the URL bar.
+ *
+ * These ids are untrusted strings, which is why the queries behind a route take
+ * `v.string()` rather than `v.id()`: a mangled id — a link truncated by an email
+ * client, a hand-edited hash — would fail argument validation before the handler
+ * ran, and the client would get a server error instead of an answer.
+ * `normalizeId` turns "not an id for this table" into the same `null` a deleted
+ * row gives, so every dead link lands on the same "this is gone" screen.
+ */
+export async function fromUrl<Table extends TableNames>(
+  ctx: QueryCtx,
+  table: Table,
+  id: string,
+): Promise<Doc<Table> | null> {
+  const normalized = ctx.db.normalizeId(table, id);
+  return normalized === null ? null : await ctx.db.get(normalized);
+}
+
 /** Loads a document or fails loudly rather than returning a silent null. */
 export async function mustGet<Table extends TableNames>(
   ctx: QueryCtx,
@@ -194,8 +213,18 @@ export function isOverdue(task: Doc<"tasks">, today: string): boolean {
  */
 export type TaskPlace =
   | { tier: "season"; seasonId: Id<"seasons">; label: string; chain: string | null }
-  | { tier: "chainPlan"; chainPlanId: Id<"chainPlans">; label: string; chain: string | null }
-  | { tier: "promotion"; promotionId: Id<"promotions">; label: string; chain: string | null };
+  | {
+      tier: "chainPlan";
+      chainPlanId: Id<"chainPlans">;
+      label: string;
+      chain: string | null;
+    }
+  | {
+      tier: "promotion";
+      promotionId: Id<"promotions">;
+      label: string;
+      chain: string | null;
+    };
 
 /** A read-through cache for one query's worth of lookups in a single table. */
 function memo<Table extends TableNames>(ctx: QueryCtx) {

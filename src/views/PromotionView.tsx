@@ -5,7 +5,13 @@ import type { Id } from "../../convex/_generated/dataModel";
 import { KpiTable, RetroPanel } from "../components/KpiAndRetro";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import { RollupTiles } from "../components/Rollup";
-import { Breadcrumb, Loading, MetaItem, NotFound, PageHeader } from "../components/page";
+import {
+  Breadcrumb,
+  MetaItem,
+  NotFound,
+  PageHeader,
+  TierSkeleton,
+} from "../components/page";
 import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { Button, ConfirmButton, Modal, Pill } from "../components/ui";
 import { formatDay } from "../lib/dates";
@@ -34,7 +40,7 @@ export function PromotionView({
   const remove = useReportedMutation(api.promotions.remove);
   const [editingBrands, setEditingBrands] = useState(false);
 
-  if (data === undefined) return <Loading what="the promotion" />;
+  if (data === undefined) return <TierSkeleton />;
   if (data === null) return <NotFound what="promotion" />;
 
   return (
@@ -47,7 +53,10 @@ export function PromotionView({
                 label: `Season ${data.season.label}`,
                 to: { name: "season", seasonId: data.season._id },
               },
-              { label: data.chain.name, to: { name: "plan", chainPlanId: data.plan._id } },
+              {
+                label: data.chain.name,
+                to: { name: "plan", chainPlanId: data.plan._id },
+              },
               { label: "Promotion" },
             ]}
           />
@@ -81,14 +90,16 @@ export function PromotionView({
                     if (startDate !== null) void update({ promotionId, startDate });
                   }}
                   render={(value) => formatDay(value, today)}
+                  className="whitespace-nowrap"
                 />
-                <span className="text-slate-600">–</span>
+                <span className="text-ink-600">–</span>
                 <InlineDate
                   value={data.promotion.endDate}
                   onCommit={(endDate) => {
                     if (endDate !== null) void update({ promotionId, endDate });
                   }}
                   render={(value) => formatDay(value, today)}
+                  className="whitespace-nowrap"
                 />
               </span>
             </MetaItem>
@@ -115,12 +126,12 @@ export function PromotionView({
             <MetaItem label="Brands">
               <span className="flex flex-wrap items-center gap-1">
                 {data.brands.length === 0 ? (
-                  <span className="text-slate-600 italic">None</span>
+                  <span className="text-ink-600 italic">None</span>
                 ) : (
                   data.brands.map((brand) => (
                     <Pill
                       key={brand._id}
-                      className="bg-slate-800 text-slate-300 ring-1 ring-slate-700 ring-inset"
+                      className="bg-ink-800 text-ink-300 ring-1 ring-ink-700 ring-inset"
                     >
                       {brand.name}
                     </Pill>
@@ -134,7 +145,7 @@ export function PromotionView({
           </>
         }
       >
-        <div className="mt-2 max-w-3xl text-sm text-slate-400">
+        <div className="mt-2 max-w-3xl text-sm text-ink-400">
           <InlineText
             value={data.promotion.notes}
             multiline
@@ -224,8 +235,8 @@ function BrandPickerModal({
               }
               className={`rounded-full px-2.5 py-1 text-xs transition ${
                 on
-                  ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/60"
-                  : "bg-slate-800 text-slate-400 ring-1 ring-slate-700 hover:text-slate-200"
+                  ? "bg-sand-400/20 text-sand-100 ring-1 ring-sand-400/60"
+                  : "bg-ink-800 text-ink-400 ring-1 ring-ink-700 hover:text-ink-200"
               }`}
             >
               {brand.name}
@@ -233,7 +244,7 @@ function BrandPickerModal({
           );
         })}
       </div>
-      <p className="text-[11px] text-slate-500">
+      <p className="text-2xs text-ink-500">
         Brands are maintained in Manage. Placeholder entries stand in until the real
         portfolio is loaded.
       </p>

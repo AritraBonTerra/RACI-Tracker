@@ -61,7 +61,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             className={`pointer-events-auto max-w-lg rounded-lg px-4 py-3 text-left text-sm shadow-lg backdrop-blur transition ${
               toast.tone === "error"
                 ? "bg-rose-950/90 text-rose-100 ring-1 ring-rose-500/60"
-                : "bg-slate-800/95 text-slate-100 ring-1 ring-slate-600"
+                : "bg-ink-800/95 text-ink-100 ring-1 ring-ink-600"
             }`}
           >
             {toast.message}

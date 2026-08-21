@@ -9,6 +9,7 @@ import {
   isOverdue,
   placeResolver,
   rollup,
+  fromUrl,
   type PhaseNumber,
   type TaskPlace,
 } from "./model";
@@ -36,9 +37,10 @@ function phaseTrack(
 }
 
 export const dashboard = query({
-  args: { seasonId: v.id("seasons"), today: v.string() },
+  // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
+  args: { seasonId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const season = await ctx.db.get(args.seasonId);
+    const season = await fromUrl(ctx, "seasons", args.seasonId);
     if (season === null) return null;
 
     const placeOf = placeResolver(ctx);
@@ -111,7 +113,9 @@ export const dashboard = query({
 
     const sorted = [...all].sort(byEta);
     const withPlace = async (tasks: readonly Doc<"tasks">[]): Promise<Attention[]> =>
-      await Promise.all(tasks.map(async (task) => ({ task, place: await placeOf(task) })));
+      await Promise.all(
+        tasks.map(async (task) => ({ task, place: await placeOf(task) })),
+      );
 
     return {
       season,

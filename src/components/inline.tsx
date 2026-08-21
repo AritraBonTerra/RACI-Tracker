@@ -7,10 +7,10 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 // value never fires a mutation.
 
 const editorClass =
-  "w-full rounded border border-emerald-500/70 bg-slate-950 px-1.5 py-0.5 text-sm text-slate-100 focus:outline-none";
+  "w-full rounded border border-sand-500/70 bg-ink-950 px-1.5 py-0.5 text-sm text-ink-100 focus:outline-none";
 
 const displayClass =
-  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 text-left hover:bg-slate-800/70 focus-visible:bg-slate-800 focus-visible:outline-none";
+  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 text-left hover:bg-ink-800/70 focus-visible:bg-ink-800 focus-visible:outline-none";
 
 function focusAndSelect(element: HTMLInputElement | HTMLTextAreaElement | null) {
   if (element === null) return;
@@ -76,7 +76,7 @@ export function InlineText({
       type="button"
       title={title ?? "Click to edit"}
       onClick={() => setDraft(value ?? "")}
-      className={`${displayClass} ${empty ? "text-slate-600 italic" : ""} ${className}`}
+      className={`${displayClass} ${empty ? "text-ink-600 italic" : ""} ${className}`}
     >
       {empty ? placeholder : value}
     </button>
@@ -128,7 +128,7 @@ export function InlineNumber({
       type="button"
       title="Click to edit"
       onClick={() => setDraft(value === undefined ? "" : String(value))}
-      className={`${displayClass} text-right tabular-nums ${value === undefined ? "text-slate-600 italic" : ""} ${className}`}
+      className={`${displayClass} text-right tabular-nums ${value === undefined ? "text-ink-600 italic" : ""} ${className}`}
     >
       {value === undefined ? placeholder : value}
       {value !== undefined && suffix}
@@ -179,7 +179,7 @@ export function InlineDate({
       type="button"
       title="Click to set an ETA"
       onClick={() => setEditing(true)}
-      className={`${displayClass} ${value === undefined ? "text-slate-600 italic" : ""} ${className}`}
+      className={`${displayClass} ${value === undefined ? "text-ink-600 italic" : ""} ${className}`}
     >
       {value === undefined ? placeholder : (render?.(value) ?? value)}
     </button>
@@ -208,7 +208,7 @@ export function InlineSelect<Value extends string>({
         const next = options.find((option) => option.value === event.target.value);
         if (next !== undefined) onChange(next.value);
       }}
-      className={`cursor-pointer rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 hover:border-slate-500 focus:border-emerald-500 focus:outline-none ${className}`}
+      className={`cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-200 hover:border-ink-500 focus:border-sand-500 focus:outline-none ${className}`}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>

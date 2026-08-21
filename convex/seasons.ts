@@ -4,6 +4,7 @@ import {
   SEASON_PHASES,
   deleteTasks,
   mustGet,
+  fromUrl,
   optionalText,
   raciDefaults,
   requiredText,
@@ -26,9 +27,10 @@ export const list = query({
  * longer resolves, so a stale bookmark renders a message instead of an error.
  */
 export const overview = query({
-  args: { seasonId: v.id("seasons"), today: v.string() },
+  // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
+  args: { seasonId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const season = await ctx.db.get(args.seasonId);
+    const season = await fromUrl(ctx, "seasons", args.seasonId);
     if (season === null) return null;
     const tasks = await ctx.db
       .query("tasks")
@@ -50,9 +52,9 @@ export const overview = query({
  * no plan for this season are included, so a plan can be started from the tree.
  */
 export const tree = query({
-  args: { seasonId: v.id("seasons"), today: v.string() },
+  args: { seasonId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const season = await ctx.db.get(args.seasonId);
+    const season = await fromUrl(ctx, "seasons", args.seasonId);
     if (season === null) return null;
 
     const seasonTasks = await ctx.db
@@ -125,16 +127,16 @@ export const tree = query({
  */
 export const contextFor = query({
   args: {
-    chainPlanId: v.optional(v.id("chainPlans")),
-    promotionId: v.optional(v.id("promotions")),
+    chainPlanId: v.optional(v.string()),
+    promotionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (args.promotionId !== undefined) {
-      const promotion = await ctx.db.get(args.promotionId);
+      const promotion = await fromUrl(ctx, "promotions", args.promotionId);
       return promotion === null ? null : { seasonId: promotion.seasonId };
     }
     if (args.chainPlanId !== undefined) {
-      const plan = await ctx.db.get(args.chainPlanId);
+      const plan = await fromUrl(ctx, "chainPlans", args.chainPlanId);
       return plan === null ? null : { seasonId: plan.seasonId };
     }
     return null;
@@ -142,7 +144,11 @@ export const contextFor = query({
 });
 
 export const create = mutation({
-  args: { year: v.number(), label: v.optional(v.string()), notes: v.optional(v.string()) },
+  args: {
+    year: v.number(),
+    label: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("seasons")
@@ -167,7 +173,9 @@ export const update = mutation({
   handler: async (ctx, args) => {
     await mustGet(ctx, args.seasonId, "season");
     await ctx.db.patch(args.seasonId, {
-      ...(args.label === undefined ? {} : { label: requiredText(args.label, "Season label") }),
+      ...(args.label === undefined
+        ? {}
+        : { label: requiredText(args.label, "Season label") }),
       ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
     });
   },

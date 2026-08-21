@@ -4,9 +4,25 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import { RollupChips, RollupTiles } from "../components/Rollup";
-import { Breadcrumb, Loading, MetaItem, NotFound, PageHeader } from "../components/page";
+import {
+  Breadcrumb,
+  cardClass,
+  cardGrid,
+  MetaItem,
+  NotFound,
+  PageHeader,
+  TierSkeleton,
+} from "../components/page";
 import { InlineDate, InlineSelect, InlineText } from "../components/inline";
-import { Button, ConfirmButton, EmptyState, Field, Modal, Panel, inputClass } from "../components/ui";
+import {
+  Button,
+  ConfirmButton,
+  EmptyState,
+  Field,
+  Modal,
+  Panel,
+  inputClass,
+} from "../components/ui";
 import { formatDay, formatRange } from "../lib/dates";
 import { CHAIN_PLAN_PHASES, PHASES, toPhase } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
@@ -32,7 +48,7 @@ export function ChainPlanView({
   const remove = useReportedMutation(api.chainPlans.remove);
   const [creating, setCreating] = useState(false);
 
-  if (data === undefined) return <Loading what="the chain plan" />;
+  if (data === undefined) return <TierSkeleton />;
   if (data === null) return <NotFound what="chain plan" />;
 
   return (
@@ -41,7 +57,10 @@ export function ChainPlanView({
         eyebrow={
           <Breadcrumb
             trail={[
-              { label: `Season ${data.season.label}`, to: { name: "season", seasonId: data.season._id } },
+              {
+                label: `Season ${data.season.label}`,
+                to: { name: "season", seasonId: data.season._id },
+              },
               { label: "Chain plan" },
             ]}
           />
@@ -91,7 +110,7 @@ export function ChainPlanView({
           </>
         }
       >
-        <div className="mt-2 max-w-3xl text-sm text-slate-400">
+        <div className="mt-2 max-w-3xl text-sm text-ink-400">
           <InlineText
             value={data.plan.notes}
             multiline
@@ -113,29 +132,37 @@ export function ChainPlanView({
         }
       >
         {data.promotions.length === 0 ? (
-          <EmptyState>
-            No promotions yet. Add one once the agreement covers a program.
+          <EmptyState
+            title="No promotions under this plan yet"
+            action={
+              <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+                + Promotion
+              </Button>
+            }
+          >
+            A promotion is one approved program: this chain, a date window, a set of
+            stores. Phases 5–8 — activation, execution, measurement, review — hang off it.
           </EmptyState>
         ) : (
-          <div className="grid gap-px bg-slate-800 sm:grid-cols-2 xl:grid-cols-3">
+          <div className={cardGrid(data.promotions.length)}>
             {data.promotions.map((node) => (
               <a
                 key={node.promotion._id}
                 href={href({ name: "promotion", promotionId: node.promotion._id })}
-                className="bg-slate-900 p-4 transition hover:bg-slate-800/70"
+                className={cardClass}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-slate-100">
+                  <h3 className="text-sm font-semibold text-ink-100">
                     {node.promotion.name}
                   </h3>
                   <RollupChips rollup={node.rollup} />
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-ink-500">
                   {formatRange(node.promotion.startDate, node.promotion.endDate)}
                   {node.promotion.storeCount !== undefined &&
                     ` · ${node.promotion.storeCount} stores`}
                 </p>
-                <p className="mt-3 text-[11px] text-slate-500">
+                <p className="mt-3 text-2xs text-ink-500">
                   Phase {node.promotion.currentPhase} ·{" "}
                   {PHASES[node.promotion.currentPhase].title}
                 </p>
@@ -223,7 +250,7 @@ function NewPromotionModal({
           autoFocus
           value={name}
           onChange={(event) => setName(event.target.value)}
-          placeholder="Safeway Halloween Demo Program"
+          placeholder={`${chainName} Halloween Demo Program`}
           className={inputClass}
         />
       </Field>
@@ -270,8 +297,8 @@ function NewPromotionModal({
                 }
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   selected
-                    ? "bg-emerald-500/20 text-emerald-200 ring-1 ring-emerald-500/60"
-                    : "bg-slate-800 text-slate-400 ring-1 ring-slate-700 hover:text-slate-200"
+                    ? "bg-sand-400/20 text-sand-100 ring-1 ring-sand-400/60"
+                    : "bg-ink-800 text-ink-400 ring-1 ring-ink-700 hover:text-ink-200"
                 }`}
               >
                 {brand.name}
@@ -280,6 +307,11 @@ function NewPromotionModal({
           })}
         </div>
       </Field>
+      {!ready && (
+        <p className="text-2xs text-ink-500">
+          A program name and both dates are needed before this can be created.
+        </p>
+      )}
     </Modal>
   );
 }

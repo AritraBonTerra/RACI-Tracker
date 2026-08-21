@@ -3,8 +3,16 @@ import { useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { InlineText } from "../components/inline";
-import { Breadcrumb, Loading, PageHeader } from "../components/page";
-import { Button, ConfirmButton, EmptyState, Panel, Pill, inputClass } from "../components/ui";
+import { Breadcrumb, PageHeader } from "../components/page";
+import {
+  Button,
+  ConfirmButton,
+  EmptyState,
+  Panel,
+  Pill,
+  Skeleton,
+  inputClass,
+} from "../components/ui";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 
@@ -19,7 +27,7 @@ export function ManageView({ people }: { people: PeopleDirectory }) {
         eyebrow={<Breadcrumb trail={[{ label: "Manage" }]} />}
         title="Reference data"
         meta={
-          <span className="text-slate-500">
+          <span className="text-ink-500">
             Chains, brands and people feed every plan and promotion. Edit any value in
             place.
           </span>
@@ -35,8 +43,25 @@ export function ManageView({ people }: { people: PeopleDirectory }) {
 
 function Row({ children }: { children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 border-b border-slate-800/70 px-4 py-2 last:border-b-0 hover:bg-slate-800/30">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-ink-800/70 px-4 py-2.5 last:border-b-0 hover:bg-ink-800/30">
       {children}
+    </div>
+  );
+}
+
+/** Panel chrome with placeholder rows, so a panel never pops into existence. */
+function RowsSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div>
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-3 border-b border-ink-800/70 px-4 py-3 last:border-b-0"
+        >
+          <Skeleton className="h-3.5 w-40" />
+          <Skeleton className="h-3 min-w-0 flex-1" />
+        </div>
+      ))}
     </div>
   );
 }
@@ -60,7 +85,7 @@ function AddRow({
   };
 
   return (
-    <div className="flex items-center gap-2 border-t border-slate-800 bg-slate-950/40 px-4 py-2.5">
+    <div className="flex flex-wrap items-center gap-2 border-t border-ink-800 bg-ink-950/40 px-4 py-2.5">
       <input
         value={value}
         placeholder={placeholder}
@@ -68,7 +93,7 @@ function AddRow({
         onKeyDown={(event) => {
           if (event.key === "Enter") void submit();
         }}
-        className={`${inputClass} max-w-xs`}
+        className={`${inputClass} w-full sm:max-w-xs`}
       />
       {children?.({ disabled: value.trim() === "" })}
       <Button variant="primary" onClick={submit} disabled={value.trim() === ""}>
@@ -84,22 +109,25 @@ function ChainsPanel() {
   const update = useReportedMutation(api.chains.update);
   const remove = useReportedMutation(api.chains.remove);
 
-  if (chains === undefined) return <Loading what="chains" />;
-
   return (
     <Panel title="Chains" subtitle="Retail accounts a plan can be built for.">
-      {chains.length === 0 ? (
-        <EmptyState>No chains yet.</EmptyState>
+      {chains === undefined ? (
+        <RowsSkeleton />
+      ) : chains.length === 0 ? (
+        <EmptyState title="No chains yet">
+          A chain is a retail account — Safeway, Kroger, Ralphs. Add one and it becomes
+          available to plan against in every season.
+        </EmptyState>
       ) : (
         chains.map((chain) => (
           <Row key={chain._id}>
-            <div className="w-56 shrink-0 text-sm font-medium text-slate-100">
+            <div className="w-full text-sm font-medium text-ink-100 sm:w-56 sm:shrink-0">
               <InlineText
                 value={chain.name}
                 onCommit={(name) => void update({ chainId: chain._id, name })}
               />
             </div>
-            <div className="min-w-0 flex-1 text-xs text-slate-400">
+            <div className="min-w-40 flex-1 text-xs text-ink-400">
               <InlineText
                 value={chain.notes}
                 placeholder="Add a note…"
@@ -125,19 +153,22 @@ function BrandsPanel() {
   const update = useReportedMutation(api.brands.update);
   const remove = useReportedMutation(api.brands.remove);
 
-  if (brands === undefined) return <Loading what="brands" />;
-
   return (
     <Panel
       title="Brands"
       subtitle="What is being promoted. Placeholder entries stand in until the real portfolio lands."
     >
-      {brands.length === 0 ? (
-        <EmptyState>No brands yet.</EmptyState>
+      {brands === undefined ? (
+        <RowsSkeleton />
+      ) : brands.length === 0 ? (
+        <EmptyState title="No brands yet">
+          Brands are what a promotion is for. Add the ones you know and mark them
+          confirmed once the real portfolio lands.
+        </EmptyState>
       ) : (
         brands.map((brand) => (
           <Row key={brand._id}>
-            <div className="w-56 shrink-0 text-sm font-medium text-slate-100">
+            <div className="w-full text-sm font-medium text-ink-100 sm:w-56 sm:shrink-0">
               <InlineText
                 value={brand.name}
                 onCommit={(name) => void update({ brandId: brand._id, name })}
@@ -160,7 +191,7 @@ function BrandsPanel() {
                 {brand.isPlaceholder ? "Placeholder" : "Confirmed"}
               </Pill>
             </button>
-            <div className="min-w-0 flex-1 text-xs text-slate-400">
+            <div className="min-w-40 flex-1 text-xs text-ink-400">
               <InlineText
                 value={brand.notes}
                 placeholder="Add a note…"
@@ -180,6 +211,9 @@ function BrandsPanel() {
   );
 }
 
+const selectClass =
+  "h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500 focus:border-sand-500 focus:outline-none";
+
 function PeoplePanel({ people }: { people: PeopleDirectory }) {
   const functions = useQuery(api.people.listFunctions);
   const create = useReportedMutation(api.people.create);
@@ -188,9 +222,7 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
   const renameFunction = useReportedMutation(api.people.renameFunction);
   const [newFunctionId, setNewFunctionId] = useState<Id<"functions"> | "">("");
 
-  if (functions === undefined) return <Loading what="people" />;
-
-  const targetFunction = newFunctionId === "" ? functions[0]?._id : newFunctionId;
+  const targetFunction = newFunctionId === "" ? functions?.[0]?._id : newFunctionId;
 
   return (
     <>
@@ -198,18 +230,24 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
         title="People"
         subtitle="Named humans. Only a named person makes a task assigned — a function never does."
       >
-        {people.list.length === 0 ? (
-          <EmptyState>No people yet.</EmptyState>
+        {functions === undefined ? (
+          <RowsSkeleton rows={4} />
+        ) : people.list.length === 0 ? (
+          <EmptyState title="Nobody in the directory yet">
+            Add the humans behind the functions. Until you do, every task on every
+            checklist counts as unassigned.
+          </EmptyState>
         ) : (
           people.list.map((person) => (
             <Row key={person._id}>
-              <div className="w-48 shrink-0 text-sm font-medium text-slate-100">
+              <div className="w-full text-sm font-medium text-ink-100 sm:w-48 sm:shrink-0">
                 <InlineText
                   value={person.name}
                   onCommit={(name) => void update({ personId: person._id, name })}
                 />
               </div>
               <select
+                aria-label={`Function for ${person.name}`}
                 value={person.functionId}
                 onChange={(event) => {
                   const next = functions.find((fn) => fn._id === event.target.value);
@@ -217,7 +255,7 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
                     void update({ personId: person._id, functionId: next._id });
                   }
                 }}
-                className="w-56 shrink-0 cursor-pointer rounded-md border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 hover:border-slate-500 focus:border-emerald-500 focus:outline-none"
+                className={`${selectClass} w-56 shrink-0`}
               >
                 {functions.map((fn) => (
                   <option key={fn._id} value={fn._id}>
@@ -225,14 +263,14 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
                   </option>
                 ))}
               </select>
-              <div className="min-w-0 flex-1 text-xs text-slate-400">
+              <div className="min-w-32 flex-1 text-xs text-ink-400">
                 <InlineText
                   value={person.title}
                   placeholder="Title…"
                   onCommit={(title) => void update({ personId: person._id, title })}
                 />
               </div>
-              <div className="w-48 shrink-0 text-xs text-slate-400">
+              <div className="min-w-32 flex-1 text-xs text-ink-400 sm:w-48 sm:flex-none sm:shrink-0">
                 <InlineText
                   value={person.organization}
                   placeholder="Organization…"
@@ -255,14 +293,15 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
         >
           {() => (
             <select
+              aria-label="Function for the new person"
               value={targetFunction ?? ""}
               onChange={(event) => {
-                const next = functions.find((fn) => fn._id === event.target.value);
+                const next = functions?.find((fn) => fn._id === event.target.value);
                 setNewFunctionId(next?._id ?? "");
               }}
-              className="cursor-pointer rounded-md border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-slate-200 hover:border-slate-500 focus:outline-none"
+              className={selectClass}
             >
-              {functions.map((fn) => (
+              {(functions ?? []).map((fn) => (
                 <option key={fn._id} value={fn._id}>
                   {fn.name}
                 </option>
@@ -276,28 +315,33 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
         title="Functions"
         subtitle="The stakeholder buckets from the deck. Renameable; the set itself is fixed."
       >
-        {functions.map((fn) => (
-          <Row key={fn._id}>
-            <div className="w-72 shrink-0 text-sm text-slate-100">
-              <InlineText
-                value={fn.name}
-                onCommit={(name) => void renameFunction({ functionId: fn._id, name })}
-              />
-            </div>
-            <Pill
-              className={
-                fn.kind === "internal"
-                  ? "bg-slate-800 text-slate-300"
-                  : "bg-sky-500/15 text-sky-300"
-              }
-            >
-              {fn.kind}
-            </Pill>
-            <span className="flex-1 text-xs text-slate-600">
-              {people.list.filter((person) => person.functionId === fn._id).length} people
-            </span>
-          </Row>
-        ))}
+        {functions === undefined ? (
+          <RowsSkeleton rows={6} />
+        ) : (
+          functions.map((fn) => (
+            <Row key={fn._id}>
+              <div className="w-full text-sm text-ink-100 sm:w-72 sm:shrink-0">
+                <InlineText
+                  value={fn.name}
+                  onCommit={(name) => void renameFunction({ functionId: fn._id, name })}
+                />
+              </div>
+              <Pill
+                className={
+                  fn.kind === "internal"
+                    ? "bg-ink-800 text-ink-300"
+                    : "bg-sky-500/15 text-sky-300"
+                }
+              >
+                {fn.kind}
+              </Pill>
+              <span className="flex-1 text-xs text-ink-600">
+                {people.list.filter((person) => person.functionId === fn._id).length}{" "}
+                people
+              </span>
+            </Row>
+          ))
+        )}
       </Panel>
     </>
   );
@@ -309,31 +353,38 @@ function SeasonsPanel() {
   const update = useReportedMutation(api.seasons.update);
   const remove = useReportedMutation(api.seasons.remove);
 
-  if (seasons === undefined) return <Loading what="seasons" />;
-
   return (
     <Panel title="Seasons" subtitle="Planning years. Phase 0 hangs off each one.">
-      {seasons.map((season) => (
-        <Row key={season._id}>
-          <span className="w-16 shrink-0 font-mono text-xs text-slate-500">
-            {season.year}
-          </span>
-          <div className="w-40 shrink-0 text-sm font-medium text-slate-100">
-            <InlineText
-              value={season.label}
-              onCommit={(label) => void update({ seasonId: season._id, label })}
-            />
-          </div>
-          <div className="min-w-0 flex-1 text-xs text-slate-400">
-            <InlineText
-              value={season.notes}
-              placeholder="Add a note…"
-              onCommit={(notes) => void update({ seasonId: season._id, notes })}
-            />
-          </div>
-          <ConfirmButton onConfirm={() => void remove({ seasonId: season._id })} />
-        </Row>
-      ))}
+      {seasons === undefined ? (
+        <RowsSkeleton rows={2} />
+      ) : seasons.length === 0 ? (
+        <EmptyState title="No seasons yet">
+          A season is the planning year every plan and promotion hangs off. Add the year
+          below and the phase-0 checklist comes with it.
+        </EmptyState>
+      ) : (
+        seasons.map((season) => (
+          <Row key={season._id}>
+            <span className="w-16 shrink-0 font-mono text-xs text-ink-500">
+              {season.year}
+            </span>
+            <div className="w-40 shrink-0 text-sm font-medium text-ink-100">
+              <InlineText
+                value={season.label}
+                onCommit={(label) => void update({ seasonId: season._id, label })}
+              />
+            </div>
+            <div className="min-w-40 flex-1 text-xs text-ink-400">
+              <InlineText
+                value={season.notes}
+                placeholder="Add a note…"
+                onCommit={(notes) => void update({ seasonId: season._id, notes })}
+              />
+            </div>
+            <ConfirmButton onConfirm={() => void remove({ seasonId: season._id })} />
+          </Row>
+        ))
+      )}
       <AddRow
         placeholder="2027"
         label="Add season"

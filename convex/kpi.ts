@@ -2,7 +2,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { kpiMetric, repeatVerdict } from "./schema";
-import { mustGet, optionalText } from "./model";
+import { fromUrl, mustGet, optionalText } from "./model";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
 // slide-14 KPI grid and the retro that reads it.
@@ -63,9 +63,10 @@ async function retroFor(ctx: QueryCtx, promotionId: Id<"promotions">) {
  * way the rest of the app does.
  */
 export const board = query({
-  args: { promotionId: v.id("promotions") },
+  // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
+  args: { promotionId: v.string() },
   handler: async (ctx, args) => {
-    const promotion = await ctx.db.get(args.promotionId);
+    const promotion = await fromUrl(ctx, "promotions", args.promotionId);
     if (promotion === null) return null;
 
     const entries = await ctx.db
@@ -192,7 +193,10 @@ export const saveRetro = mutation({
  * from `promotions.remove`; that call is the only line elsewhere in the backend
  * that has to go if this feature is detached.
  */
-export async function removeForPromotion(ctx: MutationCtx, promotionId: Id<"promotions">) {
+export async function removeForPromotion(
+  ctx: MutationCtx,
+  promotionId: Id<"promotions">,
+) {
   const entries = await ctx.db
     .query("kpiEntries")
     .withIndex("by_promotion", (q) => q.eq("promotionId", promotionId))

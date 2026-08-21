@@ -4,7 +4,15 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import { RollupChips, RollupTiles } from "../components/Rollup";
-import { Breadcrumb, Loading, MetaItem, NotFound, PageHeader } from "../components/page";
+import {
+  Breadcrumb,
+  cardClass,
+  cardGrid,
+  MetaItem,
+  NotFound,
+  PageHeader,
+  TierSkeleton,
+} from "../components/page";
 import { InlineText } from "../components/inline";
 import { EmptyState, Panel } from "../components/ui";
 import { formatDay } from "../lib/dates";
@@ -35,8 +43,10 @@ export function SeasonView({
   const data = useQuery(api.seasons.overview, { seasonId, today });
   const update = useReportedMutation(api.seasons.update);
 
-  if (data === undefined) return <Loading what="the season" />;
+  if (data === undefined) return <TierSkeleton panels={2} />;
   if (data === null) return <NotFound what="season" />;
+
+  const planCount = tree.chains.reduce((count, chain) => count + chain.plans.length, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -52,14 +62,12 @@ export function SeasonView({
         meta={
           <>
             <MetaItem label="Year">{data.season.year}</MetaItem>
-            <MetaItem label="Chain plans">
-              {tree.chains.reduce((count, chain) => count + chain.plans.length, 0)}
-            </MetaItem>
+            <MetaItem label="Chain plans">{planCount}</MetaItem>
             <MetaItem label="Today">{formatDay(today)}</MetaItem>
           </>
         }
       >
-        <div className="mt-2 max-w-3xl text-sm text-slate-400">
+        <div className="mt-2 max-w-3xl text-sm text-ink-400">
           <InlineText
             value={data.season.notes}
             multiline
@@ -88,28 +96,33 @@ export function SeasonView({
         title="Chain plans"
         subtitle="Phases 1–4 live here. Start one from the sidebar for any chain without a plan."
       >
-        {tree.chains.every((chain) => chain.plans.length === 0) ? (
-          <EmptyState>No chain plans for this season yet.</EmptyState>
+        {planCount === 0 ? (
+          <EmptyState title="No chain plans for this season yet">
+            One plan per retail account per year. Every chain in Manage is listed in the
+            sidebar with a <span className="text-ink-300">+ Plan</span> button beside it —
+            starting one lays down the phase 1–4 checklist.
+          </EmptyState>
         ) : (
-          <div className="grid gap-px bg-slate-800 sm:grid-cols-2 xl:grid-cols-3">
+          <div className={cardGrid(planCount)}>
             {tree.chains.flatMap((chain) =>
               chain.plans.map((node) => (
                 <a
                   key={node.plan._id}
                   href={href({ name: "plan", chainPlanId: node.plan._id })}
-                  className="group bg-slate-900 p-4 transition hover:bg-slate-800/70"
+                  className={cardClass}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-slate-100">
+                    <h3 className="text-sm font-semibold text-ink-100">
                       {chain.chain.name}
                     </h3>
                     <RollupChips rollup={node.rollup} />
                   </div>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-ink-500">
                     Currently phase {node.plan.currentPhase}
-                    {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate)}`}
+                    {node.plan.jbpDate !== undefined &&
+                      ` · JBP ${formatDay(node.plan.jbpDate)}`}
                   </p>
-                  <p className="mt-3 text-[11px] text-slate-500">
+                  <p className="mt-3 text-2xs text-ink-500">
                     {node.promotions.length} promotion
                     {node.promotions.length === 1 ? "" : "s"}
                   </p>

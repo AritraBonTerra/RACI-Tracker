@@ -1,7 +1,17 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { createPortal } from "react-dom";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { PHASES, roleLetters, type PhaseNumber } from "../lib/domain";
+import { href } from "../lib/router";
 import type { Person, PeopleDirectory } from "../lib/people";
 import { useRaciMatrix, type RaciMatrix, type RaciRole } from "../lib/raci";
 import { useReportedMutation } from "../lib/toast";
@@ -22,7 +32,13 @@ const ROLE_META = {
 } as const satisfies Record<RaciRole, { letter: string; label: string; hint: string }>;
 
 /** The RACI block on an expanded task row: defaults on top, named people below. */
-export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: PeopleDirectory }) {
+export function RaciEditor({
+  task,
+  people,
+}: {
+  task: Doc<"tasks">;
+  people: PeopleDirectory;
+}) {
   const update = useReportedMutation(api.tasks.update);
   const matrix = useRaciMatrix();
   const cells = matrix.cellsFor(task.phase);
@@ -33,20 +49,20 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
       : [...current, personId];
 
   return (
-    <div className="rounded-lg border border-slate-800 bg-slate-950/60">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-slate-800/70 px-3 py-2">
-        <p className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+    <div className="rounded-lg border border-ink-800 bg-ink-950/60">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-ink-800/70 px-3 py-2">
+        <p className="text-3xs font-semibold tracking-wider text-ink-400 uppercase">
           RACI · phase {task.phase} {PHASES[task.phase].title}
         </p>
         {cells.length > 0 && (
           <p
-            className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-slate-600"
+            className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-2xs text-ink-600"
             title="The slide-16 defaults for this phase — guidance, not an assignment."
           >
             <span className="font-semibold tracking-wider uppercase">Defaults</span>
             {cells.map((cell) => (
               <span key={cell.functionId} title={cell.note}>
-                <span className="font-mono text-slate-400">
+                <span className="font-mono text-ink-400">
                   {roleLetters(cell.roles) || "—"}
                 </span>{" "}
                 {cell.functionName}
@@ -138,24 +154,24 @@ function RoleSlot({
     <div>
       <p className="mb-1 flex items-center gap-1.5">
         <span
-          className={`flex h-4 w-4 items-center justify-center rounded font-mono text-[10px] font-bold ${
+          className={`flex h-4 w-4 items-center justify-center rounded font-mono text-3xs font-bold ${
             alarming
               ? "bg-rose-500 text-white"
               : filled
-                ? "bg-slate-700 text-slate-200"
-                : "bg-slate-800 text-slate-500"
+                ? "bg-ink-700 text-ink-200"
+                : "bg-ink-800 text-ink-500"
           }`}
         >
           {meta.letter}
         </span>
         <span
-          className={`text-[10px] font-semibold tracking-wider uppercase ${
-            alarming ? "text-rose-300" : "text-slate-500"
+          className={`text-3xs font-semibold tracking-wider uppercase ${
+            alarming ? "text-rose-300" : "text-ink-500"
           }`}
         >
           {meta.label}
         </span>
-        <span className="hidden text-[10px] text-slate-600 xl:inline">{meta.hint}</span>
+        <span className="hidden text-3xs text-ink-600 xl:inline">{meta.hint}</span>
       </p>
       {children}
     </div>
@@ -196,9 +212,7 @@ export function PersonField({
         <span className="flex min-w-0 flex-1 flex-col items-start">
           <span className="truncate">{person?.name ?? emptyLabel}</span>
           {person?.function != null && (
-            <span className="truncate text-[10px] text-slate-500">
-              {person.function.name}
-            </span>
+            <span className="truncate text-3xs text-ink-500">{person.function.name}</span>
           )}
         </span>
       }
@@ -206,8 +220,8 @@ export function PersonField({
         alarming
           ? "border-rose-500/70 bg-rose-500/10 text-rose-200 hover:border-rose-400"
           : person === undefined
-            ? "border-slate-700 bg-slate-900 text-slate-500 hover:border-slate-500"
-            : "border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500"
+            ? "border-ink-700 bg-ink-900 text-ink-500 hover:border-ink-500"
+            : "border-ink-700 bg-ink-900 text-ink-200 hover:border-ink-500"
       }
     />
   );
@@ -240,10 +254,10 @@ function PersonList({
             type="button"
             title={`Remove ${person.name}`}
             onClick={() => onToggle(id)}
-            className="group inline-flex items-center gap-1 rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-300 ring-1 ring-slate-700 ring-inset transition hover:bg-slate-700 hover:text-slate-100"
+            className="group inline-flex items-center gap-1 rounded-full bg-ink-800 px-2 py-0.5 text-2xs text-ink-300 ring-1 ring-ink-700 ring-inset transition hover:bg-ink-700 hover:text-ink-100"
           >
             {person.name}
-            <span className="text-slate-600 group-hover:text-rose-300">✕</span>
+            <span className="text-ink-600 group-hover:text-rose-300">✕</span>
           </button>
         );
       })}
@@ -258,7 +272,7 @@ function PersonList({
           if (next !== null) onToggle(next);
         }}
         trigger={<span>{selected.length === 0 ? "+ Add" : "+"}</span>}
-        triggerClass="w-auto rounded-full border-dashed border-slate-700 bg-transparent px-2 py-0.5 text-slate-500 hover:border-slate-500 hover:text-slate-200"
+        triggerClass="w-auto rounded-full border-dashed border-ink-700 bg-transparent px-2 py-0.5 text-ink-500 hover:border-ink-500 hover:text-ink-200"
       />
     </div>
   );
@@ -280,7 +294,8 @@ export function AssignButton({
 }) {
   const update = useReportedMutation(api.tasks.update);
   const matrix = useRaciMatrix();
-  const value = role === "responsible" ? task.responsiblePersonId : task.accountablePersonId;
+  const value =
+    role === "responsible" ? task.responsiblePersonId : task.accountablePersonId;
   const person = value === undefined ? undefined : people.byId.get(value);
 
   const assign = (next: Id<"people"> | null) =>
@@ -312,7 +327,7 @@ export function AssignButton({
       triggerClass={
         person === undefined
           ? "w-auto border-rose-500 bg-rose-500/20 px-2 py-1 font-semibold text-rose-100 hover:bg-rose-500/30"
-          : "w-auto border-slate-700 bg-slate-900 px-2 py-1 text-slate-200 hover:border-slate-500"
+          : "w-auto border-ink-700 bg-ink-900 px-2 py-1 text-ink-200 hover:border-ink-500"
       }
     />
   );
@@ -347,12 +362,17 @@ function Picker({
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const position = useAnchoredPosition(box, open, align);
 
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target;
-      if (target instanceof Node && box.current?.contains(target) === true) return;
+      if (!(target instanceof Node)) return;
+      // The list is a portal, so "inside" means either half of the widget.
+      if (box.current?.contains(target) === true) return;
+      if (panel.current?.contains(target) === true) return;
       setOpen(false);
     };
     const onKey = (event: KeyboardEvent) => {
@@ -372,39 +392,117 @@ function Picker({
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className={`flex w-full items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-left text-xs transition focus:outline-none ${triggerClass}`}
+        className={`flex min-h-7 w-full items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-left text-xs transition focus:outline-none ${triggerClass}`}
       >
         {trigger}
-        <span aria-hidden className="shrink-0 text-[8px] opacity-60">
+        <span aria-hidden className="shrink-0 text-3xs opacity-60">
           ▼
         </span>
       </button>
 
-      {open && (
-        <PickerPanel
-          role={role}
-          phase={phase}
-          people={people}
-          matrix={matrix}
-          selected={selected}
-          align={align}
-          multi={multi}
-          onPick={(next) => {
-            onPick(next);
-            if (!multi) setOpen(false);
-          }}
-          onClear={
-            onClear === undefined
-              ? undefined
-              : () => {
-                  onClear();
-                  setOpen(false);
-                }
-          }
-        />
-      )}
+      {/* The list lives on `document.body`. Checklist sections and the rail clip
+          their own overflow, and a picker on the last row of one would otherwise
+          open into a two-line sliver. */}
+      {open &&
+        position !== null &&
+        createPortal(
+          <PickerPanel
+            ref={panel}
+            role={role}
+            phase={phase}
+            people={people}
+            matrix={matrix}
+            selected={selected}
+            position={position}
+            multi={multi}
+            onPick={(next) => {
+              onPick(next);
+              if (!multi) setOpen(false);
+            }}
+            onClear={
+              onClear === undefined
+                ? undefined
+                : () => {
+                    onClear();
+                    setOpen(false);
+                  }
+            }
+          />,
+          document.body,
+        )}
     </div>
   );
+}
+
+const PANEL_WIDTH = 288;
+const PANEL_HEIGHT = 340;
+const GUTTER = 8;
+// Matches `--spacing-header`: a list that opens upward stops at the app header
+// rather than covering it.
+const HEADER = 52;
+
+type PanelPosition = {
+  left: number;
+  width: number;
+  maxHeight: number;
+} & ({ top: number; bottom?: undefined } | { bottom: number; top?: undefined });
+
+/**
+ * Where the list should sit: under the trigger by default, above it when the
+ * trigger is near the bottom of the window, and always inside the viewport.
+ * Recomputed on scroll because the panel is fixed and the page is not.
+ */
+function useAnchoredPosition(
+  anchor: RefObject<HTMLElement | null>,
+  open: boolean,
+  align: "left" | "right",
+): PanelPosition | null {
+  const [position, setPosition] = useState<PanelPosition | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPosition(null);
+      return;
+    }
+
+    const place = () => {
+      const element = anchor.current;
+      if (element === null) return;
+      const rect = element.getBoundingClientRect();
+      const width = Math.min(PANEL_WIDTH, window.innerWidth - GUTTER * 2);
+      const wanted = align === "right" ? rect.right - width : rect.left;
+      const left = Math.min(Math.max(GUTTER, wanted), window.innerWidth - width - GUTTER);
+
+      const below = window.innerHeight - rect.bottom - GUTTER;
+      const above = rect.top - GUTTER - HEADER;
+      setPosition(
+        below < Math.min(PANEL_HEIGHT, above)
+          ? {
+              left,
+              width,
+              bottom: window.innerHeight - rect.top + 4,
+              maxHeight: Math.min(PANEL_HEIGHT, above),
+            }
+          : {
+              left,
+              width,
+              top: rect.bottom + 4,
+              maxHeight: Math.min(PANEL_HEIGHT, below),
+            },
+      );
+    };
+
+    place();
+    // Capture phase: the page scrolls, but so can a sidebar or a table.
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [anchor, open, align]);
+
+  return position;
 }
 
 function PickerPanel({
@@ -415,8 +513,9 @@ function PickerPanel({
   selected,
   onPick,
   onClear,
-  align,
+  position,
   multi,
+  ref,
 }: {
   role: RaciRole;
   phase: PhaseNumber;
@@ -425,8 +524,9 @@ function PickerPanel({
   selected: ReadonlyArray<Id<"people">>;
   onPick: (next: Id<"people">) => void;
   onClear?: () => void;
-  align: "left" | "right";
+  position: PanelPosition;
   multi: boolean;
+  ref: RefObject<HTMLDivElement | null>;
 }) {
   const [search, setSearch] = useState("");
   const expected = matrix.functionsFor(phase, role);
@@ -457,12 +557,12 @@ function PickerPanel({
 
   return (
     <div
-      className={`absolute top-full z-40 mt-1 w-72 overflow-hidden rounded-lg border border-slate-700 bg-slate-900 shadow-2xl shadow-slate-950/60 ${
-        align === "right" ? "right-0" : "left-0"
-      }`}
+      ref={ref}
+      style={position}
+      className="fixed z-50 flex flex-col overflow-hidden rounded-lg border border-ink-700 bg-ink-900 shadow-2xl shadow-ink-950/80"
     >
-      <div className="flex items-center gap-2 border-b border-slate-800 px-2 py-1.5">
-        <span className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+      <div className="flex items-center gap-2 border-b border-ink-800 px-2 py-1.5">
+        <span className="text-3xs font-semibold tracking-wider text-ink-500 uppercase">
           {meta.label}
         </span>
         <input
@@ -473,33 +573,49 @@ function PickerPanel({
           onKeyDown={(event) => {
             if (event.key === "Enter" && first !== undefined) onPick(first._id);
           }}
-          className="min-w-0 flex-1 rounded border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-xs text-slate-100 placeholder:text-slate-600 focus:border-emerald-500 focus:outline-none"
+          className="min-w-0 flex-1 rounded border border-ink-700 bg-ink-950 px-1.5 py-0.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-sand-500 focus:outline-none"
         />
       </div>
 
-      <div className="max-h-72 overflow-y-auto py-1">
+      <div className="min-h-0 flex-1 overflow-y-auto py-1">
         {onClear !== undefined && !multi && (
           <button
             type="button"
             onClick={onClear}
-            className="block w-full px-3 py-1.5 text-left text-xs text-slate-500 hover:bg-slate-800 hover:text-rose-300"
+            className="block w-full px-3 py-1.5 text-left text-xs text-ink-500 hover:bg-ink-800 hover:text-rose-300"
           >
             Clear — leave {role === "responsible" ? "unassigned" : "unset"}
           </button>
         )}
 
-        {groups.length === 0 && (
-          <p className="px-3 py-3 text-center text-xs text-slate-600">
-            No one matches “{search}”.
-          </p>
-        )}
+        {groups.length === 0 &&
+          (people.list.length === 0 ? (
+            // Nothing to pick from at all: say where people come from, because
+            // an empty picker is otherwise indistinguishable from a broken one.
+            <div className="px-3 py-3 text-center">
+              <p className="text-xs text-ink-300">Nobody in the directory yet</p>
+              <p className="mt-1 text-2xs text-ink-500">
+                Add people in Manage and they show up here, grouped by function.
+              </p>
+              <a
+                href={href({ name: "manage" })}
+                className="mt-1.5 inline-block text-2xs font-medium text-sand-300 hover:text-sand-200"
+              >
+                Open Manage →
+              </a>
+            </div>
+          ) : (
+            <p className="px-3 py-3 text-center text-xs text-ink-600">
+              No one matches “{search}”.
+            </p>
+          ))}
 
         {groups.map((group) => (
           <div key={group.functionId}>
-            <p className="flex items-center justify-between gap-2 bg-slate-950/60 px-3 py-1 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
+            <p className="flex items-center justify-between gap-2 bg-ink-950/60 px-3 py-1 text-3xs font-semibold tracking-wider text-ink-500 uppercase">
               <span className="truncate">{group.name}</span>
               {group.expected && (
-                <span className="shrink-0 rounded bg-emerald-500/15 px-1 font-mono text-[9px] text-emerald-300">
+                <span className="shrink-0 rounded bg-sand-400/15 px-1 font-mono text-3xs text-sand-300">
                   phase {phase} default
                 </span>
               )}
@@ -509,21 +625,21 @@ function PickerPanel({
                 key={person._id}
                 type="button"
                 onClick={() => onPick(person._id)}
-                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left transition hover:bg-slate-800"
+                className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left transition hover:bg-ink-800"
               >
                 <span className="min-w-0">
-                  <span className="block truncate text-xs text-slate-100">
+                  <span className="block truncate text-xs text-ink-100">
                     {person.name}
                   </span>
                   {person.title !== undefined && (
-                    <span className="block truncate text-[10px] text-slate-500">
+                    <span className="block truncate text-3xs text-ink-500">
                       {person.title}
                       {person.organization !== undefined && ` · ${person.organization}`}
                     </span>
                   )}
                 </span>
                 {chosen.has(person._id) && (
-                  <span className="shrink-0 text-[11px] text-emerald-400">✓</span>
+                  <span className="shrink-0 text-2xs text-sand-300">✓</span>
                 )}
               </button>
             ))}

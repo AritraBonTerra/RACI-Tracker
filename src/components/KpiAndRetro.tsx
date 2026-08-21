@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
 import { InlineText } from "./inline";
-import { Panel } from "./ui";
+import { Panel, Skeleton } from "./ui";
 import { useReportedMutation } from "../lib/toast";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
@@ -103,7 +103,7 @@ function formatUplift(uplift: NonNullable<MetricRow["uplift"]>, unit: Unit): str
 function upliftTone(absolute: number): string {
   if (absolute > 0) return "text-emerald-300";
   if (absolute < 0) return "text-rose-300";
-  return "text-slate-300";
+  return "text-ink-300";
 }
 
 // --- Phase 7 --------------------------------------------------------------
@@ -112,7 +112,7 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
   const board = useQuery(api.kpi.board, { promotionId });
   const setMetric = useReportedMutation(api.kpi.setMetric);
 
-  if (board === undefined) return <Shell title="Phase 7 · KPI table">Loading…</Shell>;
+  if (board === undefined) return <BoardSkeleton title="Phase 7 · KPI table" rows={5} />;
   // The promotion was deleted underneath us; the page's own NotFound takes over.
   if (board === null) return null;
 
@@ -124,78 +124,92 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
       title="Phase 7 · KPI table"
       subtitle="Typed by hand — there is no data feed. Uplift is computed wherever both columns hold a number."
       actions={
-        <span className="text-[11px] text-slate-500">
+        <span className="text-2xs text-ink-500 tabular-nums">
           {filled}/{METRIC_ORDER.length} metrics entered
         </span>
       }
     >
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b border-slate-800 text-[10px] font-semibold tracking-wider text-slate-500 uppercase">
-            <th className="px-4 py-2 text-left">Metric</th>
-            <th className="px-3 py-2 text-right">Baseline</th>
-            <th className="px-3 py-2 text-right">Promotional period</th>
-            <th className="px-4 py-2 text-right">Uplift</th>
-          </tr>
-        </thead>
-        <tbody>
-          {METRIC_ORDER.map((metric) => {
-            const meta = METRICS[metric];
-            const row = rows.get(metric);
-            const format = (value: number) => formatValue(value, meta.unit);
+      {filled === 0 && (
+        <p className="border-b border-ink-800/70 bg-ink-950/40 px-4 py-2.5 text-xs text-ink-400">
+          <span className="font-medium text-ink-200">No numbers yet.</span> These five
+          rows are the deck's slide-14 grid — click any figure below and type what the
+          report says. Uplift works itself out.
+        </p>
+      )}
+      {/* Five rows against three number columns: on a phone the table keeps its
+          shape and scrolls sideways rather than folding into nonsense. */}
+      <p className="border-b border-ink-800/70 px-4 py-1.5 text-3xs text-ink-600 lg:hidden">
+        Scroll the table sideways for the promotional period and uplift.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-2xl border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-ink-800 text-3xs font-semibold tracking-wider text-ink-500 uppercase">
+              <th className="px-4 py-2 text-left">Metric</th>
+              <th className="px-3 py-2 text-right">Baseline</th>
+              <th className="px-3 py-2 text-right">Promotional period</th>
+              <th className="px-4 py-2 text-right">Uplift</th>
+            </tr>
+          </thead>
+          <tbody>
+            {METRIC_ORDER.map((metric) => {
+              const meta = METRICS[metric];
+              const row = rows.get(metric);
+              const format = (value: number) => formatValue(value, meta.unit);
 
-            return (
-              <tr
-                key={metric}
-                className="border-b border-slate-800/60 last:border-b-0 hover:bg-slate-900/60"
-              >
-                <td className="px-4 py-2 align-top">
-                  <p className="font-medium text-slate-200">{meta.label}</p>
-                  <p className="text-[11px] text-slate-500">{meta.hint}</p>
-                  <div className="mt-0.5 max-w-md text-[11px] text-slate-500">
-                    <InlineText
-                      value={row?.note}
-                      placeholder="Add a note…"
-                      onCommit={(note) => void setMetric({ promotionId, metric, note })}
+              return (
+                <tr
+                  key={metric}
+                  className="border-b border-ink-800/60 last:border-b-0 hover:bg-ink-900/60"
+                >
+                  <td className="px-4 py-2 align-top">
+                    <p className="font-medium text-ink-200">{meta.label}</p>
+                    <p className="text-2xs text-ink-500">{meta.hint}</p>
+                    <div className="mt-0.5 max-w-md text-2xs text-ink-500">
+                      <InlineText
+                        value={row?.note}
+                        placeholder="Add a note…"
+                        onCommit={(note) => void setMetric({ promotionId, metric, note })}
+                      />
+                    </div>
+                  </td>
+                  <td className="w-36 px-3 py-2 align-top">
+                    <NumberCell
+                      value={row?.baseline}
+                      format={format}
+                      onCommit={(baseline) =>
+                        void setMetric({ promotionId, metric, baseline })
+                      }
                     />
-                  </div>
-                </td>
-                <td className="w-36 px-3 py-2 align-top">
-                  <NumberCell
-                    value={row?.baseline}
-                    format={format}
-                    onCommit={(baseline) =>
-                      void setMetric({ promotionId, metric, baseline })
-                    }
-                  />
-                </td>
-                <td className="w-36 px-3 py-2 align-top">
-                  <NumberCell
-                    value={row?.promotional}
-                    format={format}
-                    onCommit={(promotional) =>
-                      void setMetric({ promotionId, metric, promotional })
-                    }
-                  />
-                </td>
-                <td className="w-52 px-4 py-2 align-top">
-                  <UpliftCell
-                    row={row}
-                    unit={meta.unit}
-                    onCommit={(upliftOverride) =>
-                      void setMetric({ promotionId, metric, upliftOverride })
-                    }
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <p className="border-t border-slate-800/70 px-4 py-2 text-[11px] text-slate-600">
-        Click a figure to type it. Click the uplift column to override the
-        calculation with a sentence — useful on the investment row, where the
-        answer is a return, not a difference.
+                  </td>
+                  <td className="w-36 px-3 py-2 align-top">
+                    <NumberCell
+                      value={row?.promotional}
+                      format={format}
+                      onCommit={(promotional) =>
+                        void setMetric({ promotionId, metric, promotional })
+                      }
+                    />
+                  </td>
+                  <td className="w-52 px-4 py-2 align-top">
+                    <UpliftCell
+                      row={row}
+                      unit={meta.unit}
+                      onCommit={(upliftOverride) =>
+                        void setMetric({ promotionId, metric, upliftOverride })
+                      }
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="border-t border-ink-800/70 px-4 py-2 text-2xs text-ink-600">
+        Click a figure to type it. Click the uplift column to override the calculation
+        with a sentence — useful on the investment row, where the answer is a return, not
+        a difference.
       </p>
     </Panel>
   );
@@ -226,7 +240,7 @@ function UpliftCell({
         {formatUplift(uplift, unit)}
       </span>
     ) : (
-      <span className="text-slate-600 italic">
+      <span className="text-ink-600 italic">
         {row?.baseline !== undefined || row?.promotional !== undefined
           ? "Needs both columns"
           : "—"}
@@ -275,11 +289,16 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
   const board = useQuery(api.kpi.board, { promotionId });
   const save = useReportedMutation(api.kpi.saveRetro);
 
-  if (board === undefined) return <Shell title="Phase 8 · Retro">Loading…</Shell>;
+  if (board === undefined) return <BoardSkeleton title="Phase 8 · Retro" rows={2} />;
   if (board === null) return null;
 
   const retro = board.retro;
   const verdict = retro?.repeatNextYear;
+  const written =
+    retro !== null &&
+    [retro?.worked, retro?.didntWork, retro?.notes].some(
+      (field) => field !== undefined && field.trim() !== "",
+    );
 
   return (
     <Panel
@@ -298,9 +317,10 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
               repeatNextYear: chosen.value === "" ? null : chosen.value,
             });
           }}
-          className={`cursor-pointer rounded-md border px-2 py-1 text-xs focus:outline-none ${
+          aria-label="Repeat next year?"
+          className={`h-8 cursor-pointer rounded-md border px-2 text-xs transition focus:outline-none ${
             verdict === undefined
-              ? "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500"
+              ? "border-ink-700 bg-ink-900 text-ink-400 hover:border-ink-500"
               : VERDICTS[verdict].className
           }`}
         >
@@ -312,7 +332,14 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
         </select>
       }
     >
-      <div className="grid gap-px bg-slate-800 sm:grid-cols-2">
+      {!written && (
+        <p className="border-b border-ink-800/70 bg-ink-950/40 px-4 py-2.5 text-xs text-ink-400">
+          <span className="font-medium text-ink-200">No retro written yet.</span> Three
+          boxes, written once the window closes — they are what next season's phase 0 gets
+          to start from. Click a box to type into it.
+        </p>
+      )}
+      <div className="grid gap-px bg-ink-800 sm:grid-cols-2">
         <RetroField
           label="What worked"
           accent="text-emerald-300"
@@ -328,10 +355,10 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
           onCommit={(didntWork) => void save({ promotionId, didntWork })}
         />
       </div>
-      <div className="border-t border-slate-800">
+      <div className="border-t border-ink-800">
         <RetroField
           label="Notes for next year"
-          accent="text-slate-400"
+          accent="text-ink-400"
           value={retro?.notes}
           placeholder="What phase 0 should carry into the next season…"
           onCommit={(notes) => void save({ promotionId, notes })}
@@ -355,11 +382,11 @@ function RetroField({
   onCommit: (next: string) => void;
 }) {
   return (
-    <div className="bg-slate-900/60 px-4 py-3">
-      <p className={`text-[10px] font-semibold tracking-wider uppercase ${accent}`}>
+    <div className="bg-ink-900/60 px-4 py-3">
+      <p className={`text-3xs font-semibold tracking-wider uppercase ${accent}`}>
         {label}
       </p>
-      <div className="mt-1 text-sm whitespace-pre-wrap text-slate-300">
+      <div className="mt-1 text-sm whitespace-pre-wrap text-ink-300">
         <InlineText
           value={value}
           multiline
@@ -378,10 +405,10 @@ function RetroField({
 // Keeping them here is what makes the feature deletable in one file.
 
 const editorClass =
-  "w-full rounded border border-emerald-500/70 bg-slate-950 px-1.5 py-0.5 text-sm text-slate-100 focus:outline-none";
+  "w-full rounded border border-sand-500/70 bg-ink-950 px-1.5 py-0.5 text-sm text-ink-100 focus:outline-none";
 
 const displayClass =
-  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 hover:bg-slate-800/70 focus-visible:bg-slate-800 focus-visible:outline-none";
+  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 hover:bg-ink-800/70 focus-visible:bg-ink-800 focus-visible:outline-none";
 
 function focusAndSelect(element: HTMLInputElement | null) {
   element?.focus();
@@ -441,7 +468,7 @@ function NumberCell({
       title="Click to edit"
       onClick={() => setDraft(value === undefined ? "" : String(value))}
       className={`${displayClass} text-right tabular-nums ${
-        value === undefined ? "text-slate-600 italic" : "text-slate-100"
+        value === undefined ? "text-ink-600 italic" : "text-ink-100"
       }`}
     >
       {value === undefined ? "—" : format(value)}
@@ -495,11 +522,24 @@ function TextCell({
   );
 }
 
-/** The panel chrome on its own, for the moment before the query resolves. */
-function Shell({ title, children }: { title: string; children: ReactNode }) {
+/** The panel chrome with rows the size of the real ones, before they land. */
+function BoardSkeleton({ title, rows }: { title: string; rows: number }) {
   return (
     <Panel title={title}>
-      <p className="px-4 py-4 text-xs text-slate-600 italic">{children}</p>
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className="flex items-center gap-4 border-b border-ink-800/60 px-4 py-3 last:border-b-0"
+        >
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-3.5 w-32" />
+            <Skeleton className="mt-1.5 h-2.5 w-56 max-w-full" />
+          </div>
+          <Skeleton className="hidden h-3.5 w-20 sm:block" />
+          <Skeleton className="hidden h-3.5 w-20 sm:block" />
+          <Skeleton className="h-3.5 w-24" />
+        </div>
+      ))}
     </Panel>
   );
 }

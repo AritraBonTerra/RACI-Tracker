@@ -1,7 +1,49 @@
 @import "tailwindcss";
 
+/* The palette. Two families do all the work:
+   - `ink`, a navy neutral ramp, for every surface, border and line of text. It
+     is the deck's navy, darkened until status colour has somewhere to shout
+     from.
+   - `sand`, the deck's tan, as the one accent: primary actions, focus, the
+     field you are about to type into. Green is never an accent here, because
+     green already means Delivered.
+   Status hue stays reserved: rose = unassigned/blocked, amber = overdue,
+   sky = in progress, emerald = delivered. */
+@theme {
+  --color-ink-50: #f3f6fb;
+  --color-ink-100: #e5ebf5;
+  --color-ink-200: #cbd6e7;
+  --color-ink-300: #a7b6ce;
+  --color-ink-400: #7e8fac;
+  --color-ink-500: #5e6e8b;
+  --color-ink-600: #46546e;
+  --color-ink-700: #303d55;
+  --color-ink-800: #1e293f;
+  --color-ink-900: #101a2e;
+  --color-ink-950: #070c18;
+
+  --color-sand-100: #f6eee1;
+  --color-sand-200: #ecddc5;
+  --color-sand-300: #dcc59f;
+  --color-sand-400: #c9a971;
+  --color-sand-500: #b8904f;
+  --color-sand-600: #9a7539;
+  --color-sand-700: #77592b;
+
+  /* Two steps below `xs`, so the dense chrome (chips, meta lines, column
+     headings) uses named sizes instead of one-off pixel values. */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+
+  /* The app's one header height, shared by the sticky header, the sidebar's
+     offset and the mobile drawer. */
+  --spacing-header: 3.25rem;
+}
+
 /* Dark by default: this is an ops tool that sits open next to a spreadsheet all
-   day, and the status colours are tuned against a near-black surface. */
+   day, and the status colours are tuned against a near-black navy. */
 @layer base {
   html {
     color-scheme: dark;
@@ -9,15 +51,24 @@
   }
 
   body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-ink-950 text-ink-100;
     font-family:
-      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
       sans-serif;
   }
 
-  /* Native date inputs and selects keep their dark chrome inside the app. */
   ::selection {
-    @apply bg-emerald-500/30;
+    @apply bg-sand-400/30;
+  }
+
+  /* One focus treatment for everything reachable by keyboard. */
+  :focus-visible {
+    @apply outline-sand-400/80 outline-2 outline-offset-2;
   }
 }
 
@@ -25,7 +76,23 @@
    but Chrome on Windows needs the hint. */
 @layer utilities {
   * {
-    scrollbar-color: var(--color-slate-700) transparent;
+    scrollbar-color: var(--color-ink-700) transparent;
     scrollbar-width: thin;
+  }
+
+  /* Skeletons breathe rather than blink: a slow, low-contrast pulse that does
+     not read as an error while a query resolves. */
+  @keyframes settle {
+    0%,
+    100% {
+      opacity: 0.5;
+    }
+    50% {
+      opacity: 0.85;
+    }
+  }
+
+  .animate-settle {
+    animation: settle 1.7s ease-in-out infinite;
   }
 }

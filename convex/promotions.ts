@@ -10,6 +10,7 @@ import {
   raciDefaults,
   requiredText,
   rollup,
+  fromUrl,
 } from "./model";
 
 // The bottom tier: an approved program under a chain plan, carrying phases 5-8
@@ -30,9 +31,10 @@ function checkedDay(value: string, field: string) {
  * Null when the id no longer resolves, so a stale link degrades gracefully.
  */
 export const get = query({
-  args: { promotionId: v.id("promotions"), today: v.string() },
+  // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
+  args: { promotionId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const promotion = await ctx.db.get(args.promotionId);
+    const promotion = await fromUrl(ctx, "promotions", args.promotionId);
     if (promotion === null) return null;
     const plan = await mustGet(ctx, promotion.chainPlanId, "chain plan");
     const chain = await mustGet(ctx, promotion.chainId, "chain");
@@ -73,7 +75,8 @@ export const create = mutation({
     const plan = await mustGet(ctx, args.chainPlanId, "chain plan");
     const startDate = checkedDay(args.startDate, "Start date");
     const endDate = checkedDay(args.endDate, "End date");
-    if (endDate < startDate) throw new ConvexError("The end date is before the start date.");
+    if (endDate < startDate)
+      throw new ConvexError("The end date is before the start date.");
 
     return await ctx.db.insert("promotions", {
       chainPlanId: plan._id,
@@ -106,17 +109,26 @@ export const update = mutation({
     const promotion = await mustGet(ctx, args.promotionId, "promotion");
 
     const startDate =
-      args.startDate === undefined ? promotion.startDate : checkedDay(args.startDate, "Start date");
+      args.startDate === undefined
+        ? promotion.startDate
+        : checkedDay(args.startDate, "Start date");
     const endDate =
-      args.endDate === undefined ? promotion.endDate : checkedDay(args.endDate, "End date");
-    if (endDate < startDate) throw new ConvexError("The end date is before the start date.");
+      args.endDate === undefined
+        ? promotion.endDate
+        : checkedDay(args.endDate, "End date");
+    if (endDate < startDate)
+      throw new ConvexError("The end date is before the start date.");
 
     await ctx.db.patch(promotion._id, {
       startDate,
       endDate,
-      ...(args.name === undefined ? {} : { name: requiredText(args.name, "Promotion name") }),
+      ...(args.name === undefined
+        ? {}
+        : { name: requiredText(args.name, "Promotion name") }),
       ...(args.brandIds === undefined ? {} : { brandIds: args.brandIds }),
-      ...(args.storeCount === undefined ? {} : { storeCount: args.storeCount ?? undefined }),
+      ...(args.storeCount === undefined
+        ? {}
+        : { storeCount: args.storeCount ?? undefined }),
       ...(args.currentPhase === undefined ? {} : { currentPhase: args.currentPhase }),
       ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
     });
