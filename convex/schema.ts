@@ -36,6 +36,34 @@ export const raciRole = v.union(
 // Functions split into the deck's internal/external stakeholder groups.
 export const functionKind = v.union(v.literal("internal"), v.literal("external"));
 
+// --- Access control (#30) -------------------------------------------------
+
+// The two roles, and the only two there will be (#30: no read-only reviewer).
+// An Administrator can reach and manage everything; a Member sees exactly the
+// union of their Access Assignments and nothing else.
+export const userRole = v.union(v.literal("administrator"), v.literal("member"));
+
+// The tier an Access Assignment is pinned to. Access flows *down* from here:
+// a Plan Year grant reaches its Chain Plans and their Promotions.
+export const accessScope = v.union(
+  v.object({ tier: v.literal("season"), seasonId: v.id("seasons") }),
+  v.object({ tier: v.literal("chainPlan"), chainPlanId: v.id("chainPlans") }),
+  v.object({ tier: v.literal("promotion"), promotionId: v.id("promotions") }),
+);
+
+// Every access-management action worth answering "who did that, and when?" for.
+// Ordinary record edits are not audited — they carry a last-modified stamp
+// instead (#30). The union is closed so a new action has to be named here.
+export const auditAction = v.union(
+  v.literal("user_created"),
+  v.literal("role_changed"),
+  v.literal("user_activated"),
+  v.literal("user_deactivated"),
+  v.literal("person_linked"),
+  v.literal("access_granted"),
+  v.literal("access_revoked"),
+);
+
 // --- Phase 7-8 measurement (detachable feature, #14) ----------------------
 // The two validators and the two tables at the bottom of the schema are the
 // whole storage footprint of the KPI table and the retro. Removing the feature
@@ -104,6 +132,80 @@ export default defineSchema({
   })
     .index("by_function", ["functionId"])
     .index("by_name", ["name"]),
+
+  // --- Access control (#30) ---------------------------------------------
+  // Additive tables: nothing above them changes, so rolling this back is
+  // redeploying the prior commit.
+
+  // One row per signed-in identity (CONTEXT.md: User). Created by `ensureUser`
+  // on first sign-in as an active Member with zero Access Assignments — active
+  // because the account is real and `isActive: false` means "offboarded", and
+  // zero-assignment because access is an Administrator's decision. Users are
+  // never pre-provisioned: only the identity provider can mint a Clerk user id.
+  //
+  // `clerkUserId` is `identity.subject`: the primary key of the account as far
+  // as this app is concerned. `entraOid` / `entraTid` are the durable Microsoft
+  // identity, carried through Clerk's SAML attribute mapping; they are absent
+  // in development (email-code sign-in has no Entra behind it) and on the very
+  // first token if Clerk has not populated `publicMetadata` yet.
+  //
+  // Everything else is display material read off the token. `personId` is the
+  // optional one-to-one link to an *internal* Person; RACI names People and
+  // never grants access, so this link is orientation, not authorization.
+  users: defineTable({
+    clerkUserId: v.string(),
+    role: userRole,
+    isActive: v.boolean(),
+    personId: v.optional(v.id("people")),
+
+    email: v.optional(v.string()),
+    displayName: v.optional(v.string()),
+
+    entraOid: v.optional(v.string()),
+    entraTid: v.optional(v.string()),
+    entraUserType: v.optional(v.string()),
+
+    lastSignInAt: v.number(),
+  })
+    .index("by_clerk_user_id", ["clerkUserId"])
+    .index("by_role", ["role"])
+    .index("by_person", ["personId"]),
+
+  // One Member at one Plan Year, Chain Plan, or Promotion (CONTEXT.md: Access
+  // Assignment). A Member's access is the *union* of their rows, expanded
+  // downward at read time rather than stored, so a promotion created tomorrow
+  // under a granted Chain Plan is reachable without touching this table.
+  //
+  // Exactly one of the three scope columns is set, flat rather than a union
+  // object so "who can reach this promotion?" is an index read (same shape as
+  // `tasks`). Overlapping rows are harmless by construction.
+  accessAssignments: defineTable({
+    userId: v.id("users"),
+    seasonId: v.optional(v.id("seasons")),
+    chainPlanId: v.optional(v.id("chainPlans")),
+    promotionId: v.optional(v.id("promotions")),
+    grantedBy: v.optional(v.id("users")),
+  })
+    .index("by_user", ["userId"])
+    .index("by_season", ["seasonId"])
+    .index("by_chain_plan", ["chainPlanId"])
+    .index("by_promotion", ["promotionId"]),
+
+  // The access history, kept indefinitely (CONTEXT.md: Audit event). Ordinary
+  // record edits are not in here. The actor is a User, or the operator holding
+  // deploy credentials — bootstrap and break-glass are actions too, and an
+  // audit trail with a hole where the first Administrator came from is worse
+  // than none. Ordered by `_creationTime`; no separate timestamp column.
+  auditEvents: defineTable({
+    action: auditAction,
+    actor: v.union(
+      v.object({ kind: v.literal("user"), userId: v.id("users") }),
+      v.object({ kind: v.literal("operator") }),
+    ),
+    subjectUserId: v.id("users"),
+    // One short phrase naming what changed ("member -> administrator").
+    detail: v.optional(v.string()),
+  }).index("by_subject", ["subjectUserId"]),
 
   // One Chain x one Season. Carries phases 1-4.
   chainPlans: defineTable({
