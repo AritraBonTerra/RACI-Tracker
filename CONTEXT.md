@@ -28,8 +28,23 @@ conversation.
 - **Function** — a stakeholder bucket: Commercial Strat Account, Marketing,
   Retail Marketing / Local Sales, Finance (internal); Distributor, Buyer
   (external).
-- **Person** — a named human belonging to a Function. Created in-app; not a
-  login account in v0.
+- **Person** — a named human belonging to a Function. Created in-app; never a
+  login account. A Person may be *linked* to a User, which is orientation, not
+  access — RACI names People and never grants anything.
+- **User** — one signed-in identity, created on first Microsoft sign-in and
+  never pre-provisioned. Either an **Administrator** (reaches and manages
+  everything) or a **Member** (sees exactly their Access Assignments). Active
+  or deactivated; deactivation is the immediate kill switch and preserves the
+  role and grants a reactivation restores.
+- **Access Assignment** — one Member granted one Plan Year, Chain Plan, or
+  Promotion. Access flows *down* the hierarchy, a Member's access is the union
+  of their assignments, and overlapping assignments are harmless. Records
+  outside them are absent, not greyed out: an out-of-scope link answers exactly
+  as a deleted one does.
+- **Audit event** — one access-management action (role change, grant, revoke,
+  activation, deactivation, Person link) with its actor and timestamp, kept
+  indefinitely. Ordinary record edits are not audited; they carry a
+  last-modified stamp instead.
 - **RACI** — per task: **Responsible** does the work — one or more named
   People, and a task needs at least one to count as assigned. **Accountable**
   owns the outcome — always exactly one Person, the one you chase when a task
