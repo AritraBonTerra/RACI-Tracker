@@ -1,8 +1,7 @@
-import { convexTest } from "convex-test";
 import { makeFunctionReference } from "convex/server";
 import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { CLERK_ISSUER, harness } from "./world.fixture";
 
 // The repo's first tests, and the seam every later access test uses: calls go
 // through the public Convex function surface with an identity injected, exactly
@@ -12,13 +11,11 @@ import schema from "./schema";
 // Internal (deploy-credential) functions are invoked directly, the way
 // `convex run` invokes them.
 
-// Every module the functions under test might import. Test files are excluded:
-// Convex never deploys them, and they are not part of the surface.
-const modules = import.meta.glob(["./**/*.*s", "!./**/*.test.*"]);
-
-const CLERK_ISSUER = "https://tidy-marmoset-42.clerk.accounts.dev";
-
-/** A Clerk session token, as Convex would hand it to a function. */
+/**
+ * A Clerk session token, as Convex would hand it to a function. Its own builder
+ * rather than `world.fixture`'s: these tests are about what happens when a claim
+ * is *missing*, so every claim here is optional.
+ */
 function token(subject: string, claims: { name?: string; email?: string } = {}) {
   return { subject, issuer: CLERK_ISSUER, ...claims };
 }
@@ -28,10 +25,6 @@ const ALICE = token("user_2alice", {
   email: "alice@vctusa.com",
 });
 const BEN = token("user_2ben", { name: "Ben Ortiz", email: "ben@vctusa.com" });
-
-function harness() {
-  return convexTest(schema, modules);
-}
 
 /**
  * The four wrappers, addressed the way a real module would be. They are the

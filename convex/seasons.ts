@@ -12,6 +12,7 @@ import {
 } from "./access";
 import {
   SEASON_PHASES,
+  chainLabel,
   deleteTasks,
   optionalText,
   raciDefaults,
@@ -116,7 +117,9 @@ export const tree = authedQuery({
       chains
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(async (chain) => ({
-          chain,
+          // A name, not the record: the tree names the chain above someone's
+          // promotion, and a name is all an ancestor ever is.
+          chain: chainLabel(chain),
           plans: (
             await Promise.all(
               plans

@@ -47,8 +47,12 @@ metadata URL never leave the Entra and Clerk dashboards.
 | SAML metadata URL, tenant id | Entra and Clerk dashboards only | — | — |
 
 Two of these fail in ways worth naming. A missing `CLERK_JWT_ISSUER_DOMAIN`
-makes every call anonymous, and the backend denies anonymous callers — the app
-fails closed, showing an empty shell rather than leaking anything. A missing
+fails the deploy rather than the app: `convex deploy` refuses to push an auth
+config whose variable is unset and says so by name — *"Environment variable
+CLERK_JWT_ISSUER_DOMAIN is used in auth config file but its value was not
+set"* — which in the Vercel build means a failed build and the previous
+deployment still serving. Skipping step 2 therefore cannot produce a half-signed-
+in production; it produces a red build. A missing
 `VITE_CLERK_ENTERPRISE_DOMAIN` on a `pk_live_` build now renders "Sign-in isn't
 configured" and names the variable, rather than offering the development widget
 against an instance that refuses it.
@@ -123,9 +127,35 @@ password to set.
 ## Rollback
 
 The schema change is additive: three new tables, and every column added to an
-existing table is optional. The prior commit runs unmodified against this data
-and ignores what it does not know about, so rollback is a redeploy and there is
-no data step.
+existing table is optional. The prior commit's *functions* therefore run
+unmodified against this data and ignore what they do not know about, and there
+is no data step — nothing has to be deleted or back-filled.
+
+**The prior commit's `convex/schema.ts` is the one file you must not roll
+back.** Convex validates every stored document against the schema being pushed,
+and its object validators reject fields the table does not declare. The pre-auth
+schema does not declare `lastModifiedBy` / `lastModifiedAt`, so the moment
+anyone has edited a record under the release — one note, one status change —
+pushing the pre-auth schema fails validation on that row and the rollback
+stalls with production still on the release. Keep this release's schema and
+roll back only the code.
+
+**Backend first**, because it is the half that can refuse. If `convex deploy`
+fails you have not touched the frontend yet and there is nothing to undo; the
+Vercel promote that closes the window takes seconds.
+
+```sh
+git checkout <prior-commit>
+git checkout <release-commit> -- convex/schema.ts   # keeps the optional columns
+bunx convex deploy                                  # backend first; `deploy` means production
+```
+
+That pair is checked: the pre-auth `convex/` typechecks against this schema
+(the added columns are optional and the three access tables are unreferenced),
+and `convex/cutover.test.ts` asserts both directions — that a pre-auth-shaped
+table rejects a stamped row, which is why the file is pinned, and that rows
+written without the columns still validate under this schema, which is why
+rolling forward again is safe.
 
 **Expect a blank page between the two steps.** Both halves of the rollback move
 in one direction, so for the minute or so between them the deployed pair does
@@ -137,15 +167,6 @@ the tree is a white page, not an error screen and not "the old app with a
 sign-in screen in front of it". It is the one procedure where the intermediate
 state reads exactly like a broken production, so know it is coming and finish
 the sequence rather than panicking forward.
-
-**Backend first**, because it is the half that can refuse. If `convex deploy`
-fails you have not touched the frontend yet and there is nothing to undo; the
-Vercel promote that closes the window takes seconds.
-
-```sh
-git checkout <prior-commit>
-bunx convex deploy            # backend first; `deploy` means production
-```
 
 Then roll the frontend back in Vercel: **Deployments → the last pre-auth build →
 Promote to Production**. A Vercel rollback serves a cached build and does *not*

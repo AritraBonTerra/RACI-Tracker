@@ -129,6 +129,19 @@ async function grantsOf(ctx: QueryCtx, userId: Id<"users">) {
 
 // --- The roster -----------------------------------------------------------
 
+/**
+ * The awaiting-access queue, as one predicate (CONTEXT.md: awaiting access):
+ * signed in, still here, and holding nothing. The roster pill and the sidebar
+ * badge are two queries — the badge must not pull the whole roster — so the
+ * definition lives here rather than being written twice and drifting.
+ *
+ * An Administrator is never awaiting: the role reaches everything, so an
+ * Administrator with no assignment rows is not waiting on anyone.
+ */
+function isAwaitingAccess(user: Doc<"users">, scopes: readonly AccessScope[]): boolean {
+  return user.isActive && user.role === "member" && scopes.length === 0;
+}
+
 /** Everything the roster row and the detail header both need. */
 async function summarize(ctx: QueryCtx, user: Doc<"users">) {
   const person = user.personId === undefined ? null : await ctx.db.get(user.personId);
@@ -141,9 +154,8 @@ async function summarize(ctx: QueryCtx, user: Doc<"users">) {
     isActive: user.isActive,
     person: person === null ? null : { personId: person._id, name: person.name },
     grantCount: scopes.length,
-    // The awaiting-access queue (#30, story 20): signed in, active, and holding
-    // nothing — the account sitting on the "access comes next" screen.
-    awaitingAccess: user.isActive && user.role === "member" && scopes.length === 0,
+    // The account sitting on the "access comes next" screen (#30, story 20).
+    awaitingAccess: isAwaitingAccess(user, scopes),
     firstSignInAt: user._creationTime,
     lastSignInAt: user.lastSignInAt,
   };
@@ -189,11 +201,13 @@ export const roster = adminQuery({
 export const awaitingCount = adminQuery({
   args: {},
   handler: async (ctx) => {
+    // Expanding scopes is the expensive half, and only an active Member can be
+    // awaiting, so the cheap half of the predicate narrows the set first.
     const members = (await ctx.db.query("users").collect()).filter(
       (user) => user.isActive && user.role === "member",
     );
     const scopes = await Promise.all(members.map((user) => scopesOf(ctx, user._id)));
-    return scopes.filter((held) => held.length === 0).length;
+    return members.filter((user, index) => isAwaitingAccess(user, scopes[index])).length;
   },
 });
 

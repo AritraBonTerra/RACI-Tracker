@@ -148,6 +148,61 @@ test("a signed-in Member with no grants gets reference data and nothing else", a
   expect(results.chains).toBe("refused");
 });
 
+test("a chain reaches a Member as a name, never as the account record", async () => {
+  // `chains.list` is Administrator-only because the account list is the shape of
+  // the company's business, and `chains.notes` is the negotiation context an
+  // Administrator types in Manage. Every scoped read that has to *name* a chain
+  // has to carry the name and nothing else, or the ancestor rule holds in the
+  // views and not at the function surface.
+  const { t, seasonId, plans, promotions } = await world();
+  const as = t.withIdentity(ADMIN);
+  const chains = await as.query(api.chains.list, {});
+  const secret = "Margin concession floor: 4pts, do not share";
+  for (const chain of chains) {
+    await as.mutation(api.chains.update, { chainId: chain._id, notes: secret });
+  }
+
+  const priya = t.withIdentity(PROMO_MEMBER);
+  const marcus = t.withIdentity(PLAN_MEMBER);
+  const responses = [
+    await priya.query(api.promotions.get, {
+      promotionId: promotions["Gift Sets"],
+      today: TODAY,
+    }),
+    await priya.query(api.seasons.tree, { seasonId, today: TODAY }),
+    await priya.query(api.home.dashboard, { seasonId, today: TODAY }),
+    await marcus.query(api.chainPlans.get, { chainPlanId: plans.Kroger, today: TODAY }),
+    await marcus.query(api.seasons.tree, { seasonId, today: TODAY }),
+    await marcus.query(api.home.dashboard, { seasonId, today: TODAY }),
+  ];
+
+  for (const response of responses) {
+    expect(response).not.toBeNull();
+    expect(JSON.stringify(response)).not.toContain(secret);
+  }
+
+  // The name is there — it is what labels their page — and it is the only thing
+  // the chain record contributes: two keys, not a document.
+  const albertsons = chains.find((chain) => chain.name === "Albertsons")!;
+  const promotionPage = await priya.query(api.promotions.get, {
+    promotionId: promotions["Gift Sets"],
+    today: TODAY,
+  });
+  expect(promotionPage?.chain).toEqual({ _id: albertsons._id, name: "Albertsons" });
+
+  const tree = await priya.query(api.seasons.tree, { seasonId, today: TODAY });
+  expect(tree?.chains[0].chain).toEqual({ _id: albertsons._id, name: "Albertsons" });
+
+  const planPage = await marcus.query(api.chainPlans.get, {
+    chainPlanId: plans.Kroger,
+    today: TODAY,
+  });
+  expect(Object.keys(planPage!.chain).sort()).toEqual(["_id", "name"]);
+
+  const board = await marcus.query(api.home.dashboard, { seasonId, today: TODAY });
+  expect(Object.keys(board!.chains[0].chain!).sort()).toEqual(["_id", "name"]);
+});
+
 // --- The scope matrix, one level at a time --------------------------------
 
 test("a Promotion-only Member sees their promotion and no sibling, plan or year", async () => {

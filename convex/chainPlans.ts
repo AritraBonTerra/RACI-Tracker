@@ -12,6 +12,7 @@ import { phase } from "./schema";
 import {
   CHAIN_PLAN_PHASES,
   assertPhaseInTier,
+  chainLabel,
   deleteTasks,
   mustGet,
   optionalText,
@@ -72,7 +73,8 @@ export const get = authedQuery({
 
     return {
       plan,
-      chain,
+      // A name, not the record: the chain's notes are Administrator material.
+      chain: chainLabel(chain),
       season: {
         _id: season._id,
         year: season.year,

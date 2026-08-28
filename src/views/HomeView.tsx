@@ -13,7 +13,7 @@ import {
 import { AssignButton } from "../components/RaciEditor";
 import { EmptyState, Pill, Skeleton } from "../components/ui";
 import { dueLabel, formatDay, formatRange, isOverdue } from "../lib/dates";
-import { PHASES, STATUSES, responsiblesOf } from "../lib/domain";
+import { CONTEXT_HINT, PHASES, STATUSES, responsiblesOf } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { href, placeRoute } from "../lib/router";
 
@@ -300,7 +300,7 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
               </>
             ) : (
               <span
-                title="Shown for context — you don't have access to this chain plan"
+                title={CONTEXT_HINT}
                 className="cursor-default text-base font-semibold tracking-tight text-ink-400"
               >
                 {chainName}

@@ -784,7 +784,7 @@ test("an edit records who made it, everywhere the record is shown", async () => 
   // Everything in the world was created by the Administrator, so that is the
   // first answer every record gives.
   const before = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!;
-  expect(before.editors[before.promotion.lastModifiedBy!]).toBe(ADMIN.email);
+  expect(before.editors[before.promotion.lastModifiedBy!]).toBe(ADMIN.name);
 
   await priya.mutation(api.promotions.update, { promotionId, storeCount: 300 });
   const taskId = before.tasks[0]._id;
@@ -796,19 +796,19 @@ test("an edit records who made it, everywhere the record is shown", async () => 
     at: typeof record.lastModifiedAt,
   });
 
-  expect(stampOf(after.promotion)).toEqual({ by: PROMO_MEMBER.email, at: "number" });
+  expect(stampOf(after.promotion)).toEqual({ by: PROMO_MEMBER.name, at: "number" });
   expect(stampOf(after.tasks.find((task) => task._id === taskId)!)).toEqual({
-    by: PROMO_MEMBER.email,
+    by: PROMO_MEMBER.name,
     at: "number",
   });
   // A row she did not touch still names whoever did.
   expect(stampOf(after.tasks.find((task) => task._id !== taskId)!)).toEqual({
-    by: ADMIN.email,
+    by: ADMIN.name,
     at: "number",
   });
   // Two editors on one page resolve to two names, and to nobody else's.
   expect(new Set(Object.values(after.editors))).toEqual(
-    new Set([ADMIN.email, PROMO_MEMBER.email]),
+    new Set([ADMIN.name, PROMO_MEMBER.name]),
   );
 
   // The same stamp on the other two tiers, and on the phase 7-8 rows.
@@ -819,11 +819,11 @@ test("an edit records who made it, everywhere the record is shown", async () => 
     chainPlanId: plans.Kroger,
     today: TODAY,
   }))!;
-  expect(plan.editors[plan.plan.lastModifiedBy!]).toBe(PLAN_MEMBER.email);
+  expect(plan.editors[plan.plan.lastModifiedBy!]).toBe(PLAN_MEMBER.name);
 
   await priya.mutation(api.kpi.saveRetro, { promotionId, worked: "Endcap placement" });
   const board = (await priya.query(api.kpi.board, { promotionId }))!;
-  expect(board.editors[board.retro!.lastModifiedBy!]).toBe(PROMO_MEMBER.email);
+  expect(board.editors[board.retro!.lastModifiedBy!]).toBe(PROMO_MEMBER.name);
 });
 
 test("an editor with no name is Someone, never their work address", async () => {

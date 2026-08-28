@@ -32,7 +32,7 @@ that is one checkbox for all of them, not twenty-two.
 | 4 | First sign-in creates an active zero-assignment Member, in the awaiting queue with candidate matches | `access` "creates exactly one active Member with no Access Assignments"; `directory` "a new sign-in lands in the awaiting-access queue and leaves it when granted", "candidate matching offers internal People only, never Distributor or Buyer"; screen: **manual A4** |
 | 5 | An anonymous or invalid-token caller gets nothing, on every function | `scopedReads` "an anonymous caller is refused by every public read"; `scopedWrites` "an anonymous caller is refused by every public write"; both files' "a verified token with no User record yet is refused the same way"; `directory` "an anonymous caller is refused every Directory function"; `access` "refuse an anonymous caller at all four doors" |
 | **B** | **Scope authorization, each level** | |
-| 6 | Promotion-only Member: full task control, KPI and Retro, ancestors as labels, nothing else | `scopedWrites` "a Promotion Member has full task control inside their scope", "a Member writes the KPI entries and the Retro of a covered Promotion"; `scopedReads` "a Promotion-only Member sees their promotion and no sibling, plan or year", "a Promotion-only Member's dashboard has no phase 0 and no plan phases" |
+| 6 | Promotion-only Member: full task control, KPI and Retro, ancestors as labels, nothing else | `scopedWrites` "a Promotion Member has full task control inside their scope", "a Member writes the KPI entries and the Retro of a covered Promotion"; `scopedReads` "a Promotion-only Member sees their promotion and no sibling, plan or year", "a Promotion-only Member's dashboard has no phase 0 and no plan phases", "a chain reaches a Member as a name, never as the account record" |
 | 7 | Chain Plan Member sees phases 1–4 and every promotion under the plan, including later ones | `scopedReads` "a Chain Plan Member sees the plan and every promotion under it", "records created after a grant are inside it" |
 | 8 | Plan Year Member sees phase 0 and everything under the year, inheritance dynamic | `scopedReads` "a Plan Year Member sees phase 0 and everything under the year", "records created after a grant are inside it" |
 | 9 | Every hierarchy or reference-data write by a Member is refused server-side | `scopedWrites` "hierarchy, reference-data and People writes are refused for every Member" |
@@ -58,7 +58,7 @@ that is one checkbox for all of them, not twenty-two.
 | 24 | The last active Administrator cannot be demoted or deactivated | `directory` "the last active Administrator cannot be demoted or deactivated", "no legal sequence of Directory moves empties the deployment of Administrators"; the disabled button: **manual G24** |
 | 25 | Lockout drill: deploy credentials restore an Administrator with the UI unusable | `cutover` "the lockout drill: deploy credentials restore an Administrator with the UI unusable", "break-glass reaches an account that has never signed in only after it does"; on production: **manual G25** |
 | 26 | Seed, migrations and break-glass are not callable from any client | `accessBoundary` "the deploy-credential module exposes nothing publicly", "only the access module builds public functions from the raw factories" |
-| 27 | Rollback drill: the prior commit runs against this data, and rolling forward loses nothing | `cutover` "records written by the previous deployment still read and still write", "the access tables are additive: the plan data never points at them"; the redeploy itself: **manual G27** |
+| 27 | Rollback drill: the prior commit runs against this data, and rolling forward loses nothing | `cutover` "records written by the previous deployment still read and still write", "the access tables are additive: the plan data never points at them", "the pre-auth schema rejects a stamped row, which is why rollback keeps this one"; the redeploy itself: **manual G27** |
 | 28 | Silent refresh is invisible; a forced reauth shows the session-expired screen and returns you; sign-out lands on the card | **manual G28** |
 | **H** | **Regression** | |
 | 29 | An Administrator walks the whole demo arc with pre-auth behaviour | `scopedWrites` "the demo arc still runs end to end under an Administrator identity"; by hand: **manual H29** |
@@ -91,10 +91,13 @@ comes next" and nothing else: no navigation, no data. An Administrator sees them
 at the top of the Directory roster with an *Awaiting access* pill and candidate
 Person matches.
 
-**B10 — absent, not greyed out.** As a Member, confirm the People, Manage and
-Directory entries are missing from the sidebar rather than disabled, and that
-typing `#/directory` in the address bar gets you the "doesn't exist, or you don't
-have access" screen.
+**B10 — absent, not greyed out.** As a Member, confirm the Manage and Directory
+entries are missing from the sidebar rather than disabled, and that typing
+`#/directory` in the address bar gets you the "doesn't exist, or you don't have
+access" screen. People *is* there on purpose — scenario 17 requires the whole
+directory in the RACI picker, so the page is readable to every account — but it
+carries no way into Manage for a Member: confirm the "Add or edit people" button
+is absent.
 
 **C11 — revocation is live.** With the Member's tab open on a granted Promotion,
 revoke the grant from the Directory. Their tab changes without a reload.
@@ -123,16 +126,24 @@ Member* and *Deactivate account* are disabled on your own row and say why.
 Directory, then bring them back with `bootstrap:reactivateUser --prod` — deploy
 credentials only, no UI. They return as an Administrator with their grants.
 
-**G27 — the rollback drill.** On a staging deployment, not production: follow
-the rollback section of `cutover.md`, confirm the pre-auth app runs against the
-data untouched, then redeploy the release and confirm every account and grant is
-still there.
+**G27 — the rollback drill.** On a staging deployment, not production. **Edit a
+record first** — change a note or a status under the release, so at least one
+row carries a last-edited stamp; a freshly-seeded deployment has none, and a
+drill run on one cannot exercise the schema half of the rollback at all. Then
+follow the rollback section of `cutover.md` exactly, including the
+`git checkout <release-commit> -- convex/schema.ts` line: `convex deploy` must
+succeed, and the pre-auth app must run against the data untouched, stamped rows
+included. Then redeploy the release and confirm every account and grant is still
+there.
 
 **G28 — sessions.** Leave a tab open long enough for a silent refresh and
-confirm nothing interrupts you. Force an interactive reauth (sign out of
-Microsoft, or clear the Clerk session) and confirm the "session expired" screen
-returns you to the page you were reading. Sign out from the avatar menu and land
-on the card with "You're signed out."
+confirm nothing interrupts you. With that tab sitting on a Promotion, force an
+interactive reauth from a *second* tab (sign out of Microsoft, or clear the
+Clerk session): the first tab shows the "session expired" screen, and signing
+back in returns you to that Promotion. Then reload the expired tab and sign in
+again from the plain card — it also returns you to the Promotion, because the
+address bar is the fallback. Last, sign out from the avatar menu and land on the
+card with "You're signed out."
 
 **H29 — the demo arc by hand.** As an Administrator: dashboard → Plan Year →
 Chain Plan → Promotion → assign RACI → set a status, including a Blocked with a

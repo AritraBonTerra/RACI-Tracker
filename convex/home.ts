@@ -6,6 +6,7 @@ import {
   PROMOTION_PHASES,
   SEASON_PHASES,
   byEta,
+  chainLabel,
   isOverdue,
   placeResolver,
   responsiblesOf,
@@ -102,7 +103,10 @@ export const dashboard = authedQuery({
               }),
           );
 
-          const chain = chainById.get(plan.chainId) ?? null;
+          // A name, not the record: the chain's notes are Administrator
+          // material, and a dashboard card only ever prints the name.
+          const found = chainById.get(plan.chainId);
+          const chain = found === undefined ? null : chainLabel(found);
 
           // A plan reached only as the parent of a granted Promotion is a
           // heading, not a section: no phases 1-4, no counts of work the

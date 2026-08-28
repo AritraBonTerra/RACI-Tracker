@@ -16,7 +16,16 @@ type RaciRole = Infer<typeof raciRole>;
 type TaskFields = WithoutSystemFields<Doc<"tasks">>;
 
 // Tables the seed owns end to end; ordered children-first so a clear pass never
-// leaves a dangling reference behind.
+// leaves a dangling reference *within the plan data*.
+//
+// The access tables (#30) are not seeded and are not cleared, and they do point
+// in here: an `accessAssignments` row names a Season, Chain Plan or Promotion,
+// and `users.personId` names a Person. A clear pass orphans those. That is
+// deliberate — the seed must not delete accounts or the audit trail — and it is
+// contained on the read side: `expandScopes` and `scopesOf` drop assignments
+// whose target is gone, and the Directory shows the account as awaiting access
+// and unlinked. `docs/runbooks/cutover.md` warns operators off `seed:run --prod`
+// after bootstrap for exactly this reason.
 const SEEDED_TABLES = [
   "tasks",
   "taskTemplates",

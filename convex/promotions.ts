@@ -13,6 +13,7 @@ import { removeForPromotion } from "./kpi";
 import {
   PROMOTION_PHASES,
   assertPhaseInTier,
+  chainLabel,
   deleteTasks,
   mustGet,
   optionalText,
@@ -64,7 +65,8 @@ export const get = authedQuery({
     return {
       promotion,
       plan: { _id: plan._id, reach: ctx.scope.chainPlan(plan) },
-      chain,
+      // A name, not the record: the chain's notes are Administrator material.
+      chain: chainLabel(chain),
       season: {
         _id: season._id,
         year: season.year,

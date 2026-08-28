@@ -2,6 +2,7 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useIsAdministrator } from "../components/AuthGate";
 import {
   Breadcrumb,
   HeaderSkeleton,
@@ -17,6 +18,12 @@ import { href, navigate, placeRoute } from "../lib/router";
 // planning meeting keeps asking: who is in this bucket, and how much are they
 // already carrying — because "give it to Alicia" is a different conversation
 // when Alicia is Responsible for eleven things, four of them late.
+//
+// Readable by every signed-in account (#30, story 18): a task row that says
+// "Alicia" has to be able to say who that is. Editing the roster is not — People
+// live in Manage, which is an Administrator surface — so the two buttons that
+// lead there are absent for a Member rather than disabled, the same rule the
+// sidebar and the tier pages follow (#27, scenario 10).
 
 type Directory = FunctionReturnType<typeof api.people.directory>;
 type Entry = Directory[number]["people"][number];
@@ -29,6 +36,7 @@ export function PeopleView({
   personId?: Id<"people">;
 }) {
   const directory = useQuery(api.people.directory, { today });
+  const isAdministrator = useIsAdministrator();
 
   if (directory === undefined) return <DirectorySkeleton />;
 
@@ -40,9 +48,11 @@ export function PeopleView({
         eyebrow={<Breadcrumb trail={[{ label: "People" }]} />}
         title="Directory"
         actions={
-          <Button size="md" onClick={() => navigate({ name: "manage" })}>
-            Add or edit people
-          </Button>
+          isAdministrator ? (
+            <Button size="md" onClick={() => navigate({ name: "manage" })}>
+              Add or edit people
+            </Button>
+          ) : undefined
         }
         meta={
           <>
@@ -68,13 +78,15 @@ export function PeopleView({
           <EmptyState
             title="The directory is empty"
             action={
-              <Button
-                variant="primary"
-                size="md"
-                onClick={() => navigate({ name: "manage" })}
-              >
-                Add people in Manage
-              </Button>
+              isAdministrator ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => navigate({ name: "manage" })}
+                >
+                  Add people in Manage
+                </Button>
+              ) : undefined
             }
           >
             Until there are names here, every task on every checklist counts as unassigned

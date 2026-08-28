@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { formatStamp } from "../lib/dates";
+import { CONTEXT_HINT } from "../lib/domain";
 import { href, type Route } from "../lib/router";
 import { errorMessage } from "../lib/toast";
 import { Button, Skeleton } from "./ui";
@@ -26,11 +27,7 @@ export function Breadcrumb({
           {index > 0 && <span className="text-ink-700">/</span>}
           {crumb.to === undefined ? (
             <span
-              title={
-                crumb.context === true
-                  ? "Shown for context — you don't have access to this"
-                  : undefined
-              }
+              title={crumb.context === true ? CONTEXT_HINT : undefined}
               className={crumb.context === true ? "cursor-default" : undefined}
             >
               {crumb.label}

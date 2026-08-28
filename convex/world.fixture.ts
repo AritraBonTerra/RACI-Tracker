@@ -19,21 +19,49 @@ import schema from "./schema";
 /** Every module the functions under test might import, test files excluded. */
 export const modules = import.meta.glob(["./**/*.*s", "!./**/*.test.*"]);
 
-const CLERK_ISSUER = "https://tidy-marmoset-42.clerk.accounts.dev";
+/**
+ * The fake Clerk instance every suite signs tokens as. `convex/auth.config.ts`
+ * verifies `iss` exactly, so this string is the whole difference between a test
+ * that authenticates and one that does not — it lives here, once, rather than
+ * being retyped per file.
+ */
+export const CLERK_ISSUER = "https://tidy-marmoset-42.clerk.accounts.dev";
+
+/** A deployment with nothing in it, as a fresh `convex deploy` leaves one. */
+export const harness = () => convexTest(schema, modules);
 
 /** Fixed, so "overdue" means the same thing on every run. */
 export const TODAY = "2026-06-15";
 
-export function token(subject: string, email: string) {
-  return { subject, issuer: CLERK_ISSUER, email, name: email };
+/**
+ * A verified session token, shaped the way `docs/runbooks/clerk-setup.md`
+ * configures Clerk to mint one: `email` and `name` are both customizations, and
+ * both are required — neither is in Clerk's default token.
+ *
+ * The name is deliberately *not* the email. An identity whose two claims carry
+ * the same string cannot tell "the app shows the editor's name" apart from "the
+ * app shows the editor's work address", which is the distinction the stamp is
+ * built on (#30, story 28).
+ */
+export function token(subject: string, email: string, name = displayNameFor(email)) {
+  return { subject, issuer: CLERK_ISSUER, email, name };
 }
 
-export const ADMIN = token("user_admin", "dana@vctusa.com");
-export const YEAR_MEMBER = token("user_year", "yolanda@vctusa.com");
-export const PLAN_MEMBER = token("user_plan", "marcus@vctusa.com");
-export const PROMO_MEMBER = token("user_promo", "priya@vctusa.com");
+/** "sam.rivera@vctusa.com" -> "Sam Rivera": a stand-in for `{{user.full_name}}`. */
+function displayNameFor(email: string): string {
+  return (email.split("@")[0] ?? email)
+    .split(/[._-]+/)
+    .filter((word) => word.length > 0)
+    .map((word) => word[0].toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+export const ADMIN = token("user_admin", "dana@vctusa.com", "Dana Whitfield");
+export const YEAR_MEMBER = token("user_year", "yolanda@vctusa.com", "Yolanda Esparza");
+export const PLAN_MEMBER = token("user_plan", "marcus@vctusa.com", "Marcus Bell");
+export const PROMO_MEMBER = token("user_promo", "priya@vctusa.com", "Priya Raman");
 /** Signed in, granted nothing: the "access comes next" account. */
-export const NEWCOMER = token("user_new", "sam@vctusa.com");
+export const NEWCOMER = token("user_new", "sam@vctusa.com", "Sam Nakamura");
 
 export const EVERYONE = [ADMIN, YEAR_MEMBER, PLAN_MEMBER, PROMO_MEMBER, NEWCOMER];
 

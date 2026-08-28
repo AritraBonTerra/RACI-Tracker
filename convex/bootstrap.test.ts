@@ -1,25 +1,17 @@
-import { convexTest } from "convex-test";
 import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
+import { CLERK_ISSUER, harness } from "./world.fixture";
 
 // The bootstrap drill: a fresh deployment, one employee signs in, and deploy
 // credentials turn them into the first Administrator. Then the break-glass
 // version of the same move.
 
-const modules = import.meta.glob(["./**/*.*s", "!./**/*.test.*"]);
-
-const CLERK_ISSUER = "https://tidy-marmoset-42.clerk.accounts.dev";
 const ALICE = {
   subject: "user_2alice",
   issuer: CLERK_ISSUER,
   name: "Alice Moreno",
   email: "alice@vctusa.com",
 };
-
-function harness() {
-  return convexTest(schema, modules);
-}
 
 /** A fresh deployment where Alice has signed in once and has no access. */
 async function afterFirstSignIn() {

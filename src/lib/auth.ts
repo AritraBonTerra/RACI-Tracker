@@ -74,9 +74,17 @@ function appUrl(hash: string) {
  * Where to put the user back after a round trip through Microsoft. Recorded
  * continuously while signed in, so an expired session returns to the promotion
  * they were reading rather than the dashboard.
+ *
+ * The address bar is the fallback, ahead of the dashboard: a tab reloaded on a
+ * lapsed session, a browser restarted overnight, or a shared deep link opened
+ * while signed out all reach the sign-in screen with the wanted page already in
+ * the hash and nothing in `sessionStorage`. Sending those to the dashboard
+ * would throw away the link the user just clicked.
  */
 function returnTo(): string {
-  return sessionStorage.getItem(RETURN_TO_KEY) ?? "#/";
+  const remembered = sessionStorage.getItem(RETURN_TO_KEY);
+  if (remembered !== null && remembered !== "") return remembered;
+  return window.location.hash === "" ? "#/" : window.location.hash;
 }
 
 /** The same place, as the absolute URL Clerk's redirect props want. */

@@ -31,6 +31,24 @@ nobody sits at the "access comes next" screen unnoticed.
    will see as plain names, `hidden` for everything else.
 5. Their open browser tab updates without a reload.
 
+### What an account holds before you grant anything
+
+The waiting-room screen is blank, but the boundary underneath it is not "no
+data": a zero-grant account is an ordinary Member, and a Member may read the
+**reference data** — People, Functions, Brands and the RACI defaults. That is
+deliberate. A task row saying "Alicia" has to be able to say who Alicia is, and
+the RACI picker has to offer the whole directory (#27, scenario 17), so the
+People roster cannot be scoped without breaking the picker for every Member.
+
+What it means in practice: between a first sign-in and your first grant, that
+account can reach the People roster — names, titles, email addresses and
+organizations, external Distributor and Buyer contacts included — and nothing
+else. No Plan Year, no Chain Plan, no Promotion, no task, no other account's
+role or grants. Anyone who completes Microsoft sign-in is such an account
+without an Administrator lifting a finger, which is why the Entra side of
+`clerk-setup.md` keeps **Assignment required = Yes**: employee assignment in
+Entra, not the grant here, is what stops a stranger reaching that far.
+
 ## Grants, in one paragraph
 
 A grant names one Plan Year, Chain Plan or Promotion, and access flows **down**

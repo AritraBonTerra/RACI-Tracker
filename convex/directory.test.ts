@@ -461,7 +461,7 @@ test("a grant carries who made it, and the CLI's grants say so", async () => {
   });
 
   expect((await as.query(api.directory.account, { userId: samId }))?.grants).toMatchObject(
-    [{ label: "Gift Sets · Albertsons", grantedByName: "dana@vctusa.com" }],
+    [{ label: "Gift Sets · Albertsons", grantedByName: ADMIN.name }],
   );
   // The fixture's grants were made with deploy credentials: no account to name.
   expect(
@@ -641,8 +641,8 @@ test("every access-management action lands in the feed with an actor and a times
     "user_created",
   ]);
   for (const event of feed.slice(0, 6)) {
-    expect(event.actorName).toBe("dana@vctusa.com");
-    expect(event.subjectName).toBe(NEWCOMER.email);
+    expect(event.actorName).toBe(ADMIN.name);
+    expect(event.subjectName).toBe(NEWCOMER.name);
     expect(event.at).toBeGreaterThan(0);
   }
 });
@@ -669,7 +669,7 @@ test("the whole-company feed is newest first and covers every account", async ()
   });
 
   const feed = await as.query(api.directory.auditFeed, {});
-  expect(feed[0]).toMatchObject({ action: "access_granted", subjectName: NEWCOMER.email });
+  expect(feed[0]).toMatchObject({ action: "access_granted", subjectName: NEWCOMER.name });
   expect([...feed].sort((a, b) => b.at - a.at)).toEqual(feed);
   expect(new Set(feed.map((event) => event.subjectName)).size).toBeGreaterThan(1);
 });

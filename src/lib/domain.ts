@@ -4,6 +4,16 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 // Commercial Cycle and the four task statuses. Kept in one place so the phase
 // number, its title and its colour never drift between views.
 
+/**
+ * The tooltip on every node shown only to orient — never as a way in.
+ *
+ * One string, because it is the whole of what the navigation decision promises
+ * ("ancestors are non-clickable labels with a context tooltip", #30 story 24)
+ * and it renders in four places: the sidebar tree, the year picker, the
+ * breadcrumb and the dashboard's chain heading.
+ */
+export const CONTEXT_HINT = "Shown for context — you don't have access to this";
+
 export type PhaseNumber = Doc<"tasks">["phase"];
 export type TaskStatus = Doc<"tasks">["status"];
 

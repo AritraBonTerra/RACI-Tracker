@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { formatRange } from "../lib/dates";
-import { PHASES } from "../lib/domain";
+import { CONTEXT_HINT, PHASES } from "../lib/domain";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 import { RollupChips, mergeRollups, type Rollup } from "./Rollup";
@@ -32,9 +32,6 @@ import { Button, Field, Modal, Pill, Skeleton, inputClass } from "./ui";
 type Tree = NonNullable<FunctionReturnType<typeof api.seasons.tree>>;
 type ChainNode = Tree["chains"][number];
 type PlanNode = ChainNode["plans"][number];
-
-/** The tooltip on every node shown only to orient — never as a way in. */
-export const CONTEXT_HINT = "Shown for context — you don't have access to this";
 
 const COLLAPSE_KEY = "raci.sidebar.collapsed";
 

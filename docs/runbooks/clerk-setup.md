@@ -33,14 +33,19 @@ so nothing here costs anything.
    `convex/auth.config.ts` expects. Do **not** create a `convex` JWT template —
    the template path is legacy, and claims placed there are silently dropped by
    recent Convex clients.
-4. **Add the email claim.** *Sessions → Customize session token* and add:
+4. **Add the email and name claims.** *Sessions → Customize session token* and
+   add:
 
    ```json
-   { "email": "{{user.primary_email_address}}" }
+   { "email": "{{user.primary_email_address}}", "name": "{{user.full_name}}" }
    ```
 
-   Without it `identity.email` is undefined and every User is created with no
-   email, which makes `bootstrap:grantAdmin --email` unusable.
+   Both are required, and neither is in Clerk's default token. Without `email`,
+   `identity.email` is undefined, every User is created with no email, and
+   `bootstrap:grantAdmin --email` is unusable. Without `name`,
+   `identity.name` is undefined, `users.displayName` is never set, and every
+   last-edited stamp in the app reads "Last edited by Someone" — the fallback
+   exists for tokens that genuinely carry no name, not as the normal case.
 5. **Copy the two values** from *API keys* and *Domains*:
 
    - Publishable key (`pk_test_…`) → `.env.local` as `VITE_CLERK_PUBLISHABLE_KEY`
@@ -99,18 +104,25 @@ are not available on production instances of the free plan.
    | `public_metadata_entra_tid` | `user.tenantid` | `publicMetadata.entra_tid` |
    | `public_metadata_entra_usertype` | `user.usertype` | `publicMetadata.entra_usertype` |
 
+   Keep Entra's default `givenname` / `surname` / `displayname` claims mapped as
+   well. Clerk fills the user's first and last name from them, and
+   `{{user.full_name}}` in the session token is empty if it has nothing to fill
+   from — which is the difference between "Last edited by Dana Whitfield" and
+   "Last edited by Someone" on every record in the app.
+
    Then extend the production session token customization to:
 
    ```json
    {
      "email": "{{user.primary_email_address}}",
+     "name": "{{user.full_name}}",
      "entra_oid": "{{user.public_metadata.entra_oid}}",
      "entra_tid": "{{user.public_metadata.entra_tid}}",
      "entra_usertype": "{{user.public_metadata.entra_usertype}}"
    }
    ```
 
-   `convex/access.ts` reads all three and stores whichever arrive. If
+   `convex/access.ts` reads all of these and stores whichever arrive. If
    `user.usertype` turns out not to be selectable in the Entra claim editor,
    nothing breaks — guest exclusion falls back to Entra app assignment.
 5. **Close the other doors.** On the production instance turn off email code,

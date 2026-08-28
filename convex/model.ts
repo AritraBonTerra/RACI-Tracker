@@ -164,6 +164,21 @@ export async function mustGet<Table extends TableNames>(
 }
 
 /**
+ * A chain as a Member is allowed to see it: the name that labels their plan or
+ * promotion, and nothing else.
+ *
+ * `chains.list` is Administrator-only because the account list is
+ * company-sensitive, and `chains.notes` is the negotiation context an
+ * Administrator types in Manage. Every scoped read that has to name a chain
+ * goes through here rather than returning the document, so the ancestor rule —
+ * ancestors are names, not content — holds at the function surface and not just
+ * in the views (#30, story 24).
+ */
+export function chainLabel(chain: Doc<"chains">) {
+  return { _id: chain._id, name: chain.name };
+}
+
+/**
  * The slide-16 matrix rows for a tier's phases: which function is expected to
  * play which role. Shown as guidance on a phase header — never a substitute for
  * a named Responsible person.

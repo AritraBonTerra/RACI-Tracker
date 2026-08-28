@@ -152,8 +152,14 @@ export default defineSchema({
     .index("by_name", ["name"]),
 
   // --- Access control (#30) ---------------------------------------------
-  // Additive tables: nothing above them changes, so rolling this back is
-  // redeploying the prior commit.
+  // Additive tables: no table above them loses a column, and the two they gain
+  // (`lastModified`) are optional, so the prior commit's functions run against
+  // this data unchanged.
+  //
+  // *This file* is the exception, and the rollback runbook says so: Convex
+  // rejects stored documents carrying fields their table does not declare, so
+  // pushing the pre-auth schema over data that has been edited under this
+  // release fails validation. Roll the code back and keep this schema.
 
   // One row per signed-in identity (CONTEXT.md: User). Created by `ensureUser`
   // on first sign-in as an active Member with zero Access Assignments — active

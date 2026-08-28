@@ -1,8 +1,17 @@
 import { convexTest } from "convex-test";
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
-import schema from "./schema";
-import { ADMIN, NEWCOMER, PROMO_MEMBER, modules, token, world } from "./world.fixture";
+import {
+  ADMIN,
+  NEWCOMER,
+  PROMO_MEMBER,
+  harness as freshDeployment,
+  modules,
+  token,
+  world,
+} from "./world.fixture";
 
 // The cutover's own scenarios (#35): the parts of the #27 acceptance list that
 // are about the *release* rather than the authorization matrix — the seeded data
@@ -13,9 +22,6 @@ import { ADMIN, NEWCOMER, PROMO_MEMBER, modules, token, world } from "./world.fi
 // injected, internal functions invoked the way `bunx convex run` invokes them.
 // Where a step of the runbook is a shell command, the test is that command's
 // function call, run in the order the runbook writes it.
-
-/** A deployment with nothing in it, as a fresh `convex deploy` leaves one. */
-const freshDeployment = () => convexTest(schema, modules);
 
 // --- The data set a deployment starts from (#27, scenario 30) --------------
 
@@ -163,7 +169,7 @@ test("records written by the previous deployment still read and still write", as
     today: "2026-08-20",
   });
   expect(edited?.season.notes).toBe("Rolled forward");
-  expect(edited?.editors[edited.season.lastModifiedBy!]).toBe(ADMIN.email);
+  expect(edited?.editors[edited.season.lastModifiedBy!]).toBe(ADMIN.name);
 });
 
 test("the access tables are additive: the plan data never points at them", async () => {
@@ -225,6 +231,40 @@ test("the access tables are additive: the plan data never points at them", async
   ]);
 });
 
+test("the pre-auth schema rejects a stamped row, which is why rollback keeps this one", async () => {
+  // The backward direction, and the reason `docs/runbooks/cutover.md` pins
+  // `convex/schema.ts` during a rollback. Convex validates stored documents
+  // against the schema being pushed and its object validators reject fields the
+  // table does not declare, so a `seasons` table shaped the way the prior commit
+  // shapes it cannot hold a row this release has stamped. Rolling the *code*
+  // back is safe; rolling this file back is what breaks.
+  const priorSchema = defineSchema({
+    seasons: defineTable({
+      year: v.number(),
+      label: v.string(),
+      notes: v.optional(v.string()),
+    }).index("by_year", ["year"]),
+  });
+
+  const prior = convexTest(priorSchema, modules);
+
+  // Unstamped: exactly what the prior commit writes, and it validates.
+  await prior.run(async (ctx) => {
+    await ctx.db.insert("seasons", { year: 2027, label: "2027" });
+  });
+
+  // Stamped by this release. The same table refuses it.
+  await expect(
+    prior.run(async (ctx) => {
+      await ctx.db.insert("seasons", {
+        year: 2028,
+        label: "2028",
+        lastModifiedAt: Date.now(),
+      } as never);
+    }),
+  ).rejects.toThrow();
+});
+
 // --- The bootstrap drill (#27, scenario 23) --------------------------------
 
 test("the bootstrap drill: sign in, grantAdmin, promote the second Administrator", async () => {
@@ -281,10 +321,10 @@ test("the bootstrap drill: sign in, grantAdmin, promote the second Administrator
     .filter((event) => event.action === "role_changed")
     .map((event) => ({ subject: event.subjectName, actor: event.actorName }));
   expect(promotions).toEqual([
-    { subject: second.email, actor: ADMIN.email },
+    { subject: second.name, actor: ADMIN.name },
     // Null is how the feed says "deploy credentials", which is what the
     // Directory renders as such — a bootstrap is an action, not a hole.
-    { subject: ADMIN.email, actor: null },
+    { subject: ADMIN.name, actor: null },
   ]);
 });
 

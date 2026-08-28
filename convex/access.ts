@@ -560,7 +560,7 @@ export async function scopesOf(
 }
 
 /** Where the shell opens for a User (#24). */
-export type Landing =
+type Landing =
   | { kind: "dashboard" }
   | { kind: "promotion"; promotionId: Id<"promotions"> };
 
@@ -579,7 +579,7 @@ function landingFor(role: Viewer["role"], scopes: readonly AccessScope[]): Landi
 }
 
 /** Writes one row of the access history (CONTEXT.md: Audit event). */
-export async function recordAuditEvent(
+async function recordAuditEvent(
   ctx: MutationCtx,
   event: Omit<Doc<"auditEvents">, "_id" | "_creationTime">,
 ) {
@@ -708,7 +708,7 @@ export async function revokeScope(
 }
 
 /** The active Administrators — the people who can still let everyone back in. */
-export async function activeAdministrators(ctx: QueryCtx): Promise<Doc<"users">[]> {
+async function activeAdministrators(ctx: QueryCtx): Promise<Doc<"users">[]> {
   const administrators = await ctx.db
     .query("users")
     .withIndex("by_role", (q) => q.eq("role", "administrator"))
