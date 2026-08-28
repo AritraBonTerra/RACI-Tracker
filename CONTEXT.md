@@ -23,8 +23,24 @@ conversation.
 - **Function** — a stakeholder bucket: Commercial Strat Account, Marketing,
   Retail Marketing / Local Sales, Finance (internal); Distributor, Buyer
   (external).
-- **Person** — a named human belonging to a Function. Created in-app; not a
-  login account in v0.
+- **Person** — a named human belonging to a Function. Created in-app; not
+  itself a login account. An internal Person may be linked to at most one User;
+  Distributor and Buyer People are never linked.
+- **User** — an authenticated internal employee; exactly one User per Microsoft
+  identity. Every User is an Administrator or a Member, and may optionally be
+  linked to one internal Person (the link powers convenience views, never
+  access). A deactivated User is denied all access immediately; the record, its
+  Person link, and all history are kept.
+- **Administrator** — an authenticated internal employee who can access and
+  manage every Season, Chain Plan, Promotion, Person, and access assignment.
+- **Member** — an authenticated internal employee whose access is assigned at
+  a Season, Chain Plan, or Promotion. Season access includes its Chain Plans
+  and Promotions; Chain Plan access includes its Promotions; Promotion access
+  includes only that Promotion and the parent labels needed for context.
+- **Access Assignment** — an Administrator-granted assignment giving one Member
+  access at one Season, Chain Plan, or Promotion. A Member's total access is
+  the union of their Access Assignments. RACI names People and never grants or
+  changes access.
 - **RACI** — per task: **Responsible** does the work (a task needs a *named*
   Person as R to count as assigned), **Accountable** owns the outcome,
   **Consulted** gives input before decisions, **Informed** is kept up to date.
