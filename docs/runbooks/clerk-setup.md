@@ -85,7 +85,7 @@ identity key is the Clerk user id either way.
    Admission to *this app* is decided afterwards, by section C and by an
    Administrator's grant — not here.
 4. **Create the `convex` JWT template with the three claims.** Two token paths
-   exist and `ConvexProviderWithClerk` (convex 1.28) picks between them at
+   exist and `ConvexProviderWithClerk` (convex 1.44 as installed) picks between them at
    runtime: if the default session token carries `aud: "convex"` (the
    *Integrations → Convex* toggle) it uses that token, otherwise it requests a
    JWT template named `convex`. Either works; this deployment uses the
