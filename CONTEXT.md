@@ -41,6 +41,11 @@ conversation.
   access at one Season, Chain Plan, or Promotion. A Member's total access is
   the union of their Access Assignments. RACI names People and never grants or
   changes access.
+- **Audit event** — a durable record of an access-management action (role
+  change, Access Assignment grant or revocation, User activation or
+  deactivation, Person-link change) with its actor and timestamp. Kept
+  indefinitely. Ordinary record edits are not Audit events; they carry a
+  last-modified-by stamp instead.
 - **RACI** — per task: **Responsible** does the work (a task needs a *named*
   Person as R to count as assigned), **Accountable** owns the outcome,
   **Consulted** gives input before decisions, **Informed** is kept up to date.
