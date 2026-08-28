@@ -14,8 +14,10 @@ import {
 } from "../components/page";
 import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { Button, ConfirmButton, Modal, Pill } from "../components/ui";
+import { Pathway } from "../components/Pathway";
 import { formatDay } from "../lib/dates";
 import { PHASES, PROMOTION_PHASES, toPhase } from "../lib/domain";
+import { buildPathway, promotionAnchors } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { navigate } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
@@ -50,7 +52,7 @@ export function PromotionView({
           <Breadcrumb
             trail={[
               {
-                label: `Season ${data.season.label}`,
+                label: `Year ${data.season.label}`,
                 to: { name: "season", seasonId: data.season._id },
               },
               {
@@ -154,6 +156,17 @@ export function PromotionView({
           />
         </div>
       </PageHeader>
+
+      <Pathway
+        phases={buildPathway(
+          PROMOTION_PHASES,
+          data.tasks,
+          promotionAnchors(data.promotion),
+          data.promotion.currentPhase,
+          today,
+        )}
+        today={today}
+      />
 
       <RollupTiles rollup={data.rollup} />
 

@@ -15,8 +15,10 @@ import {
 } from "../components/page";
 import { InlineText } from "../components/inline";
 import { EmptyState, Panel } from "../components/ui";
+import { Pathway } from "../components/Pathway";
 import { formatDay } from "../lib/dates";
-import { SEASON_PHASES } from "../lib/domain";
+import { CHAIN_PLAN_PHASES, PHASES, SEASON_PHASES } from "../lib/domain";
+import { buildPathway } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { href } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
@@ -44,14 +46,14 @@ export function SeasonView({
   const update = useReportedMutation(api.seasons.update);
 
   if (data === undefined) return <TierSkeleton panels={2} />;
-  if (data === null) return <NotFound what="season" />;
+  if (data === null) return <NotFound what="plan year" />;
 
   const planCount = tree.chains.reduce((count, chain) => count + chain.plans.length, 0);
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow={<Breadcrumb trail={[{ label: "Season" }]} />}
+        eyebrow={<Breadcrumb trail={[{ label: "Plan year" }]} />}
         title={
           <InlineText
             value={data.season.label}
@@ -71,11 +73,18 @@ export function SeasonView({
           <InlineText
             value={data.season.notes}
             multiline
-            placeholder="Add a note about this season…"
+            placeholder="Add a note about this year…"
             onCommit={(notes) => void update({ seasonId, notes })}
           />
         </div>
       </PageHeader>
+
+      <Pathway
+        phases={buildPathway(SEASON_PHASES, data.tasks, {}, 0, today)}
+        today={today}
+      >
+        {planCount > 0 && <ChainPositions tree={tree} />}
+      </Pathway>
 
       <RollupTiles rollup={data.rollup} />
 
@@ -97,7 +106,7 @@ export function SeasonView({
         subtitle="Phases 1–4 live here. Start one from the sidebar for any chain without a plan."
       >
         {planCount === 0 ? (
-          <EmptyState title="No chain plans for this season yet">
+          <EmptyState title="No chain plans for this year yet">
             One plan per retail account per year. Every chain in Manage is listed in the
             sidebar with a <span className="text-ink-300">+ Plan</span> button beside it —
             starting one lays down the phase 1–4 checklist.
@@ -132,6 +141,53 @@ export function SeasonView({
           </div>
         )}
       </Panel>
+    </div>
+  );
+}
+
+// Where every chain sits on phases 1-4, so the year view answers "what's
+// where" without a single click (CONTEXT.md: Pathway).
+function ChainPositions({ tree }: { tree: Tree }) {
+  return (
+    <div className="mt-3 grid gap-1.5 border-t border-ink-800 pt-3">
+      {tree.chains.flatMap((chain) =>
+        chain.plans.map((node) => (
+          <a
+            key={node.plan._id}
+            href={href({ name: "plan", chainPlanId: node.plan._id })}
+            className="flex items-center gap-3 rounded-md px-1 py-0.5 text-xs hover:bg-ink-800/60"
+          >
+            <span className="w-24 shrink-0 truncate text-ink-200">
+              {chain.chain.name}
+            </span>
+            <span className="flex items-center gap-1">
+              {CHAIN_PLAN_PHASES.map((phase) => {
+                const done = phase < node.plan.currentPhase;
+                const current = phase === node.plan.currentPhase;
+                return (
+                  <span
+                    key={phase}
+                    className={`flex size-4 items-center justify-center rounded text-3xs ${
+                      done
+                        ? "bg-emerald-500 font-bold text-ink-fixed"
+                        : current
+                          ? "bg-ink-800 text-ink-100 ring-1 ring-sand-500"
+                          : "bg-ink-800 text-ink-500"
+                    }`}
+                  >
+                    {done ? "✓" : phase}
+                  </span>
+                );
+              })}
+            </span>
+            <span className="truncate text-2xs text-ink-500">
+              phase {node.plan.currentPhase} · {PHASES[node.plan.currentPhase].title}
+              {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate)}`}
+              {` · ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
+            </span>
+          </a>
+        )),
+      )}
     </div>
   );
 }

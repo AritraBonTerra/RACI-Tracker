@@ -11,6 +11,7 @@ import {
   requiredText,
   rollup,
   fromUrl,
+  stampTemplates,
 } from "./model";
 
 // The bottom tier: an approved program under a chain plan, carrying phases 5-8
@@ -78,7 +79,7 @@ export const create = mutation({
     if (endDate < startDate)
       throw new ConvexError("The end date is before the start date.");
 
-    return await ctx.db.insert("promotions", {
+    const promotionId = await ctx.db.insert("promotions", {
       chainPlanId: plan._id,
       // Denormalized from the plan so "every Safeway promotion" is one index read.
       chainId: plan.chainId,
@@ -91,6 +92,8 @@ export const create = mutation({
       currentPhase: args.currentPhase ?? 5,
       notes: optionalText(args.notes),
     });
+    await stampTemplates(ctx, { tier: "promotion", promotionId }, PROMOTION_PHASES);
+    return promotionId;
   },
 });
 

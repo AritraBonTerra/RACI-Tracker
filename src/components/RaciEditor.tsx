@@ -10,7 +10,7 @@ import {
 import { createPortal } from "react-dom";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
-import { PHASES, roleLetters, type PhaseNumber } from "../lib/domain";
+import { PHASES, responsiblesOf, roleLetters, type PhaseNumber } from "../lib/domain";
 import { href } from "../lib/router";
 import type { Person, PeopleDirectory } from "../lib/people";
 import { useRaciMatrix, type RaciMatrix, type RaciRole } from "../lib/raci";
@@ -19,10 +19,12 @@ import { useReportedMutation } from "../lib/toast";
 // Assignment, everywhere a task appears. Two rules shape this file:
 //
 // 1. The slide-16 matrix says which *function* is expected to act on a phase.
-//    It is the pre-filled baseline — those functions are pinned to the top of
-//    every picker — but it never makes a task assigned.
-// 2. Only a named Responsible person does (CONTEXT.md: Unassigned), so the R
-//    field is the loud one, and picking someone is two clicks from anywhere.
+//    It is the pre-filled baseline — the picker opens on those functions alone,
+//    with everyone else one click away — but it never makes a task assigned.
+// 2. Only named Responsible people do (CONTEXT.md: Unassigned), so the R field
+//    is the loud one, and picking someone is two clicks from anywhere. R takes
+//    several people (shared work is real); A stays exactly one — the name you
+//    chase when the task is late.
 
 const ROLE_META = {
   responsible: { letter: "R", label: "Responsible", hint: "does the work" },
@@ -30,6 +32,11 @@ const ROLE_META = {
   consulted: { letter: "C", label: "Consulted", hint: "asked before decisions" },
   informed: { letter: "I", label: "Informed", hint: "kept up to date" },
 } as const satisfies Record<RaciRole, { letter: string; label: string; hint: string }>;
+
+const toggled = (current: ReadonlyArray<Id<"people">>, personId: Id<"people">) =>
+  current.includes(personId)
+    ? current.filter((id) => id !== personId)
+    : [...current, personId];
 
 /** The RACI block on an expanded task row: defaults on top, named people below. */
 export function RaciEditor({
@@ -42,11 +49,7 @@ export function RaciEditor({
   const update = useReportedMutation(api.tasks.update);
   const matrix = useRaciMatrix();
   const cells = matrix.cellsFor(task.phase);
-
-  const toggled = (current: ReadonlyArray<Id<"people">>, personId: Id<"people">) =>
-    current.includes(personId)
-      ? current.filter((id) => id !== personId)
-      : [...current, personId];
+  const responsibles = responsiblesOf(task);
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-950/60">
@@ -73,16 +76,18 @@ export function RaciEditor({
       </div>
 
       <div className="grid gap-3 px-3 py-3 md:grid-cols-2 xl:grid-cols-4">
-        <RoleSlot role="responsible" filled={task.responsiblePersonId !== undefined}>
-          <PersonField
+        <RoleSlot role="responsible" filled={responsibles.length > 0}>
+          <PersonList
             role="responsible"
             phase={task.phase}
-            value={task.responsiblePersonId}
+            selected={responsibles}
             people={people}
             matrix={matrix}
-            emptyLabel="Unassigned"
-            onSelect={(responsiblePersonId) =>
-              void update({ taskId: task._id, responsiblePersonId })
+            onToggle={(personId) =>
+              void update({
+                taskId: task._id,
+                responsiblePersonIds: toggled(responsibles, personId),
+              })
             }
           />
         </RoleSlot>
@@ -178,7 +183,7 @@ function RoleSlot({
   );
 }
 
-/** A single-person slot (R or A) as a click-to-open field. */
+/** The single-person slot (A) as a click-to-open field. */
 export function PersonField({
   role,
   phase,
@@ -227,7 +232,11 @@ export function PersonField({
   );
 }
 
-/** A many-person slot (C or I): chips you can drop, plus one button to add. */
+/**
+ * A many-person slot (R, C or I): chips you can drop, plus one button to add.
+ * An empty R is the only one that gets to look like an emergency, because it is
+ * one (CONTEXT.md: Unassigned).
+ */
 function PersonList({
   role,
   phase,
@@ -243,6 +252,8 @@ function PersonList({
   matrix: RaciMatrix;
   onToggle: (personId: Id<"people">) => void;
 }) {
+  const alarming = role === "responsible" && selected.length === 0;
+
   return (
     <div className="flex flex-wrap items-center gap-1">
       {selected.map((id) => {
@@ -267,12 +278,22 @@ function PersonList({
         people={people}
         matrix={matrix}
         multi
+        // The first R is the urgent one; adding a second is list curation.
+        closeOnPick={alarming}
         selected={selected}
         onPick={(next) => {
           if (next !== null) onToggle(next);
         }}
-        trigger={<span>{selected.length === 0 ? "+ Add" : "+"}</span>}
-        triggerClass="w-auto rounded-full border-dashed border-ink-700 bg-transparent px-2 py-0.5 text-ink-500 hover:border-ink-500 hover:text-ink-200"
+        trigger={
+          <span>
+            {selected.length === 0 ? (alarming ? "Assign R" : "+ Add") : "+"}
+          </span>
+        }
+        triggerClass={
+          alarming
+            ? "w-auto rounded-full border-rose-500/70 bg-rose-500/15 px-2 py-0.5 font-semibold text-rose-200 hover:border-rose-400 hover:bg-rose-500/25"
+            : "w-auto rounded-full border-dashed border-ink-700 bg-transparent px-2 py-0.5 text-ink-500 hover:border-ink-500 hover:text-ink-200"
+        }
       />
     </div>
   );
@@ -294,38 +315,70 @@ export function AssignButton({
 }) {
   const update = useReportedMutation(api.tasks.update);
   const matrix = useRaciMatrix();
-  const value =
-    role === "responsible" ? task.responsiblePersonId : task.accountablePersonId;
-  const person = value === undefined ? undefined : people.byId.get(value);
 
-  const assign = (next: Id<"people"> | null) =>
-    void update(
-      role === "responsible"
-        ? { taskId: task._id, responsiblePersonId: next }
-        : { taskId: task._id, accountablePersonId: next },
+  if (role === "accountable") {
+    const value = task.accountablePersonId;
+    const person = value === undefined ? undefined : people.byId.get(value);
+    const assign = (next: Id<"people"> | null) =>
+      void update({ taskId: task._id, accountablePersonId: next });
+
+    return (
+      <Picker
+        role="accountable"
+        phase={task.phase}
+        people={people}
+        matrix={matrix}
+        align="right"
+        selected={value === undefined ? [] : [value]}
+        onPick={assign}
+        onClear={value === undefined ? undefined : () => assign(null)}
+        trigger={
+          <span className="whitespace-nowrap">{person?.name ?? "Set A"}</span>
+        }
+        triggerClass={
+          person === undefined
+            ? "w-auto border-rose-500 bg-rose-500/20 px-2 py-1 font-semibold text-rose-100 hover:bg-rose-500/30"
+            : "w-auto border-ink-700 bg-ink-900 px-2 py-1 text-ink-200 hover:border-ink-500"
+        }
+      />
     );
+  }
+
+  // R is a list: the button reads as the first name plus how many more, and the
+  // picker toggles membership. Assigning the *first* person closes on pick —
+  // that is the rail's two-click fix — while editing an existing list stays open.
+  const selected = responsiblesOf(task);
+  const first = selected.length === 0 ? undefined : people.byId.get(selected[0]);
 
   return (
     <Picker
-      role={role}
+      role="responsible"
       phase={task.phase}
       people={people}
       matrix={matrix}
       align="right"
-      selected={value === undefined ? [] : [value]}
-      onPick={assign}
-      onClear={value === undefined ? undefined : () => assign(null)}
+      multi
+      closeOnPick={selected.length === 0}
+      selected={selected}
+      onPick={(next) => {
+        if (next !== null) {
+          void update({
+            taskId: task._id,
+            responsiblePersonIds: toggled(selected, next),
+          });
+        }
+      }}
       trigger={
         <span className="whitespace-nowrap">
-          {person === undefined
-            ? role === "responsible"
-              ? "Assign R"
-              : "Set A"
-            : person.name}
+          {first === undefined
+            ? "Assign R"
+            : selected.length === 1
+              ? first.name
+              : `${first.name} +${selected.length - 1}`}
         </span>
       }
       triggerClass={
-        person === undefined
+        first === undefined
           ? "w-auto border-rose-500 bg-rose-500/20 px-2 py-1 font-semibold text-rose-100 hover:bg-rose-500/30"
           : "w-auto border-ink-700 bg-ink-900 px-2 py-1 text-ink-200 hover:border-ink-500"
       }
@@ -347,6 +400,7 @@ function Picker({
   triggerClass,
   align = "left",
   multi = false,
+  closeOnPick = false,
 }: {
   role: RaciRole;
   phase: PhaseNumber;
@@ -359,6 +413,8 @@ function Picker({
   triggerClass: string;
   align?: "left" | "right";
   multi?: boolean;
+  /** Close a multi picker after one pick — the fast path for a first assignment. */
+  closeOnPick?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -417,7 +473,7 @@ function Picker({
             multi={multi}
             onPick={(next) => {
               onPick(next);
-              if (!multi) setOpen(false);
+              if (!multi || closeOnPick) setOpen(false);
             }}
             onClear={
               onClear === undefined
@@ -529,6 +585,7 @@ function PickerPanel({
   ref: RefObject<HTMLDivElement | null>;
 }) {
   const [search, setSearch] = useState("");
+  const [showAll, setShowAll] = useState(false);
   const expected = matrix.functionsFor(phase, role);
   const chosen = new Set(selected);
 
@@ -552,7 +609,20 @@ function PickerPanel({
       .sort((a, b) => Number(b.expected) - Number(a.expected));
   }, [people.byFunction, expected, search]);
 
-  const first = groups[0]?.people[0];
+  // Soft filter: the list opens on the functions the matrix expects for this
+  // phase + role. Guidance, not law — "Show everyone" is one click, and a
+  // search always covers the whole directory.
+  const searching = search.trim() !== "";
+  const filtering =
+    !showAll && !searching && expected.size > 0 && groups.some((group) => group.expected);
+  const visible = filtering ? groups.filter((group) => group.expected) : groups;
+  const hiddenPeople = filtering
+    ? groups
+        .filter((group) => !group.expected)
+        .reduce((count, group) => count + group.people.length, 0)
+    : 0;
+
+  const first = visible[0]?.people[0];
   const meta = ROLE_META[role];
 
   return (
@@ -588,7 +658,7 @@ function PickerPanel({
           </button>
         )}
 
-        {groups.length === 0 &&
+        {visible.length === 0 &&
           (people.list.length === 0 ? (
             // Nothing to pick from at all: say where people come from, because
             // an empty picker is otherwise indistinguishable from a broken one.
@@ -610,7 +680,7 @@ function PickerPanel({
             </p>
           ))}
 
-        {groups.map((group) => (
+        {visible.map((group) => (
           <div key={group.functionId}>
             <p className="flex items-center justify-between gap-2 bg-ink-950/60 px-3 py-1 text-3xs font-semibold tracking-wider text-ink-500 uppercase">
               <span className="truncate">{group.name}</span>
@@ -645,6 +715,26 @@ function PickerPanel({
             ))}
           </div>
         ))}
+
+        {hiddenPeople > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="block w-full border-t border-ink-800/70 px-3 py-1.5 text-left text-2xs font-medium text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+          >
+            Show everyone · {hiddenPeople} more{" "}
+            {hiddenPeople === 1 ? "person" : "people"} outside the defaults
+          </button>
+        )}
+        {showAll && !searching && expected.size > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowAll(false)}
+            className="block w-full border-t border-ink-800/70 px-3 py-1.5 text-left text-2xs text-ink-500 transition hover:bg-ink-800 hover:text-ink-200"
+          >
+            Show only the phase-default functions
+          </button>
+        )}
       </div>
     </div>
   );

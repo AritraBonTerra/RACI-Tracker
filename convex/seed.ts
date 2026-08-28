@@ -3,8 +3,9 @@ import { internalMutation, type MutationCtx } from "./_generated/server";
 import type { WithoutSystemFields } from "convex/server";
 import type { Infer } from "convex/values";
 import { phase, raciRole } from "./schema";
+import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
 
-// Demo data for the 2026 season. Every date below is fixed rather than computed
+// Demo data for the 2026 plan year. Every date below is fixed rather than computed
 // from `Date.now()` so a reseed always produces the same dashboard: "today" for
 // this data set is 2026-08-20, and anything with an earlier ETA that is not
 // delivered is meant to read as overdue.
@@ -18,6 +19,7 @@ type TaskFields = WithoutSystemFields<Doc<"tasks">>;
 // leaves a dangling reference behind.
 const SEEDED_TABLES = [
   "tasks",
+  "taskTemplates",
   // Detachable phase-7/8 feature (#14).
   "kpiEntries",
   "retros",
@@ -369,9 +371,13 @@ type TaskSeed = Omit<
   | "chainPlanId"
   | "promotionId"
   | "order"
+  // The legacy single-Responsible column never appears in fresh data.
+  | "responsiblePersonId"
+  | "responsiblePersonIds"
   | "consultedPersonIds"
   | "informedPersonIds"
 > & {
+  responsiblePersonIds?: Array<Id<"people">>;
   consultedPersonIds?: Array<Id<"people">>;
   informedPersonIds?: Array<Id<"people">>;
 };
@@ -389,6 +395,7 @@ async function insertChecklist(
 ) {
   for (const [index, row] of rows.entries()) {
     await ctx.db.insert("tasks", {
+      responsiblePersonIds: [],
       consultedPersonIds: [],
       informedPersonIds: [],
       ...row,
@@ -468,6 +475,17 @@ export const run = internalMutation({
       }
     }
 
+    // The Task Template: the same default menu `taskTemplates:loadDefaults`
+    // offers a fresh deployment, so new plans stamp the deck's checklist.
+    {
+      const perPhase = new Map<PhaseNumber, number>();
+      for (const row of DEFAULT_TASK_TEMPLATES) {
+        const order = perPhase.get(row.phase) ?? 0;
+        perPhase.set(row.phase, order + 1);
+        await ctx.db.insert("taskTemplates", { ...row, order });
+      }
+    }
+
     // --- Season (phase 0) ---------------------------------------------------
 
     const seasonId = await ctx.db.insert("seasons", {
@@ -489,7 +507,7 @@ export const run = internalMutation({
           status: "delivered",
           deliveredTo: "Leadership team",
           proofOfExecution: "AOP deck v4, approved 2026-01-29",
-          responsiblePersonId: people.devin,
+          responsiblePersonIds: [people.devin],
           accountablePersonId: people.marisol,
           consultedPersonIds: [people.hana],
         },
@@ -500,7 +518,7 @@ export const run = internalMutation({
           eta: "2026-02-15",
           status: "delivered",
           deliveredTo: "Commercial + Marketing",
-          responsiblePersonId: people.priya,
+          responsiblePersonIds: [people.priya],
           accountablePersonId: people.marisol,
         },
         {
@@ -510,7 +528,7 @@ export const run = internalMutation({
           eta: "2026-08-01",
           // Overdue: past ETA, still open.
           status: "in_progress",
-          responsiblePersonId: people.tom,
+          responsiblePersonIds: [people.tom],
           accountablePersonId: people.marisol,
           consultedPersonIds: [people.alicia],
           notes: "Waiting on Q4 innovation ship dates before it can be locked.",
@@ -521,7 +539,7 @@ export const run = internalMutation({
           spec: "By chain, with pricing guardrails",
           eta: "2026-02-28",
           status: "delivered",
-          responsiblePersonId: people.hana,
+          responsiblePersonIds: [people.hana],
           accountablePersonId: people.marisol,
         },
         {
@@ -556,7 +574,7 @@ export const run = internalMutation({
           spec: "Reason to exist, right to win, negotiation range",
           eta: "2026-04-24",
           status: "delivered",
-          responsiblePersonId: people.marisol,
+          responsiblePersonIds: [people.marisol],
           accountablePersonId: people.marisol,
           consultedPersonIds: [people.priya, people.hana],
         },
@@ -566,7 +584,7 @@ export const run = internalMutation({
           spec: "Goals, incentives, who leads the buyer meeting",
           eta: "2026-05-15",
           status: "delivered",
-          responsiblePersonId: people.ray,
+          responsiblePersonIds: [people.ray],
           accountablePersonId: people.marisol,
         },
         {
@@ -576,7 +594,7 @@ export const run = internalMutation({
           eta: "2026-06-10",
           status: "delivered",
           deliveredTo: "Ken Ishihara (Safeway)",
-          responsiblePersonId: people.marisol,
+          responsiblePersonIds: [people.marisol],
           accountablePersonId: people.marisol,
           informedPersonIds: [people.ken],
         },
@@ -586,7 +604,7 @@ export const run = internalMutation({
           spec: "Scan-back schedule, off-invoice, program calendar",
           eta: "2026-06-26",
           status: "delivered",
-          responsiblePersonId: people.hana,
+          responsiblePersonIds: [people.hana],
           accountablePersonId: people.marisol,
         },
         {
@@ -596,7 +614,7 @@ export const run = internalMutation({
           eta: "2026-07-24",
           // Overdue, and the upstream cause of the blocked Halloween 3-case.
           status: "in_progress",
-          responsiblePersonId: people.ray,
+          responsiblePersonIds: [people.ray],
           accountablePersonId: people.marisol,
           notes:
             "Allocation for the Halloween 3-case never got confirmed in writing.",
@@ -630,7 +648,7 @@ export const run = internalMutation({
           name: "Internal JBP brief",
           eta: "2026-04-03",
           status: "delivered",
-          responsiblePersonId: people.devin,
+          responsiblePersonIds: [people.devin],
           accountablePersonId: people.marisol,
         },
         {
@@ -639,7 +657,7 @@ export const run = internalMutation({
           spec: "Delivery windows, MOQs, warehouse allocation",
           eta: "2026-04-17",
           status: "delivered",
-          responsiblePersonId: people.bianca,
+          responsiblePersonIds: [people.bianca],
           accountablePersonId: people.marisol,
         },
         {
@@ -647,7 +665,7 @@ export const run = internalMutation({
           name: "JBP presentation & the ask",
           eta: "2026-05-20",
           status: "delivered",
-          responsiblePersonId: people.devin,
+          responsiblePersonIds: [people.devin],
           accountablePersonId: people.marisol,
         },
         {
@@ -655,7 +673,7 @@ export const run = internalMutation({
           name: "Document & book agreed terms",
           eta: "2026-06-05",
           status: "delivered",
-          responsiblePersonId: people.hana,
+          responsiblePersonIds: [people.hana],
           accountablePersonId: people.marisol,
         },
       ],
@@ -678,7 +696,7 @@ export const run = internalMutation({
           name: "Internal JBP brief",
           eta: "2026-01-30",
           status: "delivered",
-          responsiblePersonId: people.devin,
+          responsiblePersonIds: [people.devin],
           accountablePersonId: people.marisol,
         },
         {
@@ -686,7 +704,7 @@ export const run = internalMutation({
           name: "JBP presentation & the ask",
           eta: "2026-03-11",
           status: "delivered",
-          responsiblePersonId: people.marisol,
+          responsiblePersonIds: [people.marisol],
           accountablePersonId: people.marisol,
           informedPersonIds: [people.priya],
         },
@@ -721,7 +739,7 @@ export const run = internalMutation({
           spec: "Kroger banner-level share and category story",
           eta: "2026-07-10",
           status: "delivered",
-          responsiblePersonId: people.marisol,
+          responsiblePersonIds: [people.marisol],
           accountablePersonId: people.marisol,
         },
         {
@@ -729,7 +747,7 @@ export const run = internalMutation({
           name: "Spend envelope & pricing guardrails",
           eta: "2026-07-17",
           status: "delivered",
-          responsiblePersonId: people.hana,
+          responsiblePersonIds: [people.hana],
           accountablePersonId: people.marisol,
         },
         {
@@ -739,7 +757,7 @@ export const run = internalMutation({
           eta: "2026-08-07",
           // Overdue.
           status: "in_progress",
-          responsiblePersonId: people.alicia,
+          responsiblePersonIds: [people.alicia],
           accountablePersonId: people.marisol,
         },
         {
@@ -749,7 +767,7 @@ export const run = internalMutation({
           eta: "2026-08-14",
           status: "blocked",
           blockedReason: "no inventory at distributor",
-          responsiblePersonId: people.ray,
+          responsiblePersonIds: [people.ray],
           accountablePersonId: people.marisol,
           notes:
             "Same failure mode as the paid Kroger demo: the program was sized before allocation was confirmed.",
@@ -760,7 +778,7 @@ export const run = internalMutation({
           spec: "Rep incentives tied to CWD targets",
           eta: "2026-08-28",
           status: "in_progress",
-          responsiblePersonId: people.bianca,
+          responsiblePersonIds: [people.bianca],
           accountablePersonId: people.marisol,
         },
         {
@@ -768,7 +786,7 @@ export const run = internalMutation({
           name: "Business review & category story deck",
           eta: "2026-09-04",
           status: "in_progress",
-          responsiblePersonId: people.devin,
+          responsiblePersonIds: [people.devin],
           accountablePersonId: people.marisol,
           consultedPersonIds: [people.priya],
         },
@@ -821,7 +839,7 @@ export const run = internalMutation({
           eta: "2026-08-15",
           // Overdue: everything downstream is sized off this list.
           status: "in_progress",
-          responsiblePersonId: people.alicia,
+          responsiblePersonIds: [people.alicia],
           accountablePersonId: people.alicia,
           consultedPersonIds: [people.ray],
           notes: "16 of 20 confirmed; buyer still to approve the last four.",
@@ -845,7 +863,7 @@ export const run = internalMutation({
           quantity: 20,
           eta: "2026-09-12",
           status: "in_progress",
-          responsiblePersonId: people.jordan,
+          responsiblePersonIds: [people.jordan],
           accountablePersonId: people.alicia,
         },
         {
@@ -858,7 +876,7 @@ export const run = internalMutation({
           // The failure the tool exists to prevent: blocked and overdue.
           status: "blocked",
           blockedReason: "no inventory at distributor",
-          responsiblePersonId: people.ray,
+          responsiblePersonIds: [people.ray],
           accountablePersonId: people.marisol,
           consultedPersonIds: [people.bianca],
           notes:
@@ -872,7 +890,7 @@ export const run = internalMutation({
           quantity: 12,
           eta: "2026-09-19",
           status: "not_started",
-          responsiblePersonId: people.jordan,
+          responsiblePersonIds: [people.jordan],
           accountablePersonId: people.alicia,
         },
         {
@@ -893,7 +911,7 @@ export const run = internalMutation({
           quantity: 2,
           eta: "2026-09-01",
           status: "in_progress",
-          responsiblePersonId: people.devin,
+          responsiblePersonIds: [people.devin],
           accountablePersonId: people.marisol,
           informedPersonIds: [people.ken],
         },
@@ -905,7 +923,7 @@ export const run = internalMutation({
           quantity: 20,
           eta: "2026-09-18",
           status: "not_started",
-          responsiblePersonId: people.priya,
+          responsiblePersonIds: [people.priya],
           accountablePersonId: people.priya,
         },
         {
@@ -916,7 +934,7 @@ export const run = internalMutation({
           quantity: 4,
           eta: "2026-09-18",
           status: "not_started",
-          responsiblePersonId: people.tom,
+          responsiblePersonIds: [people.tom],
           accountablePersonId: people.priya,
         },
         {
@@ -928,7 +946,7 @@ export const run = internalMutation({
           eta: "2026-08-18",
           // Overdue.
           status: "in_progress",
-          responsiblePersonId: people.bianca,
+          responsiblePersonIds: [people.bianca],
           accountablePersonId: people.ray,
           informedPersonIds: [people.alicia],
         },
@@ -971,7 +989,7 @@ export const run = internalMutation({
           eta: "2026-07-06",
           status: "delivered",
           deliveredTo: "Pacific Crest Distributing",
-          responsiblePersonId: people.alicia,
+          responsiblePersonIds: [people.alicia],
           accountablePersonId: people.alicia,
         },
         {
@@ -984,7 +1002,7 @@ export const run = internalMutation({
           status: "delivered",
           deliveredTo: "Ralphs DC — Riverside",
           proofOfExecution: "Delivery receipt PC-88412",
-          responsiblePersonId: people.jordan,
+          responsiblePersonIds: [people.jordan],
           accountablePersonId: people.alicia,
         },
         {
@@ -995,7 +1013,7 @@ export const run = internalMutation({
           quantity: 300,
           eta: "2026-07-24",
           status: "delivered",
-          responsiblePersonId: people.jordan,
+          responsiblePersonIds: [people.jordan],
           accountablePersonId: people.alicia,
         },
         {
@@ -1004,9 +1022,10 @@ export const run = internalMutation({
           name: "Sell-in & CWD check",
           spec: "Target 90% CWD across 30 stores",
           eta: "2026-08-10",
-          // Overdue.
+          // Overdue — and shared work: distributor sell-in plus our own store
+          // visits, so two named Responsibles (one Accountable, as always).
           status: "in_progress",
-          responsiblePersonId: people.bianca,
+          responsiblePersonIds: [people.bianca, people.jordan],
           accountablePersonId: people.marisol,
           notes: "At 71% CWD; nine stores have not built the endcap yet.",
         },
@@ -1018,7 +1037,7 @@ export const run = internalMutation({
           quantity: 30,
           eta: "2026-08-24",
           status: "not_started",
-          responsiblePersonId: people.jordan,
+          responsiblePersonIds: [people.jordan],
           accountablePersonId: people.alicia,
         },
         {
@@ -1070,7 +1089,7 @@ export const run = internalMutation({
           quantity: 45,
           eta: "2026-05-08",
           status: "delivered",
-          responsiblePersonId: people.jordan,
+          responsiblePersonIds: [people.jordan],
           accountablePersonId: people.alicia,
         },
         {
@@ -1081,7 +1100,7 @@ export const run = internalMutation({
           eta: "2026-06-12",
           status: "delivered",
           proofOfExecution: "41 of 45 stores photographed",
-          responsiblePersonId: people.bianca,
+          responsiblePersonIds: [people.bianca],
           accountablePersonId: people.marisol,
         },
         {
@@ -1091,7 +1110,7 @@ export const run = internalMutation({
           eta: "2026-07-31",
           // Overdue: the numbers the retro depends on.
           status: "in_progress",
-          responsiblePersonId: people.wes,
+          responsiblePersonIds: [people.wes],
           accountablePersonId: people.hana,
         },
         {
@@ -1101,7 +1120,7 @@ export const run = internalMutation({
           eta: "2026-08-07",
           // Overdue.
           status: "in_progress",
-          responsiblePersonId: people.wes,
+          responsiblePersonIds: [people.wes],
           accountablePersonId: people.hana,
         },
         {
@@ -1110,7 +1129,7 @@ export const run = internalMutation({
           spec: "$ investment vs. incremental cases",
           eta: "2026-08-21",
           status: "not_started",
-          responsiblePersonId: people.hana,
+          responsiblePersonIds: [people.hana],
           accountablePersonId: people.hana,
         },
         {
@@ -1151,7 +1170,7 @@ export const run = internalMutation({
           quantity: 60,
           eta: "2026-09-11",
           status: "not_started",
-          responsiblePersonId: people.alicia,
+          responsiblePersonIds: [people.alicia],
           accountablePersonId: people.alicia,
         },
         {
@@ -1182,7 +1201,7 @@ export const run = internalMutation({
           spec: "Thanksgiving pairing content",
           eta: "2026-10-16",
           status: "not_started",
-          responsiblePersonId: people.tom,
+          responsiblePersonIds: [people.tom],
           accountablePersonId: people.priya,
         },
         {
@@ -1191,7 +1210,7 @@ export const run = internalMutation({
           name: "Sales rep training",
           eta: "2026-10-23",
           status: "not_started",
-          responsiblePersonId: people.bianca,
+          responsiblePersonIds: [people.bianca],
           accountablePersonId: people.ray,
         },
       ],
@@ -1200,6 +1219,7 @@ export const run = internalMutation({
     return {
       today: TODAY,
       deletedBeforeSeed: deleted,
+      taskTemplates: DEFAULT_TASK_TEMPLATES.length,
       seasons: 1,
       chains: CHAINS.length,
       brands: BRANDS.length,

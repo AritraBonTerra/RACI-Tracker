@@ -46,6 +46,18 @@ export function formatRange(start: string, end: string): string {
   return `${formatDay(start)} – ${formatDay(end)}`;
 }
 
+/** The calendar day `days` after `iso` (negative to go back). */
+export function addDays(iso: string, days: number): string {
+  const value = parts(iso);
+  if (value === null) return iso;
+  const shifted = new Date(Date.UTC(value.year, value.month - 1, value.day + days));
+  return [
+    shifted.getUTCFullYear(),
+    String(shifted.getUTCMonth() + 1).padStart(2, "0"),
+    String(shifted.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
 /** Whole days from `from` to `to`; negative when `to` is in the past. */
 export function daysBetween(from: string, to: string): number {
   const a = parts(from);
