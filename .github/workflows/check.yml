@@ -1,0 +1,23 @@
+name: Check
+
+# The access boundary is a grep over the source (convex/accessBoundary.test.ts)
+# and the scope matrix is a suite of convex-test scenarios. Neither is worth
+# anything if it only runs on the laptop of whoever wrote it, and `main`
+# auto-deploys — so both run here, on every push and every pull request.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run test

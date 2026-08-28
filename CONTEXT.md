@@ -41,6 +41,12 @@ conversation.
   of their assignments, and overlapping assignments are harmless. Records
   outside them are absent, not greyed out: an out-of-scope link answers exactly
   as a deleted one does.
+- **Reach** — how far a viewer sees one record of the hierarchy, and the only
+  three states the interface has for it. **Full**: the record and its content —
+  a link, its checklist, its rollups. **Context**: an ancestor of something
+  granted, so the *name* shows for orientation and nothing else — a plain
+  label, never a link, never a phase or a count. **None**: absent, and
+  indistinguishable from deleted. Administrators reach everything in full.
 - **Audit event** — one access-management action (role change, grant, revoke,
   activation, deactivation, Person link) with its actor and timestamp, kept
   indefinitely. Ordinary record edits are not audited; they carry a

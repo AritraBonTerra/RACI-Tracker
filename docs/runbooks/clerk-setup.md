@@ -145,20 +145,44 @@ are not available on production instances of the free plan.
 - `bunx convex run bootstrap:grantAdmin '{"email":"…"}' --prod` promotes, and
   the open client changes without a reload.
 
+## Granting access
+
+Until the Directory surface lands (#34), grants are handed out with deploy
+credentials, from the same family as the bootstrap functions. A grant names one
+Plan Year, Chain Plan or Promotion, and access flows down from it:
+
+```sh
+bunx convex run bootstrap:listUsers --prod
+bunx convex run bootstrap:grantAccess \
+  '{"email":"them@company.com","scope":{"tier":"chainPlan","chainPlanId":"<id>"}}' --prod
+bunx convex run bootstrap:revokeAccess \
+  '{"email":"them@company.com","scope":{"tier":"chainPlan","chainPlanId":"<id>"}}' --prod
+```
+
+`tier` is `season` (the Plan Year), `chainPlan`, or `promotion`, with the
+matching `seasonId` / `chainPlanId` / `promotionId` beside it — take the id
+straight out of the URL of the page you want them to have. Both calls return
+the User's resulting scopes, and both write an Audit event. Grants are a union:
+handing out a second, overlapping one is harmless, and revoking it takes back
+only that row. The open client updates without a reload either way.
+
+Administrators reach everything, so `grantAccess` refuses to give one an
+assignment rather than storing a row that means nothing.
+
 ## What this does *not* protect yet
 
-Finishing this runbook gets you sign-in, not authorization. Every pre-existing
-Convex function — `promotions`, `tasks`, `seasons`, `people`, and the rest — is
-still a bare `query` or `mutation`, so a caller holding any Convex client can
-read and write every record without a token, exactly as before. The sign-in
-screens are presentation; they refuse nobody.
+Finishing this runbook gets you sign-in and **scoped reads**. Every public query
+resolves the caller's identity server-side and answers only over the records
+their Access Assignments reach; an out-of-scope link is answered with the same
+`null` a deleted record gets.
 
-The guarded wrappers exist (`authedQuery` / `authedMutation` / `adminQuery` /
-`adminMutation` in `convex/access.ts`) and the modules still to be moved behind
-them are listed as `AWAITING_MIGRATION` in `convex/accessBoundary.test.ts`. That
-list has to reach zero in the authorization slice before this deployment holds
-anything an outsider must not see. Until then, treat the production data as
-public and put nothing in it you would not hand out.
+Writes are not there yet. Every mutation — `tasks`, `promotions`, `seasons`,
+`people`, and the rest — is still a bare `mutation`, so a caller holding any
+Convex client can *change* every record without a token. The remaining modules
+and the exact factories they still reach for are listed as `AWAITING_MIGRATION`
+in `convex/accessBoundary.test.ts`; that table has to be empty before this
+deployment holds anything an outsider must not be able to edit. Until then,
+treat the production data as writable by anyone with the URL.
 
 ## Break-glass
 
