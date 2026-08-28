@@ -49,8 +49,14 @@ conversation.
   indistinguishable from deleted. Administrators reach everything in full.
 - **Audit event** — one access-management action (role change, grant, revoke,
   activation, deactivation, Person link) with its actor and timestamp, kept
-  indefinitely. Ordinary record edits are not audited; they carry a
+  indefinitely. The actor is a User, or the operator holding deploy
+  credentials. Ordinary record edits are not audited; they carry a
   last-modified stamp instead.
+- **Directory** — the Administrator-only surface access is run from: a roster of
+  accounts with signal pills and an awaiting-access queue, one account's whole
+  story beside it (identity, Person link, role, grants with an effective-access
+  preview, offboarding), over the audit feed. Not to be confused with the People
+  directory, which is reference data every signed-in User can read.
 - **Last edited** — the stamp every ordinary record edit leaves: which User
   wrote it and when, shown on the plan work — the three tiers, tasks, the KPI
   table and the Retro. Reference data (chains, brands, People, Functions, Task

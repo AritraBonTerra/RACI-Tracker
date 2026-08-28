@@ -147,9 +147,11 @@ are not available on production instances of the free plan.
 
 ## Granting access
 
-Until the Directory surface lands (#34), grants are handed out with deploy
-credentials, from the same family as the bootstrap functions. A grant names one
-Plan Year, Chain Plan or Promotion, and access flows down from it:
+Day to day this happens in the **Directory** — `#/directory`, Administrators
+only. `docs/runbooks/access-administration.md` is that surface.
+
+The CLI equivalents stay for bootstrap and break-glass, when there is no
+Administrator to click with:
 
 ```sh
 bunx convex run bootstrap:listUsers --prod
@@ -161,13 +163,10 @@ bunx convex run bootstrap:revokeAccess \
 
 `tier` is `season` (the Plan Year), `chainPlan`, or `promotion`, with the
 matching `seasonId` / `chainPlanId` / `promotionId` beside it — take the id
-straight out of the URL of the page you want them to have. Both calls return
-the User's resulting scopes, and both write an Audit event. Grants are a union:
-handing out a second, overlapping one is harmless, and revoking it takes back
-only that row. The open client updates without a reload either way.
-
-Administrators reach everything, so `grantAccess` refuses to give one an
-assignment rather than storing a row that means nothing.
+straight out of the URL of the page you want them to have. Both calls run the
+same model the Directory's buttons do, so the semantics are identical and both
+write an Audit event; only the actor differs, and the feed shows CLI actions as
+"Deploy credentials".
 
 ## What a Member can and cannot do
 
@@ -209,11 +208,11 @@ User's display name and nothing else — no email, no role, no scope — and a U
 whose token carried no name claim reads as "Someone".
 
 That stamp is not the audit trail — access changes (roles, grants, revocations,
-activations) are Audit events and kept indefinitely.
+activations, Person links) are Audit events, kept indefinitely, and readable in
+the Directory's activity feed.
 
-Still outstanding: access administration is CLI-only until the Directory surface
-lands (#34), so grants, role changes and deactivations go through the deploy
-credentials described above.
+A Member can see their own role and scopes in the account menu, and nothing at
+all about anyone else's: every Directory function refuses them server-side.
 
 ## Break-glass
 

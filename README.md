@@ -59,6 +59,14 @@ something out of scope fails exactly as one aimed at something deleted does.
 `convex/scopedReads.test.ts` and `convex/scopedWrites.test.ts` are those two
 matrices, argued over the shared world in `convex/world.fixture.ts`.
 
+Access is administered from the **Directory** (`#/directory`, Administrators
+only): the roster and its awaiting-access queue, Person links, roles, grants
+with an effective-access preview, offboarding, and the audit feed.
+`convex/directory.ts` is its function surface and `convex/directory.test.ts`
+its scenarios; the actions themselves live in `convex/access.ts`, shared with
+the deploy-credential CLI, so clicking and typing cannot mean different things.
+`docs/runbooks/access-administration.md` is how to run it.
+
 ## Deployment
 
 - **Backend**: `bunx convex deploy` pushes functions to the production Convex deployment.
