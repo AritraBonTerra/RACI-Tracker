@@ -4,12 +4,16 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
-// The cutover's one repo-side rule (#35): the tenant id, the SAML metadata and
-// every credential live in the Entra, Clerk, Convex and Vercel dashboards, and
-// nowhere else. Two runbooks tell a human to copy values between those
-// dashboards and a terminal, which is exactly the moment one gets pasted into a
-// file "just for a second" — so the rule is checked here, on every push, rather
-// than trusted.
+// The cutover's one repo-side rule (#35): every credential lives in the Clerk,
+// Google Cloud, Convex and Vercel dashboards, and nowhere else. Two runbooks
+// tell a human to copy values between those dashboards and a terminal, which is
+// exactly the moment one gets pasted into a file "just for a second" — so the
+// rule is checked here, on every push, rather than trusted.
+//
+// The Entra patterns below outlived the SAML design they were written for
+// (`docs/adr/0003-…`). They stay: a scanner that also catches the shapes of a
+// boundary we might come back to costs nothing, and deleting a secret check
+// because the secret is currently unused is how one gets committed.
 //
 // The scan reads what git tracks. An untracked file is not the problem this
 // solves; a committed one is.

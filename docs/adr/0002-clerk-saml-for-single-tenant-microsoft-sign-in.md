@@ -4,7 +4,10 @@ Date: 2026-08-27
 
 ## Status
 
-Accepted
+Superseded by [ADR 0003](0003-clerk-free-tier-email-code-and-google.md) on
+2026-08-28 — the $25/mo Clerk Pro cost was rejected, and the Entra app
+registration this decision depends on turned out not to be available. Kept as
+written, because it is the design to return to if IT ever engages.
 
 ## Context
 

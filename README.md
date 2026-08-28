@@ -8,8 +8,8 @@ Season → Chain Plan → Promotion lifecycle.
 - [Convex](https://convex.dev) — backend (database, queries, mutations), deployed to Convex Cloud
 - React 19 + [Vite](https://vite.dev) — frontend, deployed to Vercel
 - [Tailwind CSS v4](https://tailwindcss.com) — styling
-- [Clerk](https://clerk.com) — Microsoft sign-in, via a SAML enterprise connection
-  to the company's Entra tenant (see `docs/adr/0002-…`)
+- [Clerk](https://clerk.com) — sign-in on the free plan: email verification code
+  and Google, with the employee boundary in the app (see `docs/adr/0003-…`)
 - [Vitest](https://vitest.dev) + [convex-test](https://docs.convex.dev/testing/convex-test) — tests
 - [bun](https://bun.sh) — package manager and script runner
 

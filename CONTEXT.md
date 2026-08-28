@@ -31,8 +31,8 @@ conversation.
 - **Person** — a named human belonging to a Function. Created in-app; never a
   login account. A Person may be *linked* to a User, which is orientation, not
   access — RACI names People and never grants anything.
-- **User** — one signed-in identity, created on first Microsoft sign-in and
-  never pre-provisioned. Either an **Administrator** (reaches and manages
+- **User** — one signed-in identity, created on first sign-in and never
+  pre-provisioned. Either an **Administrator** (reaches and manages
   everything) or a **Member** (sees exactly their Access Assignments). Active
   or deactivated; deactivation is the immediate kill switch and preserves the
   role and grants a reactivation restores.

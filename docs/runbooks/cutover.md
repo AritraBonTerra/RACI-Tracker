@@ -5,28 +5,40 @@ half-gated boundary is not a boundary, and the only people using the tool today
 are the two running the cutover.
 
 Three documents, in order. `docs/runbooks/clerk-setup.md` is the dashboard work
-(Clerk, Entra) and has to be finished first. This file is the release itself and
-the drills around it. `docs/runbooks/acceptance.md` is the checklist the release
-is judged by. `docs/runbooks/access-administration.md` is the day after.
+(Clerk, Google Cloud) and has to be finished first. This file is the release
+itself and the drills around it. `docs/runbooks/acceptance.md` is the checklist
+the release is judged by. `docs/runbooks/access-administration.md` is the day
+after.
 
 Everything here is a human step. An agent can write the code, the tests and this
-page; it cannot reach the Clerk dashboard, the Entra admin centre, Vercel, or a
-production deploy credential.
+page; it cannot reach the Clerk dashboard, Google Cloud, Vercel, or a production
+deploy credential.
 
 ---
 
 ## Before the day
 
 - [ ] `bun run typecheck && bun run test` green on the integration branch.
-- [ ] Clerk **Pro** production instance promoted, with the SAML enterprise
-      connection to the company Entra tenant live, every other sign-in strategy
-      off, and SCIM Directory Sync on — `clerk-setup.md` §B, steps 1–6.
-- [ ] Entra enterprise application created with **Assignment required = Yes**
-      and the pilot group assigned. Anyone not assigned cannot sign in, which is
-      the point; make sure both cutover operators are assigned.
-- [ ] The two people who will be Administrators are decided, and both can sign
-      in with their work account. Two, not one — the system refuses to remove
-      the last one, so a single Administrator is a lockout waiting to happen.
+- [ ] A Clerk instance is ready with **email verification code** and **Google**
+      on, sign-ups public, the Convex integration on, and all three session-token
+      claims (`email`, `name`, `email_verified`) mapped — `clerk-setup.md` §A
+      and §B.
+- [ ] The production-instance question is settled (`clerk-setup.md` §B0): either
+      a domain you control is pointed at the Vercel project and the Clerk
+      production instance is promoted against it, or the pilot deliberately runs
+      on the development instance. A `*.vercel.app` hostname cannot carry Clerk's
+      DNS records, so there is no third answer.
+- [ ] If Google is in scope for production: the Google Cloud OAuth client exists
+      and its redirect URI matches what Clerk shows (`clerk-setup.md` §B1.3).
+      Email code works without it; nothing blocks on Google.
+- [ ] **Decide `ALLOWED_EMAIL_DOMAIN` now**, not on the day. Set means only
+      verified addresses at the company domain may hold an account; unset means
+      any verified sign-in becomes a zero-access Member waiting on a grant. Both
+      are defensible; changing your mind at 4pm with people signed in is not.
+- [ ] The two people who will be Administrators are decided, and both can
+      receive mail at an address the gate admits. Two, not one — the system
+      refuses to remove the last one, so a single Administrator is a lockout
+      waiting to happen.
 - [ ] Whoever runs step 3 holds the Convex production deploy credential and the
       Vercel project. No agent, no shared terminal.
 - [ ] The pilot Members' scopes are written down: which Plan Year, Chain Plan or
@@ -34,28 +46,30 @@ production deploy credential.
 
 ### The environment matrix
 
-Six values, four places, none of them in the repo. The tenant id and the SAML
-metadata URL never leave the Entra and Clerk dashboards.
+Five values, three places, none of them in the repo.
 
 | Value | Where it is set | Production | Development |
 | --- | --- | --- | --- |
-| `CLERK_JWT_ISSUER_DOMAIN` | Convex deployment (`bunx convex env set … --prod`) | `https://clerk.<company-domain>` | `https://<slug>.clerk.accounts.dev` |
+| `CLERK_JWT_ISSUER_DOMAIN` | Convex deployment (`bunx convex env set … --prod`) | `https://clerk.<your-domain>` | `https://<slug>.clerk.accounts.dev` |
+| `ALLOWED_EMAIL_DOMAIN` | Convex deployment, optional | the company email domain, or unset | usually unset |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Vercel project, per environment | `pk_live_…` | `pk_test_…` in `.env.local` |
-| `VITE_CLERK_ENTERPRISE_DOMAIN` | Vercel project, Production only | the company email domain | unset |
 | `CONVEX_DEPLOY_KEY` | Vercel project (already set) | production deploy key | — |
 | `VITE_CONVEX_URL` | injected by `convex deploy` during the Vercel build | — | written by `bun run convex` |
-| SAML metadata URL, tenant id | Entra and Clerk dashboards only | — | — |
 
-Two of these fail in ways worth naming. A missing `CLERK_JWT_ISSUER_DOMAIN`
-fails the deploy rather than the app: `convex deploy` refuses to push an auth
-config whose variable is unset and says so by name — *"Environment variable
-CLERK_JWT_ISSUER_DOMAIN is used in auth config file but its value was not
-set"* — which in the Vercel build means a failed build and the previous
-deployment still serving. Skipping step 2 therefore cannot produce a half-signed-
-in production; it produces a red build. A missing
-`VITE_CLERK_ENTERPRISE_DOMAIN` on a `pk_live_` build now renders "Sign-in isn't
-configured" and names the variable, rather than offering the development widget
-against an instance that refuses it.
+Two of these fail in ways worth naming.
+
+A missing `CLERK_JWT_ISSUER_DOMAIN` fails the *deploy*, not the app:
+`convex deploy` refuses to push an auth config whose variable is unset and says
+so by name — *"Environment variable CLERK_JWT_ISSUER_DOMAIN is used in auth
+config file but its value was not set"* — which in the Vercel build means a
+failed build and the previous deployment still serving. Skipping step 2 cannot
+produce a half-signed-in production; it produces a red build.
+
+`ALLOWED_EMAIL_DOMAIN` fails closed and fails *fast*. Set it to a domain nobody
+is at, or set it without the `email_verified` claim mapped on the Clerk
+instance, and the next call from every account — including yours — is refused.
+`bunx convex env remove ALLOWED_EMAIL_DOMAIN --prod` undoes it in seconds with
+no deploy.
 
 ---
 
@@ -71,24 +85,25 @@ the frontend and `convex deploy` pushes the matching backend in the same build.
 the deploy that follows reads them.
 
 ```sh
-bunx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.<company-domain> --prod
+bunx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.<your-domain> --prod
+bunx convex env set ALLOWED_EMAIL_DOMAIN <company-domain> --prod   # optional
 bunx convex env list --prod   # confirm
 ```
 
-`VITE_CLERK_PUBLISHABLE_KEY` and `VITE_CLERK_ENTERPRISE_DOMAIN` go in the Vercel
-project's **Production** environment. Vercel bakes them at build time, so set
-them first and redeploy if you did not.
+`VITE_CLERK_PUBLISHABLE_KEY` goes in the Vercel project's **Production**
+environment. Vercel bakes it at build time, so set it first and redeploy if you
+did not.
 
 **3. Watch the deploy finish**, then open the app. You should see the sign-in
-card: one button, no email field, no password field. The public URL stops
-answering anonymous visitors here.
+card: an email field, a "Continue with Google" button, no password field. The
+public URL stops answering anonymous visitors here.
 
 **4. The bootstrap drill.** No authorization gap to bridge — from this moment
 every function denies by default, and the first sign-in creates a Member holding
 nothing.
 
 ```sh
-# You sign in through Microsoft first, landing on "access comes next".
+# You sign in first, landing on "access comes next".
 bunx convex run bootstrap:listUsers --prod          # find yourself
 bunx convex run bootstrap:grantAdmin '{"email":"you@company.com"}' --prod
 ```
@@ -108,11 +123,10 @@ bunx convex run bootstrap:listUsers --prod
 the effective-access preview shows what each grant unlocks before you confirm.
 
 **6. Run `docs/runbooks/acceptance.md`.** Groups A and D are the ones that must
-be re-verified here, on production, whatever was checked on a production-like
-environment beforehand.
+be re-verified here, on production, whatever was checked beforehand.
 
-**7. Tell the pilot group.** They sign in with the Microsoft button; nobody has a
-password to set.
+**7. Tell the pilot group.** They sign in with their work address; a code
+arrives by email. Nobody has a password to set.
 
 > **Do not run `seed:run --prod` after step 4.** The seed owns the plan data and
 > clears it before reloading, so grants pointing at seeded records disappear
@@ -176,6 +190,11 @@ Rolling forward again loses nothing. The Users, Access Assignments and Audit
 events are still there — nothing deletes them — so redeploying the release
 restores every account and grant as it was.
 
+**A rollback is not the first thing to reach for.** Two smaller levers cover
+most of what would tempt you: `ALLOWED_EMAIL_DOMAIN` expels a wrong sign-in
+instantly with no deploy, and deactivating an account in the Directory denies
+its next call. The rollback is for a broken *release*, not a wrong *person*.
+
 ---
 
 ## Lockout recovery
@@ -194,8 +213,13 @@ permanent. Neither command can mint an account: only the identity provider does
 that, so the target has to have signed in at least once. If nobody has, sign in
 yourself and run `grantAdmin` on your own address.
 
-A lost Microsoft credential is Entra's recovery problem. This app never holds a
-credential to recover.
+If the lockout is the domain gate rather than a role,
+`bunx convex env remove ALLOWED_EMAIL_DOMAIN --prod` is the recovery, and it
+takes effect on the next call.
+
+A lost mailbox is the company's recovery problem — this app never holds a
+credential to recover, and the verification code goes to an inbox behind the
+company's own Microsoft sign-in.
 
 Keep **two** active Administrators so this stays a drill.
 
@@ -204,16 +228,18 @@ Keep **two** active Administrators so this stays a drill.
 ## Offboarding, once you are live
 
 Both sides, local first: *Deactivate account* in the Directory denies their very
-next call, then disable or unassign the account in Entra so no new token is ever
-issued. With SCIM on, the Entra disable also revokes their Clerk sessions, but it
-lands within the token lifetime (about an hour) rather than instantly.
+next call, then delete the user from the Clerk dashboard so no new session can
+be minted. There is no directory sync here — the Clerk half is a click a human
+makes, and the runbook pairs them so it is not forgotten. If IT has disabled the
+employee's mailbox, they also cannot receive a fresh code; that is a third gate,
+not a substitute for the first.
 
 ---
 
 ## Human-only steps
 
-Every step on this page. Specifically: the Clerk and Entra dashboards, the Vercel
-project's environment variables and rollback control, the merge to `main`,
-anything run with `--prod`, and the manual half of the acceptance checklist —
-the identity-provider handshake, the sign-in and session screens, and the
-rollback drill.
+Every step on this page. Specifically: the Clerk dashboard, Google Cloud, the
+Vercel project's environment variables and rollback control, the merge to
+`main`, anything run with `--prod`, and the manual half of the acceptance
+checklist — the sign-in and session screens, the domain gate, and the rollback
+drill.

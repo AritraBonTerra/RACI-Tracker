@@ -12,10 +12,10 @@ nobody sits at the "access comes next" screen unnoticed.
 
 ## Onboarding someone
 
-1. They sign in with their Microsoft account. That creates their User — active,
-   Member, holding nothing — and lands them on "you're signed in, access comes
-   next". Nobody is pre-provisioned; only the identity provider can mint an
-   account.
+1. They sign in with their work address — a verification code by email, or
+   Google. That creates their User — active, Member, holding nothing — and lands
+   them on "you're signed in, access comes next". Nobody is pre-provisioned;
+   only the identity provider can mint an account.
 2. Open the Directory. They are at the top of the roster with an **Awaiting
    access** pill.
 3. **Link their Person.** The pane suggests internal People matching their
@@ -44,10 +44,12 @@ What it means in practice: between a first sign-in and your first grant, that
 account can reach the People roster — names, titles, email addresses and
 organizations, external Distributor and Buyer contacts included — and nothing
 else. No Plan Year, no Chain Plan, no Promotion, no task, no other account's
-role or grants. Anyone who completes Microsoft sign-in is such an account
-without an Administrator lifting a finger, which is why the Entra side of
-`clerk-setup.md` keeps **Assignment required = Yes**: employee assignment in
-Entra, not the grant here, is what stops a stranger reaching that far.
+role or grants. Anyone who completes a sign-in is such an account without an
+Administrator lifting a finger — and since 2026-08-28 sign-in refuses nobody
+(`docs/adr/0003-…`), that includes a stranger with a personal address. The
+`ALLOWED_EMAIL_DOMAIN` gate in `clerk-setup.md` §C is what keeps them from
+getting that far; set it, and only verified addresses at the company domain ever
+reach the waiting room.
 
 ## Grants, in one paragraph
 
@@ -84,10 +86,10 @@ Role and grants are left untouched, so *Reactivate account* restores exactly wha
 they had — no reconstruction, no second grant.
 
 **Always do both sides.** Deactivating here is the immediate local kill switch;
-disabling the account in Entra is what stops the identity provider issuing them
-a new token at all. With SCIM Directory Sync on, the Entra disable also
-deactivates the Clerk user and revokes their sessions, but that lands within the
-token lifetime (~1 hour) rather than instantly. Local first, Entra second.
+deleting the user in the Clerk dashboard is what stops the identity provider
+issuing them a new token at all. Nothing syncs that for you — it is a click a
+human makes, and a live session survives until its token expires (~1 hour)
+regardless. Local first, Clerk second.
 
 ## The audit feed
 
@@ -111,5 +113,5 @@ same model the Directory's buttons do. See `docs/runbooks/clerk-setup.md`.
 ## Human-only steps
 
 Nothing in this document needs an agent, and two things in it cannot be done by
-one: the Entra side of offboarding, and anything in the Clerk dashboard. Those
-are in `docs/runbooks/clerk-setup.md`.
+one: the Clerk half of offboarding, and the `ALLOWED_EMAIL_DOMAIN` setting.
+Both are in `docs/runbooks/clerk-setup.md`.
