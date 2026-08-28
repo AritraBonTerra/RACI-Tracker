@@ -44,7 +44,13 @@ const FORBIDDEN: ReadonlyArray<{ what: string; pattern: RegExp }> = [
   // Clerk's secret key and Convex's deploy key: either one is full control of
   // an environment.
   { what: "a Clerk secret key", pattern: /\bsk_(?:test|live)_[A-Za-z0-9]{16,}/ },
-  { what: "a Convex deploy key", pattern: /\b(?:prod|dev|preview):[a-z-]+-\d+\|[A-Za-z0-9+/=]{20,}/ },
+  // Production and development keys name a deployment (`prod:witty-crab-123`);
+  // preview keys name a team and a project instead, so the middle allows a
+  // second colon-separated segment rather than assuming the deployment form.
+  {
+    what: "a Convex deploy key",
+    pattern: /\b(?:prod|dev|preview):[a-z0-9-]+(?::[a-z0-9-]+)?\|[A-Za-z0-9+/=]{20,}/,
+  },
   // The tenant id, in the two forms it arrives in: the Entra sign-in URL and
   // the federation metadata URL Clerk is given.
   {
@@ -52,11 +58,15 @@ const FORBIDDEN: ReadonlyArray<{ what: string; pattern: RegExp }> = [
     pattern: /(?:login\.microsoftonline\.com|sts\.windows\.net)\/[0-9a-f]{8}-[0-9a-f]{4}/i,
   },
   { what: "an Entra SAML metadata URL", pattern: /federationmetadata\/2007-06\/federationmetadata\.xml/i },
-  // A bare GUID is only suspicious next to the word that makes it the tenant's.
+  // A bare GUID is only suspicious next to the word that makes it the tenant's
+  // — in any of the shapes that word arrives in. The Entra overview blade
+  // labels the value "Directory (tenant) ID", so the gap between the word and
+  // the GUID is spelled as "a few characters" rather than as punctuation this
+  // check tried to enumerate.
   {
     what: "a tenant identifier",
     pattern:
-      /tenant[ _-]?(?:id)?["'\s:=]{1,4}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+      /tenant[^\n]{0,12}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   },
 ];
 
@@ -95,7 +105,18 @@ test("the scan recognises the things it is looking for", () => {
       "https://login.microsoftonline.com/x/federationmetadata/2007-06/federationmetadata.xml",
     ),
   ).toEqual(["an Entra SAML metadata URL"]);
+  expect(
+    hits(`CONVEX_DEPLOY_KEY=preview:acme-team:raci-tracker|${"eyJ2MiI6IjhkNGY2YWIx"}`),
+  ).toEqual(["a Convex deploy key"]);
   expect(hits('tenantId: "9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73"')).toEqual([
+    "a tenant identifier",
+  ]);
+  // The label the Entra overview blade puts on the value, which is the shape a
+  // copy-paste actually lands in.
+  expect(hits("Directory (tenant) ID: 9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73")).toEqual([
+    "a tenant identifier",
+  ]);
+  expect(hits("The tenant is 9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73")).toEqual([
     "a tenant identifier",
   ]);
 

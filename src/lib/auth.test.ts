@@ -12,12 +12,16 @@ const DEV = "pk_test_Y2xlcmsucmFjaS5leGFtcGxl";
 test("production goes straight to Microsoft through the enterprise domain", () => {
   expect(signInMode(LIVE, "vctusa.com")).toEqual({
     kind: "enterprise",
+    publishableKey: LIVE,
     domain: "vctusa.com",
   });
 });
 
 test("a laptop with a development key and no domain opens the development door", () => {
-  expect(signInMode(DEV, undefined)).toEqual({ kind: "development" });
+  expect(signInMode(DEV, undefined)).toEqual({
+    kind: "development",
+    publishableKey: DEV,
+  });
 });
 
 test("a development instance carrying an enterprise connection uses it", () => {
@@ -25,6 +29,7 @@ test("a development instance carrying an enterprise connection uses it", () => {
   // that names a domain means the domain.
   expect(signInMode(DEV, "vctusa.com")).toEqual({
     kind: "enterprise",
+    publishableKey: DEV,
     domain: "vctusa.com",
   });
 });
@@ -63,8 +68,12 @@ test("a variable set to blank reads as unset, and a padded one still works", () 
     kind: "unconfigured",
     missing: "VITE_CLERK_ENTERPRISE_DOMAIN",
   });
+  // Padding is trimmed off *the value that reaches Clerk*, not just off the
+  // decision: Clerk rejects " pk_live_… " and throws on mount, which is the
+  // white screen this module exists to prevent.
   expect(signInMode(` ${LIVE} `, " vctusa.com ")).toEqual({
     kind: "enterprise",
+    publishableKey: LIVE,
     domain: "vctusa.com",
   });
 });

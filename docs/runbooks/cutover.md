@@ -112,8 +112,11 @@ password to set.
 
 > **Do not run `seed:run --prod` after step 4.** The seed owns the plan data and
 > clears it before reloading, so grants pointing at seeded records disappear
-> with them and their Members drop back into the awaiting-access queue. Accounts,
-> roles and the audit trail survive it, but you would be re-granting everything.
+> with them and their Members drop back into the awaiting-access queue. People
+> go too, which silently unlinks every account you linked one to in step 5 — the
+> Directory shows those accounts as unlinked again, with no warning that it once
+> knew better. Accounts, roles and the audit trail survive, but you would be
+> redoing step 5 and every grant.
 
 ---
 
@@ -124,10 +127,20 @@ existing table is optional. The prior commit runs unmodified against this data
 and ignores what it does not know about, so rollback is a redeploy and there is
 no data step.
 
-**Order matters, and it is backend first.** The pre-auth frontend against this
-backend is an app where every call is denied; this frontend against the pre-auth
-backend is the pre-auth app with a sign-in screen in front of it. The second is
-survivable, so pass through it.
+**Expect a blank page between the two steps.** Both halves of the rollback move
+in one direction, so for the minute or so between them the deployed pair does
+not match, and neither mismatch renders: this frontend against the pre-auth
+backend calls `access.me`, which that backend does not have, and the pre-auth
+frontend against this backend has its first query denied for being anonymous.
+Both fail closed — nothing leaks either way — but a failed query at the top of
+the tree is a white page, not an error screen and not "the old app with a
+sign-in screen in front of it". It is the one procedure where the intermediate
+state reads exactly like a broken production, so know it is coming and finish
+the sequence rather than panicking forward.
+
+**Backend first**, because it is the half that can refuse. If `convex deploy`
+fails you have not touched the frontend yet and there is nothing to undo; the
+Vercel promote that closes the window takes seconds.
 
 ```sh
 git checkout <prior-commit>

@@ -6,7 +6,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import App from "./App";
 import { AuthGate } from "./components/AuthGate";
 import { AuthUnconfigured } from "./components/AuthScreens";
-import { CLERK_PUBLISHABLE_KEY, SIGN_IN } from "./lib/auth";
+import { SIGN_IN } from "./lib/auth";
 import { ToastProvider } from "./lib/toast";
 import "./index.css";
 
@@ -32,7 +32,9 @@ if (SIGN_IN.kind === "unconfigured") {
 } else {
   root.render(
     <StrictMode>
-      <ClerkProvider publishableKey={CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/">
+      {/* The key `signInMode` approved, not the raw environment value: the two
+          differ by a stray space, and Clerk throws on the latter. */}
+      <ClerkProvider publishableKey={SIGN_IN.publishableKey} afterSignOutUrl="/">
         <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
           <ToastProvider>
             <AuthGate>

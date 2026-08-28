@@ -95,10 +95,22 @@ test("Unassigned, Blocked and Overdue still mean what the demo data says they me
 test("reseeding leaves the accounts alone and takes their grants with the records", async () => {
   // Worth knowing before anyone types `seed:run --prod` after cutover: the seed
   // owns the plan data and nothing else. Accounts, roles and the audit trail
-  // survive it; a grant does not, because the record it named is gone.
-  const { t, promotions } = await world();
+  // survive it; a grant does not, because the record it named is gone — and
+  // neither does a Person link, because People are plan data too.
+  const { t, promotions, carol } = await world();
+  const as = t.withIdentity(ADMIN);
+
+  const { accounts } = await as.query(api.directory.roster, {});
+  const priyaId = accounts.find((entry) => entry.email === PROMO_MEMBER.email)!.userId;
+  await as.mutation(api.directory.linkPerson, { userId: priyaId, personId: carol });
 
   await t.mutation(internal.seed.run, {});
+
+  // The link is the quietest casualty: the account comes back unlinked, with
+  // nothing on screen to say it was ever linked, so the runbook names it.
+  expect(await as.query(api.directory.account, { userId: priyaId })).toMatchObject({
+    person: null,
+  });
 
   expect(await t.withIdentity(PROMO_MEMBER).query(api.access.me, {})).toMatchObject({
     state: "active",

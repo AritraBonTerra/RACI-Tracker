@@ -19,8 +19,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 // Which of the two a build gets is decided here, from the environment alone,
 // and a build that names neither door opens none: see `signInMode`.
 
-export const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
-
 /**
  * Which door the sign-in button opens, or which environment variable is
  * missing. Pure, and taking both values as arguments, because this decision is
@@ -33,13 +31,19 @@ export const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
  * production instance whose only sign-in strategy is enterprise SSO, offering
  * employees an email field that refuses every address they own. That build is
  * misconfigured, and says so instead of opening a door that leads nowhere.
+ *
+ * An open door carries the key back out, trimmed. Clerk validates a
+ * publishable key by prefix and payload and throws on mount if it cannot, so
+ * handing `ClerkProvider` the raw environment value while deciding on the
+ * trimmed one would let a key pasted into a dashboard with a stray space pass
+ * here and blank the screen there.
  */
 export function signInMode(
   publishableKey: string | undefined,
   enterpriseDomain: string | undefined,
 ):
-  | { kind: "enterprise"; domain: string }
-  | { kind: "development" }
+  | { kind: "enterprise"; publishableKey: string; domain: string }
+  | { kind: "development"; publishableKey: string }
   | { kind: "unconfigured"; missing: string } {
   const key = publishableKey?.trim() ?? "";
   // An environment variable set to the empty string is Vercel's way of being
@@ -47,8 +51,8 @@ export function signInMode(
   const domain = enterpriseDomain?.trim() ?? "";
 
   if (key === "") return { kind: "unconfigured", missing: "VITE_CLERK_PUBLISHABLE_KEY" };
-  if (domain !== "") return { kind: "enterprise", domain };
-  if (key.startsWith("pk_test_")) return { kind: "development" };
+  if (domain !== "") return { kind: "enterprise", publishableKey: key, domain };
+  if (key.startsWith("pk_test_")) return { kind: "development", publishableKey: key };
   return { kind: "unconfigured", missing: "VITE_CLERK_ENTERPRISE_DOMAIN" };
 }
 

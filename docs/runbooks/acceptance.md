@@ -10,7 +10,8 @@ scenario, plus the source-level checks in `checks/` — and the table below name
 the test that carries each claim, so a scenario is checked by reading a failing
 test name rather than by remembering what was tried. The names are themselves
 checked: `checks/acceptance.test.ts` fails if this table cites a test that no
-longer exists.
+longer exists, and fails again if any one of the thirty rows stops citing
+anything at all.
 
 The rest need an identity provider, a browser, and a deployment. Those are
 marked **manual** and written out below the table. Run them on a production-like

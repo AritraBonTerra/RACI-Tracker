@@ -30,6 +30,21 @@ function testNames(): Set<string> {
   return names;
 }
 
+/** Every numbered row of the table, by the scenario number it opens with. */
+function scenarioRows(): Map<number, string> {
+  const rows = new Map<number, string>();
+  for (const line of readFileSync(ROOT + CHECKLIST, "utf8").split("\n")) {
+    const numbered = /^\|\s*(\d+)\s*\|/.exec(line);
+    if (numbered !== null) rows.set(Number(numbered[1]), line);
+  }
+  return rows;
+}
+
+/** The test names one row quotes. */
+function namesIn(row: string): string[] {
+  return [...row.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+}
+
 /**
  * The names the checklist quotes. Only its table cites tests — the prose below
  * it quotes what the screens say — so the table is where this reads, and a row
@@ -39,7 +54,7 @@ function citedNames(): string[] {
   const rows = readFileSync(ROOT + CHECKLIST, "utf8")
     .split("\n")
     .filter((line) => line.startsWith("|"));
-  return [...new Set(rows.flatMap((row) => [...row.matchAll(/"([^"]+)"/g)].map((m) => m[1])))];
+  return [...new Set(rows.flatMap(namesIn))];
 }
 
 test("every test the acceptance checklist cites still exists", () => {
@@ -50,14 +65,35 @@ test("every test the acceptance checklist cites still exists", () => {
   expect(missing).toEqual([]);
 });
 
-test("the checklist covers all thirty scenarios and cites real tests", () => {
-  // Guards the guard: an empty scan or a checklist that stopped listing
-  // scenarios would pass the assertion above without meaning anything.
-  const checklist = readFileSync(ROOT + CHECKLIST, "utf8");
+test("each of the thirty scenarios still points at a test or a manual run", () => {
+  // Row by row, because the rot this guards against is one row at a time: a
+  // scenario whose citations are edited away still leaves its number in the
+  // table and leaves every other row's citations resolving, so counting either
+  // one proves nothing about the row that lost its evidence.
+  const rows = scenarioRows();
+  const names = testNames();
+
+  const unproven = [];
   for (let scenario = 1; scenario <= 30; scenario += 1) {
-    expect(checklist).toContain(`| ${scenario} |`);
+    const row = rows.get(scenario);
+    if (row === undefined) {
+      unproven.push(`${scenario}: no row in the table`);
+      continue;
+    }
+    const cites = namesIn(row).some((name) => names.has(name));
+    // `**manual D14**` is a claim too — it points at a written-out run below the
+    // table rather than at a test, and a row may rest on that alone.
+    if (!cites && !row.includes("**manual ")) {
+      unproven.push(`${scenario}: cites neither a test nor a manual run`);
+    }
   }
 
+  expect(unproven).toEqual([]);
+});
+
+test("the checklist and the scan of the suites both still find things", () => {
+  // Guards the guards: an empty scan on either side would satisfy every
+  // assertion above without meaning anything.
   expect(citedNames().length).toBeGreaterThan(30);
   expect(testNames().has("the demo arc still runs end to end under an Administrator identity")).toBe(
     true,
