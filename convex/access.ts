@@ -12,7 +12,15 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { fromUrl, memo } from "./model";
+import {
+  fromUrl,
+  memo,
+  missing,
+  mustGet,
+  ownerOfTask,
+  type LastModified,
+  type TaskOwner,
+} from "./model";
 import { accessScope } from "./schema";
 
 // The access module (#30). Everything about "who is calling, and may they?"
@@ -23,6 +31,8 @@ import { accessScope } from "./schema";
 // The shape of the boundary:
 //
 //   authedQuery / authedMutation   a signed-in, active User; injects `viewer`
+//                                  (and, for mutations, the `stamp` every
+//                                  ordinary record edit carries)
 //   adminQuery / adminMutation     the same, and `viewer.role` is administrator
 //   me                             the one query that answers for callers who
 //                                  are *not* signed in, so the UI can render
@@ -214,7 +224,7 @@ export const authedMutation = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
     const viewer = await requireViewer(ctx);
-    return { viewer, scope: await scopeOf(ctx, viewer) };
+    return { viewer, scope: await scopeOf(ctx, viewer), stamp: stampFor(viewer) };
   }),
 );
 
@@ -228,11 +238,23 @@ export const adminQuery = customQuery(
 
 export const adminMutation = customMutation(
   mutation,
-  customCtx(async (ctx: MutationCtx) => ({
-    viewer: await requireAdministrator(ctx),
-    scope: EVERYTHING,
-  })),
+  customCtx(async (ctx: MutationCtx) => {
+    const viewer = await requireAdministrator(ctx);
+    return { viewer, scope: EVERYTHING, stamp: stampFor(viewer) };
+  }),
 );
+
+/**
+ * The last-modified stamp for everything one mutation writes (#30, story 28).
+ *
+ * Built by the wrapper rather than by each handler, so a handler cannot stamp
+ * somebody else's id and cannot write half of the pair. One timestamp per
+ * mutation is the honest reading anyway: a transaction is one edit, however
+ * many rows it touches.
+ */
+function stampFor(viewer: Viewer): LastModified {
+  return { lastModifiedBy: viewer._id, lastModifiedAt: Date.now() };
+}
 
 // --- The read gates -------------------------------------------------------
 // Every id that arrives off the URL bar enters the backend through one of
@@ -323,6 +345,144 @@ export async function visibleTasks(
 
   const keep = await Promise.all(tasks.map(mayRead));
   return tasks.filter((_, index) => keep[index]);
+}
+
+// --- The write gates ------------------------------------------------------
+// The read gates answer with `null`, because a read that finds nothing is a
+// page that says "this doesn't exist, or you don't have access". A write has
+// nothing to render, so these throw instead — and they throw `missing()`, the
+// exact error a genuinely deleted record raises (model.ts). A mutation aimed at
+// an out-of-scope id, a forged id, or a deleted one produces one indistinguish-
+// able failure, so no sequence of writes can map what exists (#27, scenario 15).
+//
+// Every gate reads the ancestry off the *loaded* record. The id in the argument
+// is a lookup key and never an authorization input: there is no shape of
+// argument that can claim a parent it does not have.
+
+/** The label each tier goes by in the one error every refusal shares. */
+const TIER_LABEL = {
+  season: "season",
+  chainPlan: "chain plan",
+  promotion: "promotion",
+} as const satisfies Record<TaskOwner["tier"], string>;
+
+/** A Plan Year whose own fields and phase-0 checklist the viewer may write. */
+export async function writableSeason(
+  ctx: QueryCtx,
+  scope: Scope,
+  seasonId: Id<"seasons">,
+): Promise<Doc<"seasons">> {
+  const season = await mustGet(ctx, seasonId, TIER_LABEL.season);
+  // "context" is a name for orientation, never a handle: a Member who can read
+  // the year label above their Chain Plan cannot rename the year.
+  if (scope.season(season._id) !== "full") missing(TIER_LABEL.season);
+  return season;
+}
+
+/** A Chain Plan whose own fields and phase 1-4 checklist the viewer may write. */
+export async function writableChainPlan(
+  ctx: QueryCtx,
+  scope: Scope,
+  chainPlanId: Id<"chainPlans">,
+): Promise<Doc<"chainPlans">> {
+  const plan = await mustGet(ctx, chainPlanId, TIER_LABEL.chainPlan);
+  if (scope.chainPlan(plan) !== "full") missing(TIER_LABEL.chainPlan);
+  return plan;
+}
+
+/**
+ * A Promotion whose own fields, phase 5-8 checklist, KPI entries and Retro the
+ * viewer may write — phase 7-8 work happens where the promotion lives (#22).
+ */
+export async function writablePromotion(
+  ctx: QueryCtx,
+  scope: Scope,
+  promotionId: Id<"promotions">,
+): Promise<Doc<"promotions">> {
+  const promotion = await mustGet(ctx, promotionId, TIER_LABEL.promotion);
+  if (scope.promotion(promotion) !== "full") missing(TIER_LABEL.promotion);
+  return promotion;
+}
+
+/** How far a viewer reaches the tier record a checklist hangs on. */
+async function reachOfOwner(
+  ctx: QueryCtx,
+  scope: Scope,
+  owner: TaskOwner,
+): Promise<Reach> {
+  if (owner.tier === "season") {
+    const season = await ctx.db.get(owner.seasonId);
+    return season === null ? "none" : scope.season(season._id);
+  }
+  if (owner.tier === "chainPlan") {
+    const plan = await ctx.db.get(owner.chainPlanId);
+    return plan === null ? "none" : scope.chainPlan(plan);
+  }
+  const promotion = await ctx.db.get(owner.promotionId);
+  return promotion === null ? "none" : scope.promotion(promotion);
+}
+
+/**
+ * The tier record a new task is being hung on. This is the create half of the
+ * matrix: the client names a parent, the parent is loaded, and *its* ancestry
+ * decides — so a create aimed at an out-of-scope Chain Plan is refused however
+ * the argument is dressed up, and refused the way a deleted parent is.
+ */
+export async function writableOwner(
+  ctx: QueryCtx,
+  scope: Scope,
+  owner: TaskOwner,
+): Promise<void> {
+  if ((await reachOfOwner(ctx, scope, owner)) !== "full") missing(TIER_LABEL[owner.tier]);
+}
+
+/**
+ * A task the viewer may edit, delete or reorder, with the owner its siblings
+ * hang off. A task carries no ancestry of its own, so its owner is loaded and
+ * asked.
+ */
+export async function writableTask(
+  ctx: QueryCtx,
+  scope: Scope,
+  taskId: Id<"tasks">,
+): Promise<{ task: Doc<"tasks">; owner: TaskOwner }> {
+  const task = await mustGet(ctx, taskId, "task");
+  const owner = ownerOfTask(task);
+  // Every way the answer can be no — owner deleted, owner out of scope, task
+  // attached to nothing — collapses into the refusal a deleted *task* gives.
+  // Raising the owner's tier here would report what kind of record the caller
+  // had just failed to reach, which is half of what they were probing for.
+  if (owner === null || (await reachOfOwner(ctx, scope, owner)) !== "full") {
+    missing("task");
+  }
+  return { task, owner };
+}
+
+/**
+ * Names for the last-modified stamps in one payload: `lastModifiedBy` is a User
+ * id, and "edited by usr_2f8…" answers nobody's question.
+ *
+ * Returned as a lookup beside the records rather than folded into each one, so
+ * a checklist of twenty rows edited by the same two people carries two names.
+ * Only the display name crosses the wire — a Member reading who last touched
+ * their promotion learns a name, never a role or a scope (#22, story 17).
+ *
+ * A stamp naming a User who has since been deleted resolves to nothing, and the
+ * client renders the record unstamped: a dangling id is not a person.
+ */
+export async function editorsOf(
+  ctx: QueryCtx,
+  records: ReadonlyArray<{ lastModifiedBy?: Id<"users"> }>,
+): Promise<Record<string, string>> {
+  const ids = [...new Set(records.flatMap((record) => record.lastModifiedBy ?? []))];
+  const users = await Promise.all(ids.map((id) => ctx.db.get(id)));
+  return Object.fromEntries(
+    users.flatMap((user) =>
+      user === null
+        ? []
+        : [[user._id, user.displayName ?? user.email ?? "Someone"] as const],
+    ),
+  );
 }
 
 // --- Reading and writing Users --------------------------------------------

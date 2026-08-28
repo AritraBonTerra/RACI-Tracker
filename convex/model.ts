@@ -10,6 +10,14 @@ export type PhaseNumber = Infer<typeof phase>;
 export type TaskStatus = Infer<typeof taskStatus>;
 
 /**
+ * What every ordinary record edit records: who touched it last, and when
+ * (schema.ts: lastModified). Built once per mutation by the wrappers in
+ * `access.ts` and spread into the write, so a handler cannot stamp the wrong
+ * User and cannot quietly forget the timestamp.
+ */
+export type LastModified = { lastModifiedBy: Id<"users">; lastModifiedAt: number };
+
+/**
  * Where a task hangs. Exactly one of the three ownership columns is set, and
  * the tier is decided by the task's phase (CONTEXT.md: Phase).
  */
@@ -52,6 +60,24 @@ export function assertPhaseMatchesOwner(value: PhaseNumber, owner: TaskOwner) {
       `Phase ${value} belongs to ${TIER_LABEL[expected]}, not ${TIER_LABEL[owner.tier]}.`,
     );
   }
+}
+
+/**
+ * Which of the three tiers a task hangs on, read back off its own columns.
+ * Null for a task attached to nothing: that document is unreachable by every
+ * navigation surface, so it belongs to nobody's scope rather than everybody's.
+ */
+export function ownerOfTask(task: Doc<"tasks">): TaskOwner | null {
+  if (task.seasonId !== undefined) {
+    return { tier: "season", seasonId: task.seasonId };
+  }
+  if (task.chainPlanId !== undefined) {
+    return { tier: "chainPlan", chainPlanId: task.chainPlanId };
+  }
+  if (task.promotionId !== undefined) {
+    return { tier: "promotion", promotionId: task.promotionId };
+  }
+  return null;
 }
 
 /** The ownership columns for a task, with the two unused ones left unset. */
@@ -112,6 +138,18 @@ export async function fromUrl<Table extends TableNames>(
   return normalized === null ? null : await ctx.db.get(normalized);
 }
 
+/**
+ * The one sentence a write hears about a record it cannot have.
+ *
+ * Exported because the scope checks in `access.ts` raise it too: a mutation
+ * aimed at an out-of-scope id has to fail *identically* to one aimed at a
+ * deleted id, or the difference between the two errors is a probe (#27,
+ * scenario 15). One function, so the two can never drift apart.
+ */
+export function missing(label: string): never {
+  throw new ConvexError(`That ${label} no longer exists.`);
+}
+
 /** Loads a document or fails loudly rather than returning a silent null. */
 export async function mustGet<Table extends TableNames>(
   ctx: QueryCtx,
@@ -119,7 +157,7 @@ export async function mustGet<Table extends TableNames>(
   label: string,
 ): Promise<Doc<Table>> {
   const doc = await ctx.db.get(id);
-  if (doc === null) throw new ConvexError(`That ${label} no longer exists.`);
+  if (doc === null) missing(label);
   return doc;
 }
 
@@ -183,6 +221,9 @@ export async function stampTemplates(
   ctx: MutationCtx,
   owner: TaskOwner,
   phases: readonly PhaseNumber[],
+  // The rows land under whoever created the owner, so a checklist nobody has
+  // touched yet still answers "where did this come from?".
+  stamp: LastModified,
 ) {
   const wanted = new Set<PhaseNumber>(phases);
   const templates = (await ctx.db.query("taskTemplates").collect())
@@ -203,6 +244,7 @@ export async function stampTemplates(
       consultedPersonIds: [],
       informedPersonIds: [],
       order: index,
+      ...stamp,
     });
   }
   return templates.length;

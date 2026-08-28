@@ -1,11 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, type QueryCtx } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
+import { authedMutation, writableOwner, writableTask } from "./access";
 import { phase, taskStatus } from "./schema";
 import {
   assertBlockedReason,
   assertPhaseMatchesOwner,
-  mustGet,
   nextOrder,
   optionalText,
   ownerFields,
@@ -17,6 +17,11 @@ import {
 // Every write to a phase checklist. Reads live with the tier that owns the
 // checklist (seasons / chainPlans / promotions), because a task is never
 // interesting on its own — only as a row under its owner.
+//
+// This is the whole of what a Member controls (#22, stories 12-16): inside a
+// granted scope they create, edit, assign, block and delete freely, and every
+// one of these functions refuses the identical way for a task or an owner their
+// Access Assignments do not reach.
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -48,7 +53,7 @@ async function livePeople(ctx: QueryCtx, ids: readonly Id<"people">[]) {
 }
 
 /** Adds a row to a phase checklist. Freeform: a name is the only requirement. */
-export const create = mutation({
+export const create = authedMutation({
   args: {
     owner: taskOwner,
     phase,
@@ -61,6 +66,9 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     assertPhaseMatchesOwner(args.phase, args.owner);
+    // The parent decides, not the argument: an owner the viewer cannot reach
+    // fails here exactly as a deleted one does.
+    await writableOwner(ctx, ctx.scope, args.owner);
     const owner = ownerFields(args.owner);
 
     const siblings = await siblingsOf(ctx, args.owner);
@@ -78,6 +86,7 @@ export const create = mutation({
       consultedPersonIds: [],
       informedPersonIds: [],
       order: nextOrder(siblings),
+      ...ctx.stamp,
     });
   },
 });
@@ -86,7 +95,7 @@ export const create = mutation({
  * Inline field edits. Omitting a field leaves it alone; passing `null` clears
  * it, which is how the UI empties an ETA or a quantity.
  */
-export const update = mutation({
+export const update = authedMutation({
   args: {
     taskId: v.id("tasks"),
     name: v.optional(v.string()),
@@ -105,8 +114,8 @@ export const update = mutation({
     informedPersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
-    const patch: Partial<Doc<"tasks">> = {};
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
+    const patch: Partial<Doc<"tasks">> = { ...ctx.stamp };
 
     if (args.name !== undefined) patch.name = requiredText(args.name, "Task name");
     if (args.spec !== undefined) patch.spec = optionalText(args.spec);
@@ -141,7 +150,7 @@ export const update = mutation({
  * The status transition, kept separate from `update` so the blocked-reason rule
  * has exactly one place to live. Moving off Blocked drops the stale reason.
  */
-export const setStatus = mutation({
+export const setStatus = authedMutation({
   args: {
     taskId: v.id("tasks"),
     status: taskStatus,
@@ -149,11 +158,12 @@ export const setStatus = mutation({
     deliveredTo: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
     // Re-blocking a task that already carries a reason may reuse it.
     const proposed = args.blockedReason ?? task.blockedReason;
 
     await ctx.db.patch(task._id, {
+      ...ctx.stamp,
       status: args.status,
       blockedReason: assertBlockedReason(args.status, proposed),
       deliveredTo:
@@ -162,22 +172,23 @@ export const setStatus = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = authedMutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.taskId);
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
+    await ctx.db.delete(task._id);
   },
 });
 
 /** Nudges a task up or down its phase section by swapping `order` with its neighbour. */
-export const move = mutation({
+export const move = authedMutation({
   args: {
     taskId: v.id("tasks"),
     direction: v.union(v.literal("up"), v.literal("down")),
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
-    const section = (await siblingsOf(ctx, ownerOf(task)))
+    const { task, owner } = await writableTask(ctx, ctx.scope, args.taskId);
+    const section = (await siblingsOf(ctx, owner))
       .filter((candidate) => candidate.phase === task.phase)
       .sort((a, b) => a.order - b.order);
 
@@ -185,22 +196,11 @@ export const move = mutation({
     const swapWith = section[args.direction === "up" ? index - 1 : index + 1];
     if (swapWith === undefined) return;
 
-    await ctx.db.patch(task._id, { order: swapWith.order });
-    await ctx.db.patch(swapWith._id, { order: task.order });
+    // Reordering is a change to both rows, so both carry the stamp.
+    await ctx.db.patch(task._id, { ...ctx.stamp, order: swapWith.order });
+    await ctx.db.patch(swapWith._id, { ...ctx.stamp, order: task.order });
   },
 });
-
-/** Reconstructs a task's owner from its three ownership columns. */
-function ownerOf(task: Doc<"tasks">) {
-  if (task.seasonId !== undefined) return { tier: "season", seasonId: task.seasonId } as const;
-  if (task.chainPlanId !== undefined) {
-    return { tier: "chainPlan", chainPlanId: task.chainPlanId } as const;
-  }
-  if (task.promotionId !== undefined) {
-    return { tier: "promotion", promotionId: task.promotionId } as const;
-  }
-  throw new ConvexError("Task is not attached to a plan year, chain plan or promotion.");
-}
 
 /** Every task under the same owner, across all of that tier's phases. */
 async function siblingsOf(ctx: QueryCtx, owner: TaskOwner) {

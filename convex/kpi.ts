@@ -1,9 +1,15 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { authedQuery, readablePromotion } from "./access";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import {
+  authedMutation,
+  authedQuery,
+  editorsOf,
+  readablePromotion,
+  writablePromotion,
+} from "./access";
 import { kpiMetric, repeatVerdict } from "./schema";
-import { mustGet, optionalText } from "./model";
+import { optionalText } from "./model";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
 // slide-14 KPI grid and the retro that reads it.
@@ -76,9 +82,13 @@ export const board = authedQuery({
       .withIndex("by_promotion", (q) => q.eq("promotionId", promotion._id))
       .collect();
 
+    const retro = await retroFor(ctx, promotion._id);
     return {
       metrics: entries.map((entry) => ({ ...entry, uplift: upliftOf(entry) })),
-      retro: await retroFor(ctx, promotion._id),
+      retro,
+      // Phase 7-8 figures are typed by hand, so who typed them last is part of
+      // reading them.
+      editors: await editorsOf(ctx, [...entries, ...(retro === null ? [] : [retro])]),
     };
   },
 });
@@ -114,7 +124,7 @@ function patchedNumber(
  * every field has been cleared is deleted rather than left as an empty husk, so
  * the table only ever holds figures somebody actually typed.
  */
-export const setMetric = mutation({
+export const setMetric = authedMutation({
   args: {
     promotionId: v.id("promotions"),
     metric: kpiMetric,
@@ -124,7 +134,10 @@ export const setMetric = mutation({
     note: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const promotion = await mustGet(ctx, args.promotionId, "promotion");
+    // A Member whose scope covers the promotion writes its phase 7-8 work
+    // where the promotion lives (#22, story 15); anyone else fails here the
+    // way they would against a deleted promotion.
+    const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
     const existing = await entryFor(ctx, promotion._id, args.metric);
 
     const fields = {
@@ -149,15 +162,16 @@ export const setMetric = mutation({
         promotionId: promotion._id,
         metric: args.metric,
         ...fields,
+        ...ctx.stamp,
       });
     } else {
-      await ctx.db.patch(existing._id, fields);
+      await ctx.db.patch(existing._id, { ...fields, ...ctx.stamp });
     }
   },
 });
 
 /** Writes the phase-8 retro, creating it on the first sentence anyone types. */
-export const saveRetro = mutation({
+export const saveRetro = authedMutation({
   args: {
     promotionId: v.id("promotions"),
     worked: v.optional(v.union(v.string(), v.null())),
@@ -166,7 +180,7 @@ export const saveRetro = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const promotion = await mustGet(ctx, args.promotionId, "promotion");
+    const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
     const existing = await retroFor(ctx, promotion._id);
 
     const fields = {
@@ -183,9 +197,13 @@ export const saveRetro = mutation({
     }
 
     if (existing === null) {
-      await ctx.db.insert("retros", { promotionId: promotion._id, ...fields });
+      await ctx.db.insert("retros", {
+        promotionId: promotion._id,
+        ...fields,
+        ...ctx.stamp,
+      });
     } else {
-      await ctx.db.patch(existing._id, fields);
+      await ctx.db.patch(existing._id, { ...fields, ...ctx.stamp });
     }
   },
 });

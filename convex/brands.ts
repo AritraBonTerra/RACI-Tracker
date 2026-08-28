@@ -1,6 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { authedQuery } from "./access";
+import { adminMutation, authedQuery } from "./access";
 import { mustGet, optionalText, requiredText } from "./model";
 
 // The portfolio list. Entries are flagged as placeholders until the real brand
@@ -18,7 +17,9 @@ export const list = authedQuery({
   },
 });
 
-export const create = mutation({
+// Reference data: readable by everyone signed in, writable by an Administrator
+// alone (#22, story 29).
+export const create = adminMutation({
   args: {
     name: v.string(),
     isPlaceholder: v.optional(v.boolean()),
@@ -36,11 +37,12 @@ export const create = mutation({
       name,
       isPlaceholder: args.isPlaceholder ?? true,
       notes: optionalText(args.notes),
+      ...ctx.stamp,
     });
   },
 });
 
-export const update = mutation({
+export const update = adminMutation({
   args: {
     brandId: v.id("brands"),
     name: v.optional(v.string()),
@@ -50,6 +52,7 @@ export const update = mutation({
   handler: async (ctx, args) => {
     await mustGet(ctx, args.brandId, "brand");
     await ctx.db.patch(args.brandId, {
+      ...ctx.stamp,
       ...(args.name === undefined ? {} : { name: requiredText(args.name, "Brand name") }),
       ...(args.isPlaceholder === undefined ? {} : { isPlaceholder: args.isPlaceholder }),
       ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
@@ -57,7 +60,7 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = adminMutation({
   args: { brandId: v.id("brands") },
   handler: async (ctx, args) => {
     const promotions = await ctx.db.query("promotions").collect();

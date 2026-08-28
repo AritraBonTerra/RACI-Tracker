@@ -17,26 +17,19 @@ const CONVEX_DIR = fileURLToPath(new URL(".", import.meta.url));
 const ACCESS_MODULE = "access.ts";
 
 /**
- * Modules written before the access boundary existed, and the raw factories
- * each one still reaches for. Every public query is behind a wrapper as of the
- * scoped-reads slice (#32); the mutations follow in the scoped-writes slice
- * (#33), and this table has to be empty before the cutover.
+ * Modules still reaching for a raw factory instead of a wrapper.
+ *
+ * Empty as of the scoped-writes slice (#33): every public query went behind a
+ * wrapper with scoped reads (#32) and every public mutation followed here, so
+ * the boundary now holds by construction rather than by exemption. A new entry
+ * in this table is a hole being opened on purpose, and the first assertion
+ * below is what makes it impossible to open one by accident.
  *
  * Exact per-module lists rather than a list of filenames, so migrating half a
  * module is visible: the second assertion below fails both when an entry is
  * migrated and left here and when a module quietly picks a factory back up.
  */
-const AWAITING_MIGRATION: Record<string, readonly string[]> = {
-  "brands.ts": ["mutation"],
-  "chainPlans.ts": ["mutation"],
-  "chains.ts": ["mutation"],
-  "kpi.ts": ["mutation"],
-  "people.ts": ["mutation"],
-  "promotions.ts": ["mutation"],
-  "seasons.ts": ["mutation"],
-  "taskTemplates.ts": ["mutation"],
-  "tasks.ts": ["mutation"],
-};
+const AWAITING_MIGRATION: Record<string, readonly string[]> = {};
 
 /**
  * The public function factories: anything built from these is client-callable.

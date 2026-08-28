@@ -64,6 +64,19 @@ export const auditAction = v.union(
   v.literal("access_revoked"),
 );
 
+// Who last edited an ordinary record, and when (#30, story 28). Spread into
+// every table a signed-in User can write, so "who changed this?" has a first
+// answer without opening the audit feed — access management is *audited*,
+// ordinary edits are *stamped*, and the two never mix.
+//
+// Both fields are optional because every row written before the stamp existed
+// genuinely has no answer, and back-filling one would be inventing history.
+// They travel together: a write sets both or neither.
+export const lastModified = {
+  lastModifiedBy: v.optional(v.id("users")),
+  lastModifiedAt: v.optional(v.number()),
+};
+
 // --- Phase 7-8 measurement (detachable feature, #14) ----------------------
 // The two validators and the two tables at the bottom of the schema are the
 // whole storage footprint of the KPI table and the retro. Removing the feature
@@ -98,12 +111,14 @@ export default defineSchema({
     year: v.number(),
     label: v.string(),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_year", ["year"]),
 
   // A retail account (Safeway, Kroger, ...).
   chains: defineTable({
     name: v.string(),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_name", ["name"]),
 
   // What is being promoted. Placeholder entries until real portfolio data lands.
@@ -111,6 +126,7 @@ export default defineSchema({
     name: v.string(),
     isPlaceholder: v.boolean(),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_name", ["name"]),
 
   // The six stakeholder buckets. `key` is the stable identifier used by code and
@@ -120,6 +136,7 @@ export default defineSchema({
     name: v.string(),
     kind: functionKind,
     order: v.number(),
+    ...lastModified,
   }).index("by_key", ["key"]),
 
   // A named human in a Function. Not a login account in v0.
@@ -129,6 +146,7 @@ export default defineSchema({
     title: v.optional(v.string()),
     email: v.optional(v.string()),
     organization: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_function", ["functionId"])
     .index("by_name", ["name"]),
@@ -214,6 +232,7 @@ export default defineSchema({
     currentPhase: phase,
     jbpDate: v.optional(isoDate),
     notes: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_season", ["seasonId"])
     .index("by_chain", ["chainId"])
@@ -234,6 +253,7 @@ export default defineSchema({
     storeCount: v.optional(v.number()),
     currentPhase: phase,
     notes: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_chain_plan", ["chainPlanId"])
     .index("by_chain", ["chainId"])
@@ -288,6 +308,7 @@ export default defineSchema({
 
     order: v.number(),
     notes: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_promotion", ["promotionId"])
     .index("by_chain_plan", ["chainPlanId"])
@@ -310,6 +331,7 @@ export default defineSchema({
     category: v.optional(v.string()),
     quantity: v.optional(v.number()),
     order: v.number(),
+    ...lastModified,
   }).index("by_phase", ["phase"]),
 
   // The slide-16 matrix: for each phase, which role(s) each function plays by
@@ -344,6 +366,7 @@ export default defineSchema({
     promotional: v.optional(v.number()),
     upliftOverride: v.optional(v.string()),
     note: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_promotion", ["promotionId"])
     .index("by_promotion_and_metric", ["promotionId", "metric"]),
@@ -356,5 +379,6 @@ export default defineSchema({
     didntWork: v.optional(v.string()),
     repeatNextYear: v.optional(repeatVerdict),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_promotion", ["promotionId"]),
 });

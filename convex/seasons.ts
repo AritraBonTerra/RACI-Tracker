@@ -1,16 +1,18 @@
 import { ConvexError, v } from "convex/values";
-import { mutation } from "./_generated/server";
 import {
+  adminMutation,
+  authedMutation,
   authedQuery,
+  editorsOf,
   readableChainPlan,
   readablePromotion,
   readableSeason,
   visibleSeason,
+  writableSeason,
 } from "./access";
 import {
   SEASON_PHASES,
   deleteTasks,
-  mustGet,
   optionalText,
   raciDefaults,
   requiredText,
@@ -71,6 +73,9 @@ export const overview = authedQuery({
       tasks: tasks.sort((a, b) => a.order - b.order),
       rollup: rollup(tasks, args.today),
       raciDefaults: await raciDefaults(ctx, SEASON_PHASES),
+      // Names for the last-modified stamps on the year and every row of its
+      // checklist, so "who changed this?" is answered on the page (#22).
+      editors: await editorsOf(ctx, [season, ...tasks]),
     };
   },
 });
@@ -212,7 +217,13 @@ export const contextFor = authedQuery({
   },
 });
 
-export const create = mutation({
+/**
+ * Creating and deleting a Plan Year is an Administrator's alone (#22, story
+ * 29): the hierarchy stays governed, and a Member's grant is a place to work,
+ * not a licence to reshape the tree around it. Editing the year's own fields is
+ * not — that is `update`, open to whoever holds the year.
+ */
+export const create = adminMutation({
   args: {
     year: v.number(),
     label: v.optional(v.string()),
@@ -229,21 +240,24 @@ export const create = mutation({
       year: args.year,
       label: optionalText(args.label) ?? String(args.year),
       notes: optionalText(args.notes),
+      ...ctx.stamp,
     });
-    await stampTemplates(ctx, { tier: "season", seasonId }, SEASON_PHASES);
+    await stampTemplates(ctx, { tier: "season", seasonId }, SEASON_PHASES, ctx.stamp);
     return seasonId;
   },
 });
 
-export const update = mutation({
+/** Keeping the year's own fields current, for anyone whose scope covers it. */
+export const update = authedMutation({
   args: {
     seasonId: v.id("seasons"),
     label: v.optional(v.string()),
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.seasonId, "season");
-    await ctx.db.patch(args.seasonId, {
+    const season = await writableSeason(ctx, ctx.scope, args.seasonId);
+    await ctx.db.patch(season._id, {
+      ...ctx.stamp,
       ...(args.label === undefined
         ? {}
         : { label: requiredText(args.label, "Year label") }),
@@ -253,7 +267,7 @@ export const update = mutation({
 });
 
 /** Removing a plan year takes its phase-0 checklist with it, but never a chain plan. */
-export const remove = mutation({
+export const remove = adminMutation({
   args: { seasonId: v.id("seasons") },
   handler: async (ctx, args) => {
     const plans = await ctx.db

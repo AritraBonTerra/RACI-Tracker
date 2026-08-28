@@ -1,6 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { adminQuery } from "./access";
+import { adminMutation, adminQuery } from "./access";
 import { phase } from "./schema";
 import { mustGet, optionalText, requiredText } from "./model";
 import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
@@ -22,7 +21,7 @@ export const list = adminQuery({
   },
 });
 
-export const create = mutation({
+export const create = adminMutation({
   args: {
     phase,
     name: v.string(),
@@ -43,11 +42,12 @@ export const create = mutation({
       category: optionalText(args.category),
       quantity: args.quantity ?? undefined,
       order: siblings.reduce((max, row) => Math.max(max, row.order + 1), 0),
+      ...ctx.stamp,
     });
   },
 });
 
-export const update = mutation({
+export const update = adminMutation({
   args: {
     templateId: v.id("taskTemplates"),
     name: v.optional(v.string()),
@@ -58,6 +58,7 @@ export const update = mutation({
   handler: async (ctx, args) => {
     await mustGet(ctx, args.templateId, "template task");
     await ctx.db.patch(args.templateId, {
+      ...ctx.stamp,
       ...(args.name === undefined
         ? {}
         : { name: requiredText(args.name, "Template task name") }),
@@ -68,7 +69,7 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = adminMutation({
   args: { templateId: v.id("taskTemplates") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.templateId);
@@ -76,7 +77,7 @@ export const remove = mutation({
 });
 
 /** Nudges a template up or down its phase section, mirroring tasks.move. */
-export const move = mutation({
+export const move = adminMutation({
   args: {
     templateId: v.id("taskTemplates"),
     direction: v.union(v.literal("up"), v.literal("down")),
@@ -94,8 +95,8 @@ export const move = mutation({
     const swapWith = section[args.direction === "up" ? index - 1 : index + 1];
     if (swapWith === undefined) return;
 
-    await ctx.db.patch(template._id, { order: swapWith.order });
-    await ctx.db.patch(swapWith._id, { order: template.order });
+    await ctx.db.patch(template._id, { ...ctx.stamp, order: swapWith.order });
+    await ctx.db.patch(swapWith._id, { ...ctx.stamp, order: template.order });
   },
 });
 
@@ -104,7 +105,7 @@ export const move = mutation({
  * empty-state button. Guarded to empty so a double click cannot duplicate the
  * menu; an edited table is the team's own and stays untouched.
  */
-export const loadDefaults = mutation({
+export const loadDefaults = adminMutation({
   args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("taskTemplates").first();
@@ -116,7 +117,7 @@ export const loadDefaults = mutation({
     for (const row of DEFAULT_TASK_TEMPLATES) {
       const order = perPhase.get(row.phase) ?? 0;
       perPhase.set(row.phase, order + 1);
-      await ctx.db.insert("taskTemplates", { ...row, order });
+      await ctx.db.insert("taskTemplates", { ...row, order, ...ctx.stamp });
     }
     return { inserted: DEFAULT_TASK_TEMPLATES.length };
   },

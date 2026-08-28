@@ -1,6 +1,13 @@
 import { ConvexError, v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { authedQuery, readableChainPlan } from "./access";
+import {
+  adminMutation,
+  authedMutation,
+  authedQuery,
+  editorsOf,
+  readableChainPlan,
+  writableChainPlan,
+  writableSeason,
+} from "./access";
 import { phase } from "./schema";
 import {
   CHAIN_PLAN_PHASES,
@@ -75,11 +82,13 @@ export const get = authedQuery({
       rollup: rollup(tasks, args.today),
       promotions: promotionCards,
       raciDefaults: await raciDefaults(ctx, CHAIN_PLAN_PHASES),
+      editors: await editorsOf(ctx, [plan, ...tasks]),
     };
   },
 });
 
-export const create = mutation({
+/** Starting a plan under a year is an Administrator's alone (#22, story 29). */
+export const create = adminMutation({
   args: {
     seasonId: v.id("seasons"),
     chainId: v.id("chains"),
@@ -88,7 +97,8 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.seasonId, "season");
+    // The parent is loaded and asked, the same way a Member's task create is.
+    await writableSeason(ctx, ctx.scope, args.seasonId);
     const chain = await mustGet(ctx, args.chainId, "chain");
 
     // A chain plan is one chain x one season by definition.
@@ -108,13 +118,20 @@ export const create = mutation({
       currentPhase: args.currentPhase ?? 1,
       jbpDate: optionalText(args.jbpDate),
       notes: optionalText(args.notes),
+      ...ctx.stamp,
     });
-    await stampTemplates(ctx, { tier: "chainPlan", chainPlanId }, CHAIN_PLAN_PHASES);
+    await stampTemplates(
+      ctx,
+      { tier: "chainPlan", chainPlanId },
+      CHAIN_PLAN_PHASES,
+      ctx.stamp,
+    );
     return chainPlanId;
   },
 });
 
-export const update = mutation({
+/** Keeping the plan's own fields current, for anyone whose scope covers it. */
+export const update = authedMutation({
   args: {
     chainPlanId: v.id("chainPlans"),
     currentPhase: v.optional(phase),
@@ -122,8 +139,9 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.chainPlanId, "chain plan");
-    await ctx.db.patch(args.chainPlanId, {
+    const plan = await writableChainPlan(ctx, ctx.scope, args.chainPlanId);
+    await ctx.db.patch(plan._id, {
+      ...ctx.stamp,
       ...(args.currentPhase === undefined ? {} : { currentPhase: args.currentPhase }),
       ...(args.jbpDate === undefined ? {} : { jbpDate: optionalText(args.jbpDate) }),
       ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
@@ -132,7 +150,7 @@ export const update = mutation({
 });
 
 /** Takes the plan's own checklist with it, but refuses while promotions exist. */
-export const remove = mutation({
+export const remove = adminMutation({
   args: { chainPlanId: v.id("chainPlans") },
   handler: async (ctx, args) => {
     const promotions = await ctx.db

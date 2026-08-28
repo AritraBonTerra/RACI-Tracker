@@ -1,7 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation } from "./_generated/server";
-import { authedQuery, visibleTasks } from "./access";
+import { adminMutation, authedQuery, visibleTasks } from "./access";
 import {
   byEta,
   isOverdue,
@@ -135,17 +134,22 @@ export const workload = authedQuery({
   },
 });
 
-export const renameFunction = mutation({
+// Every write to the People directory is an Administrator's (#22, story 29).
+// The directory is readable by everyone — a RACI picker that hid half the
+// company would make somebody name the wrong owner — but a Person is the thing
+// RACI points at across the whole tool, so who is in it stays governed.
+export const renameFunction = adminMutation({
   args: { functionId: v.id("functions"), name: v.string() },
   handler: async (ctx, args) => {
     await mustGet(ctx, args.functionId, "function");
     await ctx.db.patch(args.functionId, {
+      ...ctx.stamp,
       name: requiredText(args.name, "Function name"),
     });
   },
 });
 
-export const create = mutation({
+export const create = adminMutation({
   args: {
     name: v.string(),
     functionId: v.id("functions"),
@@ -161,11 +165,12 @@ export const create = mutation({
       title: optionalText(args.title),
       email: optionalText(args.email),
       organization: optionalText(args.organization),
+      ...ctx.stamp,
     });
   },
 });
 
-export const update = mutation({
+export const update = adminMutation({
   args: {
     personId: v.id("people"),
     name: v.optional(v.string()),
@@ -179,6 +184,7 @@ export const update = mutation({
     if (args.functionId !== undefined) await mustGet(ctx, args.functionId, "function");
 
     await ctx.db.patch(args.personId, {
+      ...ctx.stamp,
       ...(args.name === undefined
         ? {}
         : { name: requiredText(args.name, "Person name") }),
@@ -196,7 +202,7 @@ export const update = mutation({
  * Deleting a person who is Responsible somewhere would silently push tasks into
  * the Unassigned state the tool exists to surface, so it is refused instead.
  */
-export const remove = mutation({
+export const remove = adminMutation({
   args: { personId: v.id("people") },
   handler: async (ctx, args) => {
     const { all } = tasksOf(await ctx.db.query("tasks").collect(), args.personId);

@@ -1,6 +1,13 @@
 import { ConvexError, v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { authedQuery, readablePromotion } from "./access";
+import {
+  adminMutation,
+  authedMutation,
+  authedQuery,
+  editorsOf,
+  readablePromotion,
+  writableChainPlan,
+  writablePromotion,
+} from "./access";
 import { phase } from "./schema";
 import { removeForPromotion } from "./kpi";
 import {
@@ -67,11 +74,17 @@ export const get = authedQuery({
       tasks: tasks.sort((a, b) => a.order - b.order),
       rollup: rollup(tasks, args.today),
       raciDefaults: await raciDefaults(ctx, PROMOTION_PHASES),
+      editors: await editorsOf(ctx, [promotion, ...tasks]),
     };
   },
 });
 
-export const create = mutation({
+/**
+ * Approving a program under a plan is an Administrator's alone (#22, story 29).
+ * The plan is loaded and its ancestry asked, so the id in the argument names a
+ * parent and never claims one.
+ */
+export const create = adminMutation({
   args: {
     chainPlanId: v.id("chainPlans"),
     name: v.string(),
@@ -83,7 +96,7 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const plan = await mustGet(ctx, args.chainPlanId, "chain plan");
+    const plan = await writableChainPlan(ctx, ctx.scope, args.chainPlanId);
     const startDate = checkedDay(args.startDate, "Start date");
     const endDate = checkedDay(args.endDate, "End date");
     if (endDate < startDate)
@@ -101,13 +114,24 @@ export const create = mutation({
       storeCount: args.storeCount ?? undefined,
       currentPhase: args.currentPhase ?? 5,
       notes: optionalText(args.notes),
+      ...ctx.stamp,
     });
-    await stampTemplates(ctx, { tier: "promotion", promotionId }, PROMOTION_PHASES);
+    await stampTemplates(
+      ctx,
+      { tier: "promotion", promotionId },
+      PROMOTION_PHASES,
+      ctx.stamp,
+    );
     return promotionId;
   },
 });
 
-export const update = mutation({
+/**
+ * The promotion's own fields — name, window, stores, brands, phase, notes — for
+ * anyone whose scope covers it. Keeping data current is the work, not a
+ * privilege (#22, story 16).
+ */
+export const update = authedMutation({
   args: {
     promotionId: v.id("promotions"),
     name: v.optional(v.string()),
@@ -119,7 +143,7 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const promotion = await mustGet(ctx, args.promotionId, "promotion");
+    const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
 
     const startDate =
       args.startDate === undefined
@@ -133,6 +157,7 @@ export const update = mutation({
       throw new ConvexError("The end date is before the start date.");
 
     await ctx.db.patch(promotion._id, {
+      ...ctx.stamp,
       startDate,
       endDate,
       ...(args.name === undefined
@@ -152,7 +177,7 @@ export const update = mutation({
  * A promotion owns its whole 5-8 checklist, so removing it removes those tasks —
  * and its phase-7/8 measurement rows.
  */
-export const remove = mutation({
+export const remove = adminMutation({
   args: { promotionId: v.id("promotions") },
   handler: async (ctx, args) => {
     // Detachable feature (#14): drop this line with `convex/kpi.ts`.
