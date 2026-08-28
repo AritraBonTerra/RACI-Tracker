@@ -23,8 +23,10 @@ import {
   Panel,
   inputClass,
 } from "../components/ui";
+import { Pathway } from "../components/Pathway";
 import { formatDay, formatRange } from "../lib/dates";
 import { CHAIN_PLAN_PHASES, PHASES, toPhase } from "../lib/domain";
+import { buildPathway, chainPlanAnchors } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { href, navigate } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
@@ -119,6 +121,17 @@ export function ChainPlanView({
           />
         </div>
       </PageHeader>
+
+      <Pathway
+        phases={buildPathway(
+          CHAIN_PLAN_PHASES,
+          data.tasks,
+          chainPlanAnchors(data.plan),
+          data.plan.currentPhase,
+          today,
+        )}
+        today={today}
+      />
 
       <RollupTiles rollup={data.rollup} />
 

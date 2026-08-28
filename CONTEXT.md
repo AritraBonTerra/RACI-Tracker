@@ -41,7 +41,7 @@ conversation.
 - **Status** — Not started → In progress → Delivered, plus **Blocked** (requires
   a reason — "no inventory at distributor" must scream, not hide).
 - **ETA** — a task's due date. **Overdue** — past ETA and not Delivered.
-- **Pathway** — the always-visible strip at the top of the Season, Chain Plan,
+- **Pathway** — the always-visible strip at the top of the Plan Year, Chain Plan,
   and Promotion views: every phase in sequence with its % delivered and phase
   window, a "you are here" marker on the current phase, and one headline call
   to action. Red = overdue work or a passed window; amber = window ends within
