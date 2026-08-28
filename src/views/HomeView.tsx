@@ -24,7 +24,7 @@ import { href, placeRoute } from "../lib/router";
 
 type Dashboard = NonNullable<FunctionReturnType<typeof api.home.dashboard>>;
 type ChainGroup = Dashboard["chains"][number];
-type PhaseStat = ChainGroup["phases"][number];
+type PhaseStat = NonNullable<Dashboard["phaseZero"]>["phases"][number];
 type Attention = Dashboard["attention"];
 type AttentionItem = Attention["unassigned"][number];
 
@@ -40,7 +40,7 @@ export function HomeView({
   const data = useQuery(api.home.dashboard, { seasonId, today });
 
   if (data === undefined) return <DashboardSkeleton />;
-  if (data === null) return <NotFound what="plan year" />;
+  if (data === null) return <NotFound />;
 
   const promotionCount = data.chains.reduce(
     (count, group) => count + group.promotions.length,
@@ -81,9 +81,11 @@ export function HomeView({
         <NeedsAttention attention={data.attention} today={today} people={people} />
 
         <div className="flex flex-col gap-5 xl:-order-1">
-          <SeasonCard data={data} />
+          {data.phaseZero !== null && (
+            <SeasonCard data={data} phaseZero={data.phaseZero} />
+          )}
           {data.chains.map((group) => (
-            <ChainSection key={group.plan._id} group={group} today={today} />
+            <ChainSection key={group.chainPlanId} group={group} today={today} />
           ))}
           {data.chains.length === 0 && (
             <section className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40">
@@ -232,8 +234,18 @@ function Stat({
   );
 }
 
-/** Phase 0 is the company-wide work every plan below is planned against. */
-function SeasonCard({ data }: { data: Dashboard }) {
+/**
+ * Phase 0 is the company-wide work every plan below is planned against — and
+ * it is the Plan Year's own content, so it only appears for a viewer whose
+ * grant covers the year. Everyone else's dashboard starts at the chains.
+ */
+function SeasonCard({
+  data,
+  phaseZero,
+}: {
+  data: Dashboard;
+  phaseZero: NonNullable<Dashboard["phaseZero"]>;
+}) {
   return (
     <a
       href={href({ name: "season", seasonId: data.season._id })}
@@ -246,40 +258,62 @@ function SeasonCard({ data }: { data: Dashboard }) {
             Phase 0 · {PHASES[0].title}
           </span>
         </h2>
-        <AttentionChips rollup={data.seasonRollup} />
+        <AttentionChips rollup={phaseZero.rollup} />
       </div>
       {/* One phase, so the track is held to a width that still reads as a bar. */}
       <div className="mt-2.5 max-w-xs">
-        <PhaseTrack phases={data.seasonPhases} />
+        <PhaseTrack phases={phaseZero.phases} />
       </div>
     </a>
   );
 }
 
-/** One chain: its plan (phases 1–4) and every promotion under it (5–8). */
+/**
+ * One chain: its plan (phases 1–4) and every promotion under it (5–8).
+ *
+ * A plan the viewer reaches only as the parent of a granted promotion is a
+ * heading and nothing more — no link, no phase track, no counts. It is here so
+ * "Holiday Gift Sets" has a chain name over it, which is the whole of the
+ * orientation the grant bought (#22, minimal parent context).
+ */
 function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
+  const chainName = group.chain?.name ?? "Chain";
   return (
     <section className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40">
       <header className="border-b border-ink-800 bg-ink-900/70 px-4 py-3">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 className="flex flex-wrap items-baseline gap-x-2">
-            <a
-              href={href({ name: "plan", chainPlanId: group.plan._id })}
-              className="text-base font-semibold tracking-tight text-ink-50 transition hover:underline"
-            >
-              {group.chain?.name ?? "Chain"}
-            </a>
-            <span className="text-2xs text-ink-500">
-              phase {group.plan.currentPhase} · {PHASES[group.plan.currentPhase].title}
-              {group.plan.jbpDate !== undefined &&
-                ` · JBP ${formatDay(group.plan.jbpDate, today)}`}
-            </span>
+            {group.reach === "full" ? (
+              <>
+                <a
+                  href={href({ name: "plan", chainPlanId: group.chainPlanId })}
+                  className="text-base font-semibold tracking-tight text-ink-50 transition hover:underline"
+                >
+                  {chainName}
+                </a>
+                <span className="text-2xs text-ink-500">
+                  phase {group.plan.currentPhase} ·{" "}
+                  {PHASES[group.plan.currentPhase].title}
+                  {group.plan.jbpDate !== undefined &&
+                    ` · JBP ${formatDay(group.plan.jbpDate, today)}`}
+                </span>
+              </>
+            ) : (
+              <span
+                title="Shown for context — you don't have access to this chain plan"
+                className="cursor-default text-base font-semibold tracking-tight text-ink-400"
+              >
+                {chainName}
+              </span>
+            )}
           </h2>
-          <AttentionChips rollup={group.rollup} />
+          {group.reach === "full" && <AttentionChips rollup={group.rollup} />}
         </div>
-        <div className="mt-2.5">
-          <PhaseTrack phases={group.phases} />
-        </div>
+        {group.reach === "full" && (
+          <div className="mt-2.5">
+            <PhaseTrack phases={group.phases} />
+          </div>
+        )}
       </header>
 
       {group.promotions.length === 0 ? (

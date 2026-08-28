@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
-import { useAccount } from "./components/AuthGate";
+import { useAccount, useIsAdministrator, useLanding } from "./components/AuthGate";
 import { AccountMenu } from "./components/AuthScreens";
 import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
 import { NotFound, TierSkeleton, ViewBoundary } from "./components/page";
@@ -37,8 +37,20 @@ export default function App() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newYearOpen, setNewYearOpen] = useState(false);
   const account = useAccount();
+  const isAdministrator = useIsAdministrator();
+  const landing = useLanding();
 
   const seasons = useQuery(api.seasons.list);
+
+  // A Member whose whole world is one Promotion never sees the dashboard: it
+  // would restate the single card underneath it (#24). The redirect replaces
+  // the history entry so the back button leaves the app rather than bouncing.
+  const landingPromotionId =
+    landing.kind === "promotion" ? landing.promotionId : undefined;
+  useEffect(() => {
+    if (landingPromotionId === undefined || route.name !== "home") return;
+    window.location.replace(href({ name: "promotion", promotionId: landingPromotionId }));
+  }, [landingPromotionId, route.name]);
 
   // A deep link to a plan or promotion has to resolve its season before the
   // tree can be drawn around it.
@@ -73,9 +85,14 @@ export default function App() {
     seasons === undefined ? (
       <SidebarSkeleton />
     ) : seasonId === undefined ? (
-      <StaticNav route={route} />
+      <StaticNav route={route} isAdministrator={isAdministrator} />
     ) : (
-      <SeasonTree seasonId={seasonId} today={today} />
+      <SeasonTree
+        seasonId={seasonId}
+        today={today}
+        isAdministrator={isAdministrator}
+        showDashboard={landing.kind === "dashboard"}
+      />
     );
 
   return (
@@ -124,7 +141,14 @@ export default function App() {
                   return;
                 }
                 const next = seasons.find((season) => season._id === event.target.value);
-                if (next !== undefined) navigate({ name: "season", seasonId: next._id });
+                if (next === undefined) return;
+                // A year the viewer only sees as context has no page behind it,
+                // so switching to it lands on the dashboard for that year.
+                navigate(
+                  next.reach === "full"
+                    ? { name: "season", seasonId: next._id }
+                    : { name: "home" },
+                );
               }}
               className="h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500"
             >
@@ -133,7 +157,8 @@ export default function App() {
                   Year {season.label}
                 </option>
               ))}
-              <option value="__new__">+ New year…</option>
+              {/* Creating a plan year is Administrator-only (#22). */}
+              {isAdministrator && <option value="__new__">+ New year…</option>}
             </select>
           )}
           <AccountMenu
@@ -191,7 +216,13 @@ export default function App() {
                 wait for one. Everything else shows the placeholder shaped like
                 the page it is about to become. */}
             {route.name === "manage" ? (
-              <ManageView people={people} />
+              // Manage governs the hierarchy, so a Member typing the URL gets
+              // the same nothing the sidebar showed them.
+              isAdministrator ? (
+                <ManageView people={people} />
+              ) : (
+                <NotFound />
+              )
             ) : route.name === "people" ? (
               <PeopleView today={today} personId={route.personId} />
             ) : seasons === undefined ? (
@@ -234,14 +265,32 @@ export default function App() {
 }
 
 /** The tree is its own component so a slow tier view never blocks navigation. */
-function SeasonTree({ seasonId, today }: { seasonId: Id<"seasons">; today: string }) {
+function SeasonTree({
+  seasonId,
+  today,
+  isAdministrator,
+  showDashboard,
+}: {
+  seasonId: Id<"seasons">;
+  today: string;
+  isAdministrator: boolean;
+  showDashboard: boolean;
+}) {
   const tree = useQuery(api.seasons.tree, { seasonId, today });
   const route = useRoute();
 
   if (tree === undefined) return <SidebarSkeleton />;
-  // The season behind the URL is gone; the flat nav is still a way out.
-  if (tree === null) return <StaticNav route={route} />;
-  return <Sidebar tree={tree} route={route} />;
+  // The season behind the URL is gone, or out of scope; the flat nav is still
+  // a way out either way.
+  if (tree === null) return <StaticNav route={route} isAdministrator={isAdministrator} />;
+  return (
+    <Sidebar
+      tree={tree}
+      route={route}
+      isAdministrator={isAdministrator}
+      showDashboard={showDashboard}
+    />
+  );
 }
 
 /** The season page needs the same tree for its chain-plan cards. */
@@ -258,7 +307,7 @@ function SeasonPage({
 }) {
   const tree = useQuery(api.seasons.tree, { seasonId, today });
   if (tree === undefined) return <TierSkeleton panels={2} />;
-  if (tree === null) return <NotFound what="plan year" />;
+  if (tree === null) return <NotFound />;
   return (
     <SeasonView
       seasonId={seasonId}

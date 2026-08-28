@@ -43,7 +43,7 @@ export function PromotionView({
   const [editingBrands, setEditingBrands] = useState(false);
 
   if (data === undefined) return <TierSkeleton />;
-  if (data === null) return <NotFound what="promotion" />;
+  if (data === null) return <NotFound />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -51,13 +51,23 @@ export function PromotionView({
         eyebrow={
           <Breadcrumb
             trail={[
+              // Both parents are orientation for a promotion-only Member —
+              // a name each, and no way through either (#22).
               {
                 label: `Year ${data.season.label}`,
-                to: { name: "season", seasonId: data.season._id },
+                to:
+                  data.season.reach === "full"
+                    ? { name: "season", seasonId: data.season._id }
+                    : undefined,
+                context: data.season.reach !== "full",
               },
               {
                 label: data.chain.name,
-                to: { name: "plan", chainPlanId: data.plan._id },
+                to:
+                  data.plan.reach === "full"
+                    ? { name: "plan", chainPlanId: data.plan._id }
+                    : undefined,
+                context: data.plan.reach !== "full",
               },
               { label: "Promotion" },
             ]}
@@ -77,7 +87,13 @@ export function PromotionView({
             confirmLabel="Delete and lose its checklist?"
             onConfirm={async () => {
               const removed = await remove({ promotionId });
-              if (removed.ok) navigate({ name: "plan", chainPlanId: data.plan._id });
+              if (!removed.ok) return;
+              // Back up the tree if there is a tree to go back up to.
+              navigate(
+                data.plan.reach === "full"
+                  ? { name: "plan", chainPlanId: data.plan._id }
+                  : { name: "home" },
+              );
             }}
           />
         }

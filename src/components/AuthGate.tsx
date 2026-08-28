@@ -34,17 +34,36 @@ function useMe() {
 }
 
 type Me = NonNullable<ReturnType<typeof useMe>>;
-type Account = Extract<Me, { state: "active" }>["account"];
+type Viewer = Extract<Me, { state: "active" }>;
+type Account = Viewer["account"];
 
-const AccountContext = createContext<Account | null>(null);
+const ViewerContext = createContext<Viewer | null>(null);
+
+function useViewer(): Viewer {
+  const viewer = useContext(ViewerContext);
+  if (viewer === null) {
+    throw new Error("The viewer is only available inside a signed-in shell.");
+  }
+  return viewer;
+}
 
 /** The signed-in account behind the shell. Only valid inside `AuthGate`. */
 export function useAccount(): Account {
-  const account = useContext(AccountContext);
-  if (account === null) {
-    throw new Error("useAccount() is only available inside a signed-in shell.");
-  }
-  return account;
+  return useViewer().account;
+}
+
+/**
+ * Whether the shell renders the Administrator's surfaces. Shaping only — every
+ * function the hidden surfaces would call re-checks the role server-side, so a
+ * Member who forces this true gets a screen full of refusals rather than access.
+ */
+export function useIsAdministrator(): boolean {
+  return useViewer().account.role === "administrator";
+}
+
+/** Where the shell opens: the dashboard, or straight into the one Promotion. */
+export function useLanding(): Viewer["landing"] {
+  return useViewer().landing;
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -91,10 +110,6 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (me.account.role === "member" && me.scopes.length === 0) {
         return <NoAccessScreen email={me.account.email} />;
       }
-      return (
-        <AccountContext.Provider value={me.account}>
-          {children}
-        </AccountContext.Provider>
-      );
+      return <ViewerContext.Provider value={me}>{children}</ViewerContext.Provider>;
   }
 }

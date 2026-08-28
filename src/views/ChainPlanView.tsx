@@ -51,7 +51,7 @@ export function ChainPlanView({
   const [creating, setCreating] = useState(false);
 
   if (data === undefined) return <TierSkeleton />;
-  if (data === null) return <NotFound what="chain plan" />;
+  if (data === null) return <NotFound />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,7 +61,12 @@ export function ChainPlanView({
             trail={[
               {
                 label: `Year ${data.season.label}`,
-                to: { name: "season", seasonId: data.season._id },
+                // A Member granted this plan sees the year as a name only.
+                to:
+                  data.season.reach === "full"
+                    ? { name: "season", seasonId: data.season._id }
+                    : undefined,
+                context: data.season.reach !== "full",
               },
               { label: "Chain plan" },
             ]}
@@ -79,7 +84,12 @@ export function ChainPlanView({
               confirmLabel="Delete this plan?"
               onConfirm={async () => {
                 const removed = await remove({ chainPlanId });
-                if (removed.ok) navigate({ name: "season", seasonId: data.season._id });
+                if (!removed.ok) return;
+                navigate(
+                  data.season.reach === "full"
+                    ? { name: "season", seasonId: data.season._id }
+                    : { name: "home" },
+                );
               }}
             />
           </>
