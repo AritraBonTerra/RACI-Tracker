@@ -203,10 +203,15 @@ export async function expandScopes(
   };
 }
 
-/** The viewer's own reach: their assignment roots, expanded. */
+/**
+ * The viewer's own reach: their assignment rows, expanded. Straight off the
+ * rows rather than through `scopesOf`, because `expandScopes` loads each target
+ * anyway and drops the ones that are gone — checking twice would double the
+ * reads on the path every authenticated call takes.
+ */
 async function scopeOf(ctx: QueryCtx, viewer: Viewer): Promise<Scope> {
   if (viewer.role === "administrator") return EVERYTHING;
-  return await expandScopes(ctx, await scopesOf(ctx, viewer._id));
+  return await expandScopes(ctx, await assignmentScopes(ctx, viewer._id));
 }
 
 // --- The wrappers ---------------------------------------------------------
@@ -497,6 +502,45 @@ export async function editorsOf(
 // --- Reading and writing Users --------------------------------------------
 
 /**
+ * The tier one Access Assignment row names, in the public scope shape. Null for
+ * a row with no scope column at all, which grants nothing rather than
+ * everything.
+ */
+export function scopeOfAssignment(
+  assignment: Doc<"accessAssignments">,
+): AccessScope | null {
+  if (assignment.seasonId !== undefined) {
+    return { tier: "season", seasonId: assignment.seasonId };
+  }
+  if (assignment.chainPlanId !== undefined) {
+    return { tier: "chainPlan", chainPlanId: assignment.chainPlanId };
+  }
+  if (assignment.promotionId !== undefined) {
+    return { tier: "promotion", promotionId: assignment.promotionId };
+  }
+  return null;
+}
+
+/** Every scope a User's assignment rows name, without asking whether they exist. */
+async function assignmentScopes(
+  ctx: QueryCtx,
+  userId: Id<"users">,
+): Promise<AccessScope[]> {
+  const assignments = await ctx.db
+    .query("accessAssignments")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  return assignments.flatMap((assignment) => scopeOfAssignment(assignment) ?? []);
+}
+
+/** The record a scope points at, or null if it is gone. */
+async function targetOf(ctx: QueryCtx, scope: AccessScope) {
+  if (scope.tier === "season") return await ctx.db.get(scope.seasonId);
+  if (scope.tier === "chainPlan") return await ctx.db.get(scope.chainPlanId);
+  return await ctx.db.get(scope.promotionId);
+}
+
+/**
  * The Access Assignment roots of one User, in the public scope shape.
  *
  * Assignments pointing at a record that no longer exists are left out, so this
@@ -508,28 +552,11 @@ export async function scopesOf(
   ctx: QueryCtx,
   userId: Id<"users">,
 ): Promise<AccessScope[]> {
-  const assignments = await ctx.db
-    .query("accessAssignments")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
-
-  const scopes: AccessScope[] = [];
-  for (const assignment of assignments) {
-    if (assignment.seasonId !== undefined) {
-      const season = await ctx.db.get(assignment.seasonId);
-      if (season !== null) scopes.push({ tier: "season", seasonId: season._id });
-    } else if (assignment.chainPlanId !== undefined) {
-      const plan = await ctx.db.get(assignment.chainPlanId);
-      if (plan !== null) scopes.push({ tier: "chainPlan", chainPlanId: plan._id });
-    } else if (assignment.promotionId !== undefined) {
-      const promotion = await ctx.db.get(assignment.promotionId);
-      if (promotion !== null) {
-        scopes.push({ tier: "promotion", promotionId: promotion._id });
-      }
-    }
-    // A row with no scope column grants nothing rather than everything.
-  }
-  return scopes;
+  const scopes = await assignmentScopes(ctx, userId);
+  const live = await Promise.all(
+    scopes.map(async (scope) => (await targetOf(ctx, scope)) !== null),
+  );
+  return scopes.filter((_, index) => live[index]);
 }
 
 /** Where the shell opens for a User (#24). */
@@ -612,13 +639,7 @@ async function assignmentFor(ctx: QueryCtx, userId: Id<"users">, scope: AccessSc
  * promotion, and the Directory is not a place to enumerate ids from.
  */
 async function assertScopeExists(ctx: QueryCtx, scope: AccessScope) {
-  const target =
-    scope.tier === "season"
-      ? await ctx.db.get(scope.seasonId)
-      : scope.tier === "chainPlan"
-        ? await ctx.db.get(scope.chainPlanId)
-        : await ctx.db.get(scope.promotionId);
-  if (target === null) missing(TIER_LABEL[scope.tier]);
+  if ((await targetOf(ctx, scope)) === null) missing(TIER_LABEL[scope.tier]);
 }
 
 /**

@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { Breadcrumb, PageHeader, PanelSkeleton } from "../components/page";
@@ -42,10 +42,15 @@ export function DirectoryView() {
   const [granting, setGranting] = useState<Id<"users"> | null>(null);
 
   // The roster is ordered so the top row is the one that needs doing next, so
-  // it is also the one that opens.
+  // it is also the one that opens — but only once. The order changes as work is
+  // done on it (a grant empties the queue, a deactivation sinks a row), and a
+  // pane that kept following row one would walk away mid-task.
   const selected =
     roster?.accounts.find((account) => account.userId === selectedId) ??
     roster?.accounts[0];
+  useEffect(() => {
+    if (selectedId === null && selected !== undefined) setSelectedId(selected.userId);
+  }, [selectedId, selected]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -213,7 +218,11 @@ function AccountPane({
 
         <PersonLink detail={detail} />
         <RoleSection detail={detail} />
-        {detail.role === "member" && <GrantsSection detail={detail} onGrant={onGrant} />}
+        {/* An Administrator's grants are dormant, not gone — a promoted Member
+            gets them back on demotion, so they stay on screen. */}
+        {(detail.role === "member" || detail.grants.length > 0) && (
+          <GrantsSection detail={detail} onGrant={onGrant} />
+        )}
 
         <div className="flex flex-col gap-1.5">
           <SectionLabel>Effective access</SectionLabel>
@@ -344,6 +353,12 @@ function GrantsSection({ detail, onGrant }: { detail: Detail; onGrant: () => voi
   return (
     <div className="flex flex-col gap-1.5">
       <SectionLabel>Access grants</SectionLabel>
+      {detail.role === "administrator" && (
+        <p className="text-3xs text-ink-600">
+          Dormant behind the Administrator role. Demoting this account hands them
+          back exactly as they are.
+        </p>
+      )}
       {detail.grants.length === 0 ? (
         <p className="text-xs text-ink-500">
           No access granted yet — this account is on the “access comes next” screen.
@@ -371,9 +386,13 @@ function GrantsSection({ detail, onGrant }: { detail: Detail; onGrant: () => voi
           </div>
         ))
       )}
-      <Button size="xs" variant="ghost" className="self-start" onClick={onGrant}>
-        + Grant access
-      </Button>
+      {/* An Administrator already reaches everything, so the server refuses to
+          give them a grant. No button for a refusal. */}
+      {detail.role === "member" && (
+        <Button size="xs" variant="ghost" className="self-start" onClick={onGrant}>
+          + Grant access
+        </Button>
+      )}
     </div>
   );
 }
@@ -468,7 +487,10 @@ function AccessTreeView({
   /** A grant not yet made: this is what turns the tree into a preview. */
   adding?: Scope;
 }) {
-  const tree = useQuery(api.directory.effectiveAccess, { userId, adding });
+  const tree = useQuery(api.directory.effectiveAccess, {
+    userId,
+    ...(adding === undefined ? {} : { adding }),
+  });
   if (tree === undefined) return <Skeleton className="h-24 w-full" />;
   return <AccessTreeBody tree={tree} />;
 }

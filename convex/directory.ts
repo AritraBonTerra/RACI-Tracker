@@ -9,6 +9,7 @@ import {
   grantScope,
   isLastActiveAdministrator,
   revokeScope,
+  scopeOfAssignment,
   scopesOf,
   setPersonLink,
   setUserActive,
@@ -102,14 +103,7 @@ async function grantsOf(ctx: QueryCtx, userId: Id<"users">) {
 
   const grants = await Promise.all(
     rows.map(async (row) => {
-      const scope: AccessScope | null =
-        row.seasonId !== undefined
-          ? { tier: "season", seasonId: row.seasonId }
-          : row.chainPlanId !== undefined
-            ? { tier: "chainPlan", chainPlanId: row.chainPlanId }
-            : row.promotionId !== undefined
-              ? { tier: "promotion", promotionId: row.promotionId }
-              : null;
+      const scope = scopeOfAssignment(row);
       if (scope === null) return [];
 
       // A grant pointing at a deleted record is not access, so it is not shown
