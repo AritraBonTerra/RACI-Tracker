@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { mutation, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { authedQuery, readablePromotion } from "./access";
 import { kpiMetric, repeatVerdict } from "./schema";
-import { fromUrl, mustGet, optionalText } from "./model";
+import { mustGet, optionalText } from "./model";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
 // slide-14 KPI grid and the retro that reads it.
@@ -59,14 +60,15 @@ async function retroFor(ctx: QueryCtx, promotionId: Id<"promotions">) {
  * rows that exist (the client lays them out against the fixed slide-14 grid)
  * with their computed uplift, and the retro if one has been started.
  *
- * Null when the promotion no longer resolves, so a stale link degrades the same
- * way the rest of the app does.
+ * Null when the promotion no longer resolves or the viewer's scope does not
+ * reach it — phase 7-8 figures are the promotion's content, and a stale link
+ * and a denied one degrade the same way the rest of the app does.
  */
-export const board = query({
+export const board = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { promotionId: v.string() },
   handler: async (ctx, args) => {
-    const promotion = await fromUrl(ctx, "promotions", args.promotionId);
+    const promotion = await readablePromotion(ctx, ctx.scope, args.promotionId);
     if (promotion === null) return null;
 
     const entries = await ctx.db

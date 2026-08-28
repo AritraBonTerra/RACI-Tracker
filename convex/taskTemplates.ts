@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import { adminQuery } from "./access";
 import { phase } from "./schema";
 import { mustGet, optionalText, requiredText } from "./model";
 import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
@@ -8,8 +9,12 @@ import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
 // edited in Manage and stamped onto every newly created plan year, chain plan
 // and promotion (model.ts: stampTemplates). A stencil — nothing here ever
 // touches a checklist that already exists.
+//
+// The menu is Administrator-only to read as well as to edit: Manage is an
+// Administrator surface (#22), and nothing a Member sees is drawn from it —
+// their checklists were stamped long before they opened one.
 
-export const list = query({
+export const list = adminQuery({
   args: {},
   handler: async (ctx) => {
     const templates = await ctx.db.query("taskTemplates").collect();

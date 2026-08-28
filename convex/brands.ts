@@ -1,11 +1,16 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import { authedQuery } from "./access";
 import { mustGet, optionalText, requiredText } from "./model";
 
 // The portfolio list. Entries are flagged as placeholders until the real brand
 // data is loaded, and promotions point at them by id.
+//
+// Reference data: readable by every signed-in User and unfiltered by scope
+// (#22). A brand name is not somebody's plan, and a promotion's brand chips
+// have to resolve for whoever can see the promotion.
 
-export const list = query({
+export const list = authedQuery({
   args: {},
   handler: async (ctx) => {
     const brands = await ctx.db.query("brands").collect();

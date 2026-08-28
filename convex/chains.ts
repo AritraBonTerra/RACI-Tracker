@@ -1,11 +1,13 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import { authedQuery } from "./access";
 import { mustGet, optionalText, requiredText } from "./model";
 
 // Retail accounts. A chain is reference data: it owns nothing itself, but a
-// chain plan cannot exist without one.
+// chain plan cannot exist without one, and it is readable by every signed-in
+// User (#22) — the name above a plan a Member holds comes from here.
 
-export const list = query({
+export const list = authedQuery({
   args: {},
   handler: async (ctx) => {
     const chains = await ctx.db.query("chains").collect();

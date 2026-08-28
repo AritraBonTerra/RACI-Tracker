@@ -17,25 +17,26 @@ const CONVEX_DIR = fileURLToPath(new URL(".", import.meta.url));
 const ACCESS_MODULE = "access.ts";
 
 /**
- * Modules written before the access boundary existed, still exposing public
- * functions to anonymous callers. They are migrated to the wrappers in the
- * authorization slice, and this list has to reach zero before the cutover —
- * the second assertion below fails if an entry is migrated but left here, so
- * the list cannot quietly rot.
+ * Modules written before the access boundary existed, and the raw factories
+ * each one still reaches for. Every public query is behind a wrapper as of the
+ * scoped-reads slice (#32); the mutations follow in the scoped-writes slice
+ * (#33), and this table has to be empty before the cutover.
+ *
+ * Exact per-module lists rather than a list of filenames, so migrating half a
+ * module is visible: the second assertion below fails both when an entry is
+ * migrated and left here and when a module quietly picks a factory back up.
  */
-const AWAITING_MIGRATION = [
-  "brands.ts",
-  "chainPlans.ts",
-  "chains.ts",
-  "home.ts",
-  "kpi.ts",
-  "people.ts",
-  "promotions.ts",
-  "raci.ts",
-  "seasons.ts",
-  "taskTemplates.ts",
-  "tasks.ts",
-];
+const AWAITING_MIGRATION: Record<string, readonly string[]> = {
+  "brands.ts": ["mutation"],
+  "chainPlans.ts": ["mutation"],
+  "chains.ts": ["mutation"],
+  "kpi.ts": ["mutation"],
+  "people.ts": ["mutation"],
+  "promotions.ts": ["mutation"],
+  "seasons.ts": ["mutation"],
+  "taskTemplates.ts": ["mutation"],
+  "tasks.ts": ["mutation"],
+};
 
 /**
  * The public function factories: anything built from these is client-callable.
@@ -109,21 +110,31 @@ function functionModules(dir = ""): string[] {
     .sort();
 }
 
+/** What a module reaches for, deduplicated and ordered so lists compare. */
+function factorySet(relPath: string): string[] {
+  return [...new Set(factoriesInModule(relPath))].sort();
+}
+
 test("only the access module builds public functions from the raw factories", () => {
   const offenders = functionModules()
-    .filter((file) => file !== ACCESS_MODULE && !AWAITING_MIGRATION.includes(file))
-    .filter((file) => factoriesInModule(file).length > 0);
+    .filter((file) => file !== ACCESS_MODULE)
+    .filter(
+      (file) =>
+        factorySet(file).join() !== (AWAITING_MIGRATION[file] ?? []).join() &&
+        factorySet(file).length > 0,
+    );
 
   expect(offenders).toEqual([]);
 });
 
-test("every module awaiting migration is still unguarded", () => {
-  // Keeps the exemption list honest: migrate a module, delete its line.
-  const alreadyMigrated = AWAITING_MIGRATION.filter(
-    (file) => factoriesInModule(file).length === 0,
+test("every module awaiting migration still reaches for exactly what it claims", () => {
+  // Keeps the exemption table honest in both directions: migrate a module's
+  // last factory and its line has to go, add one back and the line has to grow.
+  const actual = Object.fromEntries(
+    Object.keys(AWAITING_MIGRATION).map((file) => [file, factorySet(file)]),
   );
 
-  expect(alreadyMigrated).toEqual([]);
+  expect(actual).toEqual(AWAITING_MIGRATION);
 });
 
 test("the deploy-credential module exposes nothing publicly", () => {

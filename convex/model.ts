@@ -272,7 +272,7 @@ export type TaskPlace =
     };
 
 /** A read-through cache for one query's worth of lookups in a single table. */
-function memo<Table extends TableNames>(ctx: QueryCtx) {
+export function memo<Table extends TableNames>(ctx: QueryCtx) {
   const seen = new Map<Id<Table>, Doc<Table> | null>();
   return async (id: Id<Table>): Promise<Doc<Table> | null> => {
     const hit = seen.get(id);

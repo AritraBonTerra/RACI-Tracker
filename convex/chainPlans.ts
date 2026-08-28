@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import { authedQuery, readableChainPlan } from "./access";
 import { phase } from "./schema";
 import {
   CHAIN_PLAN_PHASES,
@@ -8,7 +9,6 @@ import {
   optionalText,
   raciDefaults,
   rollup,
-  fromUrl,
   stampTemplates,
 } from "./model";
 
@@ -17,13 +17,18 @@ import {
 
 /**
  * The chain plan page: its 1-4 checklist plus the promotions hanging off it.
- * Null when the id no longer resolves — a deleted plan is a message, not a crash.
+ * Null when the id no longer resolves, and null in exactly the same way when
+ * the viewer's scope does not reach it — a denied link never confirms that
+ * something is there to be denied.
+ *
+ * The plan year comes back as a name and a reach, never as content: a Member
+ * granted this plan gets "2026" for orientation and no way into phase 0.
  */
-export const get = query({
+export const get = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { chainPlanId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const plan = await fromUrl(ctx, "chainPlans", args.chainPlanId);
+    const plan = await readableChainPlan(ctx, ctx.scope, args.chainPlanId);
     if (plan === null) return null;
     const chain = await mustGet(ctx, plan.chainId, "chain");
     const season = await mustGet(ctx, plan.seasonId, "season");
@@ -40,6 +45,10 @@ export const get = query({
 
     const promotionCards = await Promise.all(
       promotions
+        // A Promotion under a granted Chain Plan is always in scope; the filter
+        // matters when the plan itself was reached through a Season grant that
+        // someone later narrowed.
+        .filter((promotion) => ctx.scope.promotion(promotion) === "full")
         .sort((a, b) => a.startDate.localeCompare(b.startDate))
         .map(async (promotion) => ({
           promotion,
@@ -56,7 +65,12 @@ export const get = query({
     return {
       plan,
       chain,
-      season,
+      season: {
+        _id: season._id,
+        year: season.year,
+        label: season.label,
+        reach: ctx.scope.season(season._id),
+      },
       tasks: tasks.sort((a, b) => a.order - b.order),
       rollup: rollup(tasks, args.today),
       promotions: promotionCards,

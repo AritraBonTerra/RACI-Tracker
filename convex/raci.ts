@@ -1,4 +1,4 @@
-import { query } from "./_generated/server";
+import { authedQuery } from "./access";
 import { ALL_PHASES, raciDefaults } from "./model";
 
 // The slide-16 matrix on its own, for the assignment flow. A tier view asks for
@@ -10,7 +10,7 @@ import { ALL_PHASES, raciDefaults } from "./model";
  * Function-level defaults for all nine phases. These are guidance: a task counts
  * as assigned only when a *named* person is Responsible (CONTEXT.md: Unassigned).
  */
-export const matrix = query({
+export const matrix = authedQuery({
   args: {},
   handler: async (ctx) => await raciDefaults(ctx, ALL_PHASES),
 });

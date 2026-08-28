@@ -12,6 +12,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
+import { fromUrl, memo } from "./model";
 import { accessScope } from "./schema";
 
 // The access module (#30). Everything about "who is calling, and may they?"
@@ -78,35 +79,262 @@ async function requireAdministrator(ctx: QueryCtx): Promise<Viewer> {
   return viewer;
 }
 
+// --- Expanded access ------------------------------------------------------
+
+/**
+ * How far a viewer sees one record of the hierarchy.
+ *
+ *   full     the record and everything in it: checklists, rollups, phases
+ *   context  it exists somewhere above something granted, so its *name* is
+ *            orientation and nothing else — never a link, never its content
+ *   none     absent, indistinguishable from deleted
+ */
+export type Reach = "full" | "context" | "none";
+
+/** The stored ancestry columns a scope check reads off a loaded Chain Plan. */
+type PlanAncestry = { _id: Id<"chainPlans">; seasonId: Id<"seasons"> };
+
+/** The same for a Promotion — `chainPlanId` and `seasonId` are denormalized. */
+type PromotionAncestry = {
+  _id: Id<"promotions">;
+  chainPlanId: Id<"chainPlans">;
+  seasonId: Id<"seasons">;
+};
+
+/**
+ * One viewer's Access Assignments, expanded for the duration of a single call
+ * (CONTEXT.md: Access Assignment). Access is the union of the assignments and
+ * flows *down* — a Plan Year grant reaches Chain Plans and Promotions created
+ * long after the grant, because nothing here is snapshotted.
+ *
+ * Every question takes the *loaded* record and reads its own ancestry columns.
+ * A client-supplied id is therefore only ever a lookup key: it names a row, and
+ * the row decides. There is no shape of argument that can talk its way in.
+ */
+export type Scope = Readonly<{
+  isAdministrator: boolean;
+  season: (seasonId: Id<"seasons">) => Reach;
+  chainPlan: (plan: PlanAncestry) => Reach;
+  promotion: (promotion: PromotionAncestry) => Reach;
+}>;
+
+/** An Administrator reaches everything, so nothing has to be loaded to say so. */
+const EVERYTHING: Scope = {
+  isAdministrator: true,
+  season: () => "full",
+  chainPlan: () => "full",
+  promotion: () => "full",
+};
+
+/**
+ * Read the viewer's assignments and turn them into the three answers above.
+ *
+ * An assignment whose target has since been deleted expands to nothing rather
+ * than to everything: the grant is a pointer, and a dangling pointer is not a
+ * key to the tier it used to name.
+ */
+async function scopeOf(ctx: QueryCtx, viewer: Viewer): Promise<Scope> {
+  if (viewer.role === "administrator") return EVERYTHING;
+
+  const grantedSeasons = new Set<Id<"seasons">>();
+  const grantedPlans = new Set<Id<"chainPlans">>();
+  const grantedPromotions = new Set<Id<"promotions">>();
+  // Ancestors of something granted: names, not doors.
+  const contextSeasons = new Set<Id<"seasons">>();
+  const contextPlans = new Set<Id<"chainPlans">>();
+
+  const assignments = await ctx.db
+    .query("accessAssignments")
+    .withIndex("by_user", (q) => q.eq("userId", viewer._id))
+    .collect();
+
+  for (const assignment of assignments) {
+    if (assignment.seasonId !== undefined) {
+      const season = await ctx.db.get(assignment.seasonId);
+      if (season !== null) grantedSeasons.add(season._id);
+    } else if (assignment.chainPlanId !== undefined) {
+      const plan = await ctx.db.get(assignment.chainPlanId);
+      if (plan !== null) {
+        grantedPlans.add(plan._id);
+        contextSeasons.add(plan.seasonId);
+      }
+    } else if (assignment.promotionId !== undefined) {
+      const promotion = await ctx.db.get(assignment.promotionId);
+      if (promotion !== null) {
+        grantedPromotions.add(promotion._id);
+        contextPlans.add(promotion.chainPlanId);
+        contextSeasons.add(promotion.seasonId);
+      }
+    }
+  }
+
+  return {
+    isAdministrator: false,
+    season: (seasonId) =>
+      grantedSeasons.has(seasonId)
+        ? "full"
+        : contextSeasons.has(seasonId)
+          ? "context"
+          : "none",
+    chainPlan: (plan) =>
+      grantedSeasons.has(plan.seasonId) || grantedPlans.has(plan._id)
+        ? "full"
+        : contextPlans.has(plan._id)
+          ? "context"
+          : "none",
+    // Nothing hangs below a Promotion, so it is never mere context.
+    promotion: (promotion) =>
+      grantedSeasons.has(promotion.seasonId) ||
+      grantedPlans.has(promotion.chainPlanId) ||
+      grantedPromotions.has(promotion._id)
+        ? "full"
+        : "none",
+  };
+}
+
 // --- The wrappers ---------------------------------------------------------
-// Written against `QueryCtx` and reused for mutations: resolving a viewer only
-// ever reads, so the mutation wrappers keep their write access untouched.
+// Written against `QueryCtx` and reused for mutations: resolving a viewer and
+// expanding their access only ever reads, so the mutation wrappers keep their
+// write access untouched.
+//
+// `scope` is resolved eagerly rather than on demand. It costs an Administrator
+// nothing and a Member one index read plus one get per assignment, against
+// handlers that already scan whole checklists — and a scope that is always
+// there is a scope no handler can forget to ask for.
 
 export const authedQuery = customQuery(
   query,
-  customCtx(async (ctx: QueryCtx) => ({ viewer: await requireViewer(ctx) })),
+  customCtx(async (ctx: QueryCtx) => {
+    const viewer = await requireViewer(ctx);
+    return { viewer, scope: await scopeOf(ctx, viewer) };
+  }),
 );
 
 export const authedMutation = customMutation(
   mutation,
-  customCtx(async (ctx: MutationCtx) => ({ viewer: await requireViewer(ctx) })),
+  customCtx(async (ctx: MutationCtx) => {
+    const viewer = await requireViewer(ctx);
+    return { viewer, scope: await scopeOf(ctx, viewer) };
+  }),
 );
 
 export const adminQuery = customQuery(
   query,
-  customCtx(async (ctx: QueryCtx) => ({ viewer: await requireAdministrator(ctx) })),
+  customCtx(async (ctx: QueryCtx) => ({
+    viewer: await requireAdministrator(ctx),
+    scope: EVERYTHING,
+  })),
 );
 
 export const adminMutation = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => ({
     viewer: await requireAdministrator(ctx),
+    scope: EVERYTHING,
   })),
 );
 
+// --- The read gates -------------------------------------------------------
+// Every id that arrives off the URL bar enters the backend through one of
+// these. They resolve the id and then refuse it, and the refusal is the same
+// `null` a deleted record gives — so a denied deep link cannot be told apart
+// from a dead one by a caller counting bytes (#27, scenario 14).
+
+/**
+ * A Plan Year the viewer can at least name, with how far they see it. The one
+ * gate that admits `context`, because the navigation tree draws the year above
+ * a granted Chain Plan as a label.
+ */
+export async function visibleSeason(
+  ctx: QueryCtx,
+  scope: Scope,
+  seasonId: string,
+): Promise<{ season: Doc<"seasons">; reach: "full" | "context" } | null> {
+  const season = await fromUrl(ctx, "seasons", seasonId);
+  if (season === null) return null;
+  const reach = scope.season(season._id);
+  return reach === "none" ? null : { season, reach };
+}
+
+/** A Plan Year whose own content — phase 0 — the viewer may read. */
+export async function readableSeason(
+  ctx: QueryCtx,
+  scope: Scope,
+  seasonId: string,
+): Promise<Doc<"seasons"> | null> {
+  const visible = await visibleSeason(ctx, scope, seasonId);
+  return visible?.reach === "full" ? visible.season : null;
+}
+
+/** A Chain Plan whose phases 1-4 the viewer may read. */
+export async function readableChainPlan(
+  ctx: QueryCtx,
+  scope: Scope,
+  chainPlanId: string,
+): Promise<Doc<"chainPlans"> | null> {
+  const plan = await fromUrl(ctx, "chainPlans", chainPlanId);
+  if (plan === null) return null;
+  return scope.chainPlan(plan) === "full" ? plan : null;
+}
+
+/** A Promotion whose phases 5-8, KPI entries and Retro the viewer may read. */
+export async function readablePromotion(
+  ctx: QueryCtx,
+  scope: Scope,
+  promotionId: string,
+): Promise<Doc<"promotions"> | null> {
+  const promotion = await fromUrl(ctx, "promotions", promotionId);
+  if (promotion === null) return null;
+  return scope.promotion(promotion) === "full" ? promotion : null;
+}
+
+/**
+ * The in-scope subset of a pile of tasks drawn from every tier at once — a
+ * person's workload, the needs-attention rail. A task carries no ancestry of
+ * its own, so its owner decides; owners are cached, so a promotion's twelve
+ * rows cost one read rather than twelve.
+ *
+ * Lists built top-down from the viewer's assignment roots never need this. It
+ * is for the two places that legitimately start from a table scan.
+ */
+export async function visibleTasks(
+  ctx: QueryCtx,
+  scope: Scope,
+  tasks: readonly Doc<"tasks">[],
+): Promise<Doc<"tasks">[]> {
+  if (scope.isAdministrator) return [...tasks];
+
+  const planOf = memo<"chainPlans">(ctx);
+  const promotionOf = memo<"promotions">(ctx);
+
+  const mayRead = async (task: Doc<"tasks">): Promise<boolean> => {
+    if (task.promotionId !== undefined) {
+      const promotion = await promotionOf(task.promotionId);
+      return promotion !== null && scope.promotion(promotion) === "full";
+    }
+    if (task.chainPlanId !== undefined) {
+      const plan = await planOf(task.chainPlanId);
+      return plan !== null && scope.chainPlan(plan) === "full";
+    }
+    if (task.seasonId !== undefined) return scope.season(task.seasonId) === "full";
+    // A task attached to nothing belongs to nobody's scope.
+    return false;
+  };
+
+  const keep = await Promise.all(tasks.map(mayRead));
+  return tasks.filter((_, index) => keep[index]);
+}
+
 // --- Reading and writing Users --------------------------------------------
 
-/** The Access Assignment roots of one User, in the public scope shape. */
+/**
+ * The Access Assignment roots of one User, in the public scope shape.
+ *
+ * Assignments pointing at a record that no longer exists are left out, so this
+ * is what the User can actually reach rather than what was once written down —
+ * "has any access at all" is the question the shell asks it, and a grant to a
+ * deleted Promotion is not access.
+ */
 export async function scopesOf(
   ctx: QueryCtx,
   userId: Id<"users">,
@@ -115,19 +343,43 @@ export async function scopesOf(
     .query("accessAssignments")
     .withIndex("by_user", (q) => q.eq("userId", userId))
     .collect();
-  return assignments.flatMap((assignment): AccessScope[] => {
+
+  const scopes: AccessScope[] = [];
+  for (const assignment of assignments) {
     if (assignment.seasonId !== undefined) {
-      return [{ tier: "season", seasonId: assignment.seasonId }];
-    }
-    if (assignment.chainPlanId !== undefined) {
-      return [{ tier: "chainPlan", chainPlanId: assignment.chainPlanId }];
-    }
-    if (assignment.promotionId !== undefined) {
-      return [{ tier: "promotion", promotionId: assignment.promotionId }];
+      const season = await ctx.db.get(assignment.seasonId);
+      if (season !== null) scopes.push({ tier: "season", seasonId: season._id });
+    } else if (assignment.chainPlanId !== undefined) {
+      const plan = await ctx.db.get(assignment.chainPlanId);
+      if (plan !== null) scopes.push({ tier: "chainPlan", chainPlanId: plan._id });
+    } else if (assignment.promotionId !== undefined) {
+      const promotion = await ctx.db.get(assignment.promotionId);
+      if (promotion !== null) {
+        scopes.push({ tier: "promotion", promotionId: promotion._id });
+      }
     }
     // A row with no scope column grants nothing rather than everything.
-    return [];
-  });
+  }
+  return scopes;
+}
+
+/** Where the shell opens for a User (#24). */
+export type Landing =
+  | { kind: "dashboard" }
+  | { kind: "promotion"; promotionId: Id<"promotions"> };
+
+/**
+ * A Member whose whole world is one Promotion skips the dashboard and lands on
+ * it — for them the dashboard would be a page-long restatement of one card.
+ * Two grants, a Chain Plan, a Plan Year, or the Administrator role all mean
+ * there is something to survey, so the dashboard is the door.
+ */
+function landingFor(role: Viewer["role"], scopes: readonly AccessScope[]): Landing {
+  const [only, ...rest] = scopes;
+  if (role === "member" && rest.length === 0 && only?.tier === "promotion") {
+    return { kind: "promotion", promotionId: only.promotionId };
+  }
+  return { kind: "dashboard" };
 }
 
 /** Writes one row of the access history (CONTEXT.md: Audit event). */
@@ -244,14 +496,16 @@ export const me = query({
     };
     if (!user.isActive) return { state: "deactivated", account } as const;
 
+    // The Access Assignment roots themselves, not their expansion: the shell
+    // only needs to know whether a Member has anything at all, and where a
+    // single-Promotion Member should land. An Administrator reaches everything
+    // regardless of what is in here.
+    const scopes = await scopesOf(ctx, user._id);
     return {
       state: "active",
       account: { ...account, role: user.role },
-      // The Access Assignment roots themselves, not their expansion: the shell
-      // only needs to know whether a Member has anything at all, and where a
-      // single-Promotion Member should land. An Administrator reaches
-      // everything regardless of what is in here.
-      scopes: await scopesOf(ctx, user._id),
+      scopes,
+      landing: landingFor(user.role, scopes),
     } as const;
   },
 });

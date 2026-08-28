@@ -1,10 +1,16 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import {
+  authedQuery,
+  readableChainPlan,
+  readablePromotion,
+  readableSeason,
+  visibleSeason,
+} from "./access";
 import {
   SEASON_PHASES,
   deleteTasks,
   mustGet,
-  fromUrl,
   optionalText,
   raciDefaults,
   requiredText,
@@ -14,24 +20,46 @@ import {
 
 // The top tier: a planning year and its phase-0 checklist, plus the navigation
 // tree (season -> chain plans -> promotions) that the whole UI hangs off.
+//
+// Every read here is built top-down from what the viewer's Access Assignments
+// reach (access.ts), so a record outside their scope is never filtered out of a
+// list — it never enters one.
 
-export const list = query({
+export const list = authedQuery({
   args: {},
   handler: async (ctx) => {
     const seasons = await ctx.db.query("seasons").collect();
-    return seasons.sort((a, b) => b.year - a.year);
+    return seasons
+      .flatMap((season) => {
+        const reach = ctx.scope.season(season._id);
+        if (reach === "none") return [];
+        return [
+          {
+            _id: season._id,
+            year: season.year,
+            label: season.label,
+            // The year above a granted Chain Plan is a label, and its note is
+            // phase-0 content: the name orients, the content stays behind the
+            // grant.
+            notes: reach === "full" ? season.notes : undefined,
+            reach,
+          },
+        ];
+      })
+      .sort((a, b) => b.year - a.year);
   },
 });
 
 /**
  * The season page: its own phase-0 checklist. Returns null for an id that no
- * longer resolves, so a stale bookmark renders a message instead of an error.
+ * longer resolves *or* that the viewer's scope does not reach, so a stale
+ * bookmark and a denied deep link render the same message.
  */
-export const overview = query({
+export const overview = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { seasonId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const season = await fromUrl(ctx, "seasons", args.seasonId);
+    const season = await readableSeason(ctx, ctx.scope, args.seasonId);
     if (season === null) return null;
     const tasks = await ctx.db
       .query("tasks")
@@ -49,19 +77,28 @@ export const overview = query({
 
 /**
  * The navigation tree for one season, with a health rollup on every node so the
- * sidebar can show where the trouble is without a second round trip. Chains with
- * no plan for this season are included, so a plan can be started from the tree.
+ * sidebar can show where the trouble is without a second round trip.
+ *
+ * Nodes carry their reach, because the tree is where the three navigation
+ * states are decided (#24): a granted scope is a link, an ancestor of one is a
+ * plain label with no content behind it, and everything else is simply not in
+ * the tree. Chains with no plan are the Administrator's "start one here"
+ * affordance and are absent for a Member, who could not start one anyway.
  */
-export const tree = query({
+export const tree = authedQuery({
   args: { seasonId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const season = await fromUrl(ctx, "seasons", args.seasonId);
-    if (season === null) return null;
+    const visible = await visibleSeason(ctx, ctx.scope, args.seasonId);
+    if (visible === null) return null;
+    const { season, reach } = visible;
 
-    const seasonTasks = await ctx.db
-      .query("tasks")
-      .withIndex("by_season", (q) => q.eq("seasonId", season._id))
-      .collect();
+    const seasonTasks =
+      reach === "full"
+        ? await ctx.db
+            .query("tasks")
+            .withIndex("by_season", (q) => q.eq("seasonId", season._id))
+            .collect()
+        : [];
 
     const plans = await ctx.db
       .query("chainPlans")
@@ -75,24 +112,22 @@ export const tree = query({
         .sort((a, b) => a.name.localeCompare(b.name))
         .map(async (chain) => ({
           chain,
-          plans: await Promise.all(
-            plans
-              .filter((plan) => plan.chainId === chain._id)
-              .map(async (plan) => {
-                const planTasks = await ctx.db
-                  .query("tasks")
-                  .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", plan._id))
-                  .collect();
-                const promotions = await ctx.db
-                  .query("promotions")
-                  .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", plan._id))
-                  .collect();
+          plans: (
+            await Promise.all(
+              plans
+                .filter((plan) => plan.chainId === chain._id)
+                .map(async (plan) => {
+                  const planReach = ctx.scope.chainPlan(plan);
+                  if (planReach === "none") return [];
 
-                return {
-                  plan,
-                  rollup: rollup(planTasks, args.today),
-                  promotions: await Promise.all(
+                  const promotions = await ctx.db
+                    .query("promotions")
+                    .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", plan._id))
+                    .collect();
+
+                  const promotionNodes = await Promise.all(
                     promotions
+                      .filter((promotion) => ctx.scope.promotion(promotion) === "full")
                       .sort((a, b) => a.startDate.localeCompare(b.startDate))
                       .map(async (promotion) => ({
                         promotion,
@@ -106,17 +141,49 @@ export const tree = query({
                           args.today,
                         ),
                       })),
-                  ),
-                };
-              }),
-          ),
+                  );
+
+                  if (planReach === "context") {
+                    // Nothing but the id: the chain's own name comes from the
+                    // reference data above, and its phases are not readable.
+                    return [
+                      {
+                        reach: "context" as const,
+                        chainPlanId: plan._id,
+                        promotions: promotionNodes,
+                      },
+                    ];
+                  }
+
+                  const planTasks = await ctx.db
+                    .query("tasks")
+                    .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", plan._id))
+                    .collect();
+
+                  return [
+                    {
+                      reach: "full" as const,
+                      chainPlanId: plan._id,
+                      plan,
+                      rollup: rollup(planTasks, args.today),
+                      promotions: promotionNodes,
+                    },
+                  ];
+                }),
+            )
+          ).flat(),
         })),
     );
 
     return {
-      season,
-      seasonRollup: rollup(seasonTasks, args.today),
-      chains: chainNodes,
+      // Year and label only: the tree names the year even when the viewer's
+      // access starts below it.
+      season: { _id: season._id, year: season.year, label: season.label },
+      reach,
+      seasonRollup: reach === "full" ? rollup(seasonTasks, args.today) : null,
+      chains: chainNodes.filter(
+        (node) => node.plans.length > 0 || ctx.scope.isAdministrator,
+      ),
     };
   },
 });
@@ -124,20 +191,21 @@ export const tree = query({
 /**
  * Which season a deep link belongs to. A link to a promotion has to be able to
  * draw the whole navigation tree around it, and only the backend knows which
- * season that promotion sits under.
+ * season that promotion sits under. Out of scope answers null, exactly as a
+ * deleted id does — this is a lookup, not a directory.
  */
-export const contextFor = query({
+export const contextFor = authedQuery({
   args: {
     chainPlanId: v.optional(v.string()),
     promotionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     if (args.promotionId !== undefined) {
-      const promotion = await fromUrl(ctx, "promotions", args.promotionId);
+      const promotion = await readablePromotion(ctx, ctx.scope, args.promotionId);
       return promotion === null ? null : { seasonId: promotion.seasonId };
     }
     if (args.chainPlanId !== undefined) {
-      const plan = await fromUrl(ctx, "chainPlans", args.chainPlanId);
+      const plan = await readableChainPlan(ctx, ctx.scope, args.chainPlanId);
       return plan === null ? null : { seasonId: plan.seasonId };
     }
     return null;

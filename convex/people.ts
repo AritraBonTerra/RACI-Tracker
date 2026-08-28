@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import { authedQuery, visibleTasks } from "./access";
 import {
   byEta,
   isOverdue,
@@ -14,9 +15,15 @@ import {
 
 // Named humans and the stakeholder buckets they belong to. A person is what
 // makes a task assigned; a function alone never is (CONTEXT.md: Unassigned).
+//
+// The directory itself is reference data, readable in full by every signed-in
+// User (#22) — a RACI picker that hid half the company would name the wrong
+// owner. What a person is *carrying* is not reference data: the load and
+// workload numbers are computed over the viewer's own scope, so two people
+// looking at the same person can honestly see different totals.
 
 /** People with their function, ordered the way the deck lists the buckets. */
-export const list = query({
+export const list = authedQuery({
   args: {},
   handler: async (ctx) => {
     const functions = await ctx.db.query("functions").collect();
@@ -33,7 +40,7 @@ export const list = query({
 });
 
 /** The six stakeholder buckets. Reference data; only the display name is editable. */
-export const listFunctions = query({
+export const listFunctions = authedQuery({
   args: {},
   handler: async (ctx) => {
     const functions = await ctx.db.query("functions").collect();
@@ -62,7 +69,7 @@ function tasksOf(tasks: readonly Doc<"tasks">[], personId: Id<"people">) {
  * that answers "can this person take one more thing?" — how many tasks they are
  * Responsible for, how many they are Accountable for, and how much of it is late.
  */
-export const directory = query({
+export const directory = authedQuery({
   args: { today: v.string() },
   handler: async (ctx, args) => {
     const functions = (await ctx.db.query("functions").collect()).sort(
@@ -72,7 +79,7 @@ export const directory = query({
       a.name.localeCompare(b.name),
     );
 
-    const tasks = await ctx.db.query("tasks").collect();
+    const tasks = await visibleTasks(ctx, ctx.scope, await ctx.db.query("tasks").collect());
     const loaded = people.map((person) => {
       const { responsible, accountable, all } = tasksOf(tasks, person._id);
       return {
@@ -98,7 +105,7 @@ export const directory = query({
  * One person's plate, for the drill-down: their tasks across every tier with
  * enough context to link back to the page each one is edited on.
  */
-export const workload = query({
+export const workload = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { personId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
@@ -107,7 +114,7 @@ export const workload = query({
 
     const placeOf = placeResolver(ctx);
     const { responsible, accountable, all } = tasksOf(
-      await ctx.db.query("tasks").collect(),
+      await visibleTasks(ctx, ctx.scope, await ctx.db.query("tasks").collect()),
       person._id,
     );
     const responsibleIds = new Set(responsible.map((task) => task._id));

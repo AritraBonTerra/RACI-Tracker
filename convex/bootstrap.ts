@@ -1,12 +1,18 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   internalMutation,
   internalQuery,
   type MutationCtx,
   type QueryCtx,
 } from "./_generated/server";
-import { recordAuditEvent, userByClerkId } from "./access";
+import {
+  recordAuditEvent,
+  scopesOf,
+  userByClerkId,
+  type AccessScope,
+} from "./access";
+import { accessScope } from "./schema";
 
 // Deploy-credential operations (#30, stories 30/31/34). These are
 // `internalMutation` / `internalQuery`, so they are absent from `api` and
@@ -17,6 +23,9 @@ import { recordAuditEvent, userByClerkId } from "./access";
 //   bunx convex run bootstrap:listUsers
 //   bunx convex run bootstrap:grantAdmin '{"email":"you@company.com"}'
 //   bunx convex run bootstrap:reactivateUser '{"email":"you@company.com"}'
+//   bunx convex run bootstrap:grantAccess \
+//     '{"email":"them@company.com","scope":{"tier":"promotion","promotionId":"..."}}'
+//   bunx convex run bootstrap:revokeAccess '{"email":"them@company.com","scope":{...}}'
 //
 // Add `--prod` for production. They serve two moments:
 //
@@ -147,6 +156,114 @@ export const reactivateUser = internalMutation({
     await ctx.db.patch(user._id, { isActive: true });
     await auditActivation(ctx, user);
     return { changed: true, user: summarize({ ...user, isActive: true }) };
+  },
+});
+
+// --- Access Assignments ---------------------------------------------------
+//
+// The CLI half of granting, until the Directory surface lands (#34). Same
+// semantics the Directory will have — union, idempotent, audited — so the UI
+// inherits behavior that has already been exercised rather than defining it.
+
+/** The three columns an assignment can be pinned to, from one scope argument. */
+function columnsOf(scope: AccessScope) {
+  return {
+    seasonId: scope.tier === "season" ? scope.seasonId : undefined,
+    chainPlanId: scope.tier === "chainPlan" ? scope.chainPlanId : undefined,
+    promotionId: scope.tier === "promotion" ? scope.promotionId : undefined,
+  };
+}
+
+/** The assignment for exactly this User at exactly this tier, if it exists. */
+async function assignmentFor(ctx: QueryCtx, userId: Id<"users">, scope: AccessScope) {
+  const columns = columnsOf(scope);
+  const rows = await ctx.db
+    .query("accessAssignments")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  return (
+    rows.find(
+      (row) =>
+        row.seasonId === columns.seasonId &&
+        row.chainPlanId === columns.chainPlanId &&
+        row.promotionId === columns.promotionId,
+    ) ?? null
+  );
+}
+
+/** Refuses a grant naming a record that is not there — a typo, not a scope. */
+async function assertScopeExists(ctx: QueryCtx, scope: AccessScope) {
+  const target =
+    scope.tier === "season"
+      ? await ctx.db.get(scope.seasonId)
+      : scope.tier === "chainPlan"
+        ? await ctx.db.get(scope.chainPlanId)
+        : await ctx.db.get(scope.promotionId);
+  if (target === null) {
+    throw new ConvexError(`No ${scope.tier} with that id — check bootstrap:listUsers.`);
+  }
+}
+
+/**
+ * Give a User access to one Plan Year, Chain Plan or Promotion. Access is the
+ * union of a User's assignments, so granting a second overlapping scope is
+ * harmless and re-granting the same one is a no-op.
+ *
+ * Grants go to Members. An Administrator already reaches everything, so an
+ * assignment on one is dead weight and is refused rather than silently stored.
+ */
+export const grantAccess = internalMutation({
+  args: { ...target, scope: accessScope },
+  handler: async (ctx, args) => {
+    const user = await resolveTarget(ctx, args);
+    if (user.role === "administrator") {
+      throw new ConvexError(
+        "Administrators already reach everything — no assignment needed.",
+      );
+    }
+    await assertScopeExists(ctx, args.scope);
+
+    const existing = await assignmentFor(ctx, user._id, args.scope);
+    if (existing !== null) {
+      return { changed: false, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
+    }
+
+    await ctx.db.insert("accessAssignments", {
+      userId: user._id,
+      ...columnsOf(args.scope),
+    });
+    await recordAuditEvent(ctx, {
+      action: "access_granted",
+      actor: { kind: "operator" },
+      subjectUserId: user._id,
+      detail: `${args.scope.tier} (deploy credentials)`,
+    });
+    return { changed: true, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
+  },
+});
+
+/**
+ * Take one assignment back. Only that row goes: a Member holding a redundant
+ * second grant keeps everything the union still covers, which is what makes
+ * overlapping grants safe to hand out (#27, scenario 11).
+ */
+export const revokeAccess = internalMutation({
+  args: { ...target, scope: accessScope },
+  handler: async (ctx, args) => {
+    const user = await resolveTarget(ctx, args);
+    const existing = await assignmentFor(ctx, user._id, args.scope);
+    if (existing === null) {
+      return { changed: false, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
+    }
+
+    await ctx.db.delete(existing._id);
+    await recordAuditEvent(ctx, {
+      action: "access_revoked",
+      actor: { kind: "operator" },
+      subjectUserId: user._id,
+      detail: `${args.scope.tier} (deploy credentials)`,
+    });
+    return { changed: true, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
   },
 });
 

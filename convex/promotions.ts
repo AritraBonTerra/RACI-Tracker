@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation } from "./_generated/server";
+import { authedQuery, readablePromotion } from "./access";
 import { phase } from "./schema";
 import { removeForPromotion } from "./kpi";
 import {
@@ -10,7 +11,6 @@ import {
   raciDefaults,
   requiredText,
   rollup,
-  fromUrl,
   stampTemplates,
 } from "./model";
 
@@ -29,13 +29,18 @@ function checkedDay(value: string, field: string) {
 
 /**
  * The promotion page: its 5-8 checklist, brands, and where it sits in the tree.
- * Null when the id no longer resolves, so a stale link degrades gracefully.
+ * Null when the id no longer resolves or the viewer's scope does not reach it,
+ * so a stale link and a denied one degrade identically.
+ *
+ * The two ancestors come back as names and reaches — "Kroger · 2026" is the
+ * whole of the orientation a promotion-only Member gets, and neither crumb is a
+ * link unless their scope covers it.
  */
-export const get = query({
+export const get = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { promotionId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const promotion = await fromUrl(ctx, "promotions", args.promotionId);
+    const promotion = await readablePromotion(ctx, ctx.scope, args.promotionId);
     if (promotion === null) return null;
     const plan = await mustGet(ctx, promotion.chainPlanId, "chain plan");
     const chain = await mustGet(ctx, promotion.chainId, "chain");
@@ -50,9 +55,14 @@ export const get = query({
 
     return {
       promotion,
-      plan,
+      plan: { _id: plan._id, reach: ctx.scope.chainPlan(plan) },
       chain,
-      season,
+      season: {
+        _id: season._id,
+        year: season.year,
+        label: season.label,
+        reach: ctx.scope.season(season._id),
+      },
       brands: brands.filter((brand) => brand !== null),
       tasks: tasks.sort((a, b) => a.order - b.order),
       rollup: rollup(tasks, args.today),
