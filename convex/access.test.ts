@@ -1,5 +1,5 @@
 import { makeFunctionReference } from "convex/server";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import { CLERK_ISSUER, harness } from "./world.fixture";
 
@@ -16,7 +16,10 @@ import { CLERK_ISSUER, harness } from "./world.fixture";
  * rather than `world.fixture`'s: these tests are about what happens when a claim
  * is *missing*, so every claim here is optional.
  */
-function token(subject: string, claims: { name?: string; email?: string } = {}) {
+function token(
+  subject: string,
+  claims: { name?: string; email?: string; emailVerified?: boolean } = {},
+) {
   return { subject, issuer: CLERK_ISSUER, ...claims };
 }
 
@@ -266,6 +269,160 @@ describe("the wrappers every guarded function will be built from", () => {
     expect(messages[0]).toContain("You don't have access to this.");
   });
 });
+
+// The optional admission gate (#30, story 6, as revised in ADR 0003). Sign-in
+// no longer refuses anyone — Clerk admits any Google account and any address
+// that can receive a code — so "is this an employee at all?" is asked here,
+// from one environment variable on the Convex deployment.
+//
+// Every identity below carries a *verified* address unless the test is about
+// verification, because that is the shape Clerk mints once the runbook's
+// `email_verified` claim is mapped.
+
+/** A work address, as the gate is meant to see one. */
+const EMPLOYEE = token("user_2emp", {
+  name: "Dana Whitfield",
+  email: "dana@vctusa.com",
+  emailVerified: true,
+});
+
+/** A personal Google account: exactly what the SAML design refused at the IdP. */
+const OUTSIDER = token("user_2out", {
+  name: "Nobody Inparticular",
+  email: "nobody@gmail.com",
+  emailVerified: true,
+});
+
+describe("the email-domain admission gate", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  test("unset, any verified sign-in becomes a Member holding nothing", async () => {
+    // The deliberate downgrade: a personal account reaches the awaiting-access
+    // screen instead of being refused at the identity provider, and holds no
+    // data until an Administrator grants it something.
+    const t = harness();
+    await t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {});
+
+    expect(await t.withIdentity(OUTSIDER).query(api.access.me, {})).toMatchObject({
+      state: "active",
+      account: { role: "member" },
+      scopes: [],
+    });
+  });
+
+  test("set, an address at the domain is admitted as it was before", async () => {
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+    const t = harness();
+    await t.withIdentity(EMPLOYEE).mutation(api.access.ensureUser, {});
+
+    expect(await t.withIdentity(EMPLOYEE).query(api.access.me, {})).toMatchObject({
+      state: "active",
+      account: { email: "dana@vctusa.com", role: "member" },
+    });
+  });
+
+  test("set, an address at another domain never becomes an account", async () => {
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+    const t = harness();
+
+    await expect(
+      t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {}),
+    ).rejects.toThrow(DENIED);
+    expect(await t.withIdentity(OUTSIDER).query(api.access.me, {})).toEqual({
+      state: "ineligible",
+      email: "nobody@gmail.com",
+    });
+    expect(await wrapperResults(t.withIdentity(OUTSIDER))).toEqual(REFUSED_EVERYWHERE);
+  });
+
+  test("set, a look-alike domain is outside it", async () => {
+    // `endsWith(domain)` alone would admit both of these, which is why the
+    // check is on `@<domain>`.
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+    const t = harness();
+
+    for (const email of ["mallory@notvctusa.com", "mallory@vctusa.com.attacker.net"]) {
+      const impostor = token(`user_${email}`, { email, emailVerified: true });
+      await expect(
+        t.withIdentity(impostor).mutation(api.access.ensureUser, {}),
+      ).rejects.toThrow(DENIED);
+      expect(await t.withIdentity(impostor).query(api.access.me, {})).toMatchObject({
+        state: "ineligible",
+      });
+    }
+  });
+
+  test("set, an unverified address at the domain is not an address", async () => {
+    // Anyone can type an employer's domain into a sign-up form. Only the
+    // identity provider can say the inbox answered.
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+    const t = harness();
+    const unverified = token("user_2unv", { email: "dana@vctusa.com" });
+
+    await expect(
+      t.withIdentity(unverified).mutation(api.access.ensureUser, {}),
+    ).rejects.toThrow(DENIED);
+    expect(await wrapperResults(t.withIdentity(unverified))).toEqual(REFUSED_EVERYWHERE);
+  });
+
+  test("set, the domain is read as written however it was pasted in", async () => {
+    // The value is copied out of a dashboard by hand, and `@VCTUSA.com ` is a
+    // plausible thing to paste.
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", " @VCTUSA.com ");
+    const t = harness();
+    await t.withIdentity(EMPLOYEE).mutation(api.access.ensureUser, {});
+
+    expect(await t.withIdentity(EMPLOYEE).query(api.access.me, {})).toMatchObject({
+      state: "active",
+    });
+  });
+
+  test("turned on afterwards, it locks out the account it would not have admitted", async () => {
+    // The gate is re-read on every call, not only at admission — otherwise
+    // setting it would govern the future and leave the past signed in.
+    const t = harness();
+    await t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {});
+    await t.mutation(internal.bootstrap.grantAdmin, { email: "nobody@gmail.com" });
+    expect(await wrapperResults(t.withIdentity(OUTSIDER))).toMatchObject({
+      adminQuery: "administrator",
+    });
+
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+
+    expect(await wrapperResults(t.withIdentity(OUTSIDER))).toEqual(REFUSED_EVERYWHERE);
+  });
+
+  test("a gated caller is refused in the same words as everyone else", async () => {
+    // The gate must not become an oracle for "is this address an employee?".
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+    const t = harness();
+    await t.withIdentity(EMPLOYEE).mutation(api.access.ensureUser, {});
+
+    const messages = [
+      await refusal(() => harness().query(probe.authedQuery, {})),
+      await refusal(() => t.withIdentity(OUTSIDER).query(probe.authedQuery, {})),
+      await refusal(() => t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {})),
+      // An admitted employee is still only a Member: the gate buys nothing.
+      await refusal(() => t.withIdentity(EMPLOYEE).query(probe.adminQuery, {})),
+    ];
+
+    expect(new Set(messages).size).toBe(1);
+    expect(messages[0]).toContain(DENIED);
+  });
+});
+
+/** The one sentence every refusal in the app comes back with. */
+const DENIED = "You don't have access to this.";
+
+/** What all four wrappers say to a caller the boundary does not admit. */
+const REFUSED_EVERYWHERE = {
+  authedQuery: "refused",
+  adminQuery: "refused",
+  authedMutation: "refused",
+  adminMutation: "refused",
+};
 
 /** A caller — anonymous or carrying an identity — as the wrapper tests use it. */
 type Caller = Pick<ReturnType<typeof harness>, "query" | "mutation">;

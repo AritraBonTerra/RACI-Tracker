@@ -606,7 +606,7 @@ test("no legal sequence of Directory moves empties the deployment of Administrat
   expect((await asYolanda.query(api.directory.roster, {})).activeAdministrators).toBe(1);
 
   // Break-glass is for the lockout the guard cannot prevent — an Administrator
-  // disappearing on the Entra side — and it reaches an account the Directory
+  // losing their identity-provider account — and it reaches an account the Directory
   // deactivated, with the role that account already had.
   // (bootstrap.test.ts covers the deployment with no Administrator at all.)
   await t.mutation(internal.bootstrap.grantAdmin, { email: ADMIN.email });

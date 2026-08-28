@@ -38,8 +38,11 @@ import { accessScope } from "./schema";
 //                                  are *not* signed in, so the UI can render
 //                                  the sign-in, no-access and deactivated
 //                                  screens. Shaping only — never a gate.
-//   ensureUser                     first-sign-in entry point: any verified
+//   ensureUser                     first-sign-in entry point: any admissible
 //                                  identity may create its own zero-access User
+//
+// Ahead of all of them sits the optional admission gate below
+// (`ALLOWED_EMAIL_DOMAIN`), which decides who may hold an account at all.
 //
 // The client UI is never the security boundary: every wrapper resolves identity
 // server-side, and every failure is the same opaque refusal.
@@ -60,15 +63,66 @@ function deny(): never {
   throw new ConvexError(DENIED);
 }
 
+// --- The admission gate ---------------------------------------------------
+// The optional first filter, ahead of everything below (#30, story 6, as
+// revised in `docs/adr/0003-…`). Sign-in itself no longer refuses anybody: the
+// identity provider admits any Google account and any address that can receive
+// a code, so "is this an employee at all?" is asked here instead.
+//
+// Set `ALLOWED_EMAIL_DOMAIN` on the Convex deployment and only verified
+// addresses at that domain may become or remain a User. Leave it unset and the
+// gate is off — any verified sign-in becomes a zero-access Member and waits for
+// an Administrator, which is the real boundary either way.
+//
+// Email is an *admission* filter and nothing more. The identity key stays the
+// Clerk user id (`users.by_clerk_user_id`), every authorization decision below
+// reads the User row and its Access Assignments, and no scope check anywhere
+// looks at an address. Changing this variable can only ever narrow who may hold
+// an account; it can never widen what one reaches.
+
+/**
+ * The configured domain, normalised. A value pasted as `@vctusa.com`,
+ * `VCTUSA.com` or with a stray space means the same thing as `vctusa.com`,
+ * because the person setting it is copying from a dashboard.
+ */
+function allowedEmailDomain(): string {
+  return (process.env.ALLOWED_EMAIL_DOMAIN ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, "");
+}
+
+/**
+ * Whether this identity may hold an account on this deployment.
+ *
+ * Two conditions when the gate is on, and both matter. The address has to be
+ * **verified** — an unverified one is a claim the identity provider has not
+ * checked, and treating it as a domain membership would make the gate a
+ * text field. And it has to end with `@<domain>` rather than merely contain
+ * it, so `vctusa.com.attacker.net` and `notvctusa.com` are both outside.
+ */
+function admissible(identity: UserIdentity): boolean {
+  const domain = allowedEmailDomain();
+  if (domain === "") return true;
+  if (identity.emailVerified !== true) return false;
+  return (identity.email ?? "").trim().toLowerCase().endsWith(`@${domain}`);
+}
+
 /**
  * The identity check, in one place. Returns null for every reason a caller
  * might not be a usable viewer, deliberately without distinguishing them:
- * no token, an unverifiable token (Convex has already dropped those), a token
- * for an identity with no User row yet, or a deactivated User.
+ * no token, an unverifiable token (Convex has already dropped those), an
+ * identity the domain gate does not admit, a token for an identity with no User
+ * row yet, or a deactivated User.
+ *
+ * The gate is re-read on every call rather than only at admission, so turning
+ * it on locks out an account admitted while it was off — without that, the
+ * variable would only ever govern the future.
  */
 async function viewerOrNull(ctx: QueryCtx): Promise<Viewer | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (identity === null) return null;
+  if (!admissible(identity)) return null;
   const user = await ctx.db
     .query("users")
     .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", identity.subject))
@@ -858,12 +912,16 @@ type TokenClaims = Partial<
 
 /**
  * The display and identity fields copied off the token on every sign-in, so a
- * renamed employee or a newly-mapped Entra claim lands without a migration.
+ * renamed employee lands without a migration.
  *
  * Claims the token does not carry are *absent*, not undefined, because Convex
- * reads `undefined` in a patch as "delete this field" — a development token has
- * no Entra claims at all, and one dev sign-in must not erase what production
- * knew. The `entra_*` claims arrive through Clerk's SAML attribute mapping.
+ * reads `undefined` in a patch as "delete this field" — and a sign-in that
+ * happened to carry less than the last one must not erase what was known.
+ *
+ * The `entra_*` claims arrive only from a SAML enterprise connection, which
+ * this deployment does not have (`docs/adr/0003-…`). They are still read
+ * because that connection is the documented upgrade path if IT ever engages,
+ * and reading a claim nobody sends costs a `typeof` check.
  */
 function claimsFrom(identity: UserIdentity): TokenClaims {
   const claims: TokenClaims = {};
@@ -887,13 +945,16 @@ function claimsFrom(identity: UserIdentity): TokenClaims {
  * an identity without a User row may call; it is still not open, because Convex
  * has already verified the token's signature and issuer before we see it.
  *
- * A deactivated User stays deactivated: signing in is not reactivation.
+ * A deactivated User stays deactivated: signing in is not reactivation. An
+ * identity the domain gate does not admit gets no row at all, and the same
+ * opaque refusal every other denied call gets.
  */
 export const ensureUser = mutation({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (identity === null) deny();
+    if (!admissible(identity)) deny();
 
     const claims = claimsFrom(identity);
     const existing = await userByClerkId(ctx, identity.subject);
@@ -921,16 +982,22 @@ export const ensureUser = mutation({
 /**
  * Who am I, and what should the shell render? The only public function that
  * answers for a caller who is not a usable viewer, because the sign-in,
- * "access comes next" and deactivated screens each need a different answer.
+ * "access comes next", ineligible and deactivated screens each need a different
+ * answer.
  *
  * Nothing here is a permission: every other function re-resolves identity
  * server-side. A client that lies about this result gets a prettier refusal.
+ * The gated identity is told its own address and nothing else — no record, no
+ * roster, no hint that anything exists behind the gate.
  */
 export const me = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (identity === null) return { state: "anonymous" } as const;
+    if (!admissible(identity)) {
+      return { state: "ineligible", email: identity.email } as const;
+    }
 
     const user = await userByClerkId(ctx, identity.subject);
     // A verified token with no User row: `ensureUser` has not landed yet.

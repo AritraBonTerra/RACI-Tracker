@@ -168,10 +168,15 @@ export default defineSchema({
   // never pre-provisioned: only the identity provider can mint a Clerk user id.
   //
   // `clerkUserId` is `identity.subject`: the primary key of the account as far
-  // as this app is concerned. `entraOid` / `entraTid` are the durable Microsoft
-  // identity, carried through Clerk's SAML attribute mapping; they are absent
-  // in development (email-code sign-in has no Entra behind it) and on the very
-  // first token if Clerk has not populated `publicMetadata` yet.
+  // as this app is concerned, and the only identifier any authorization
+  // decision reads. `email` is display material plus the optional admission
+  // filter in `convex/access.ts`; it is never a permission.
+  //
+  // `entraOid` / `entraTid` / `entraUserType` are the durable Microsoft
+  // identity, carried through a SAML attribute mapping. Nothing populates them
+  // today — sign-in is an email code or Google on Clerk's free plan
+  // (`docs/adr/0003-…`) — and they are kept optional against the day a Pro
+  // instance and an enterprise connection make them arrive.
   //
   // Everything else is display material read off the token. `personId` is the
   // optional one-to-one link to an *internal* Person; RACI names People and

@@ -830,7 +830,8 @@ test("an editor with no name is Someone, never their work address", async () => 
   const { t, promotions } = await stage();
   const promotionId = promotions["Gift Sets"];
 
-  // The dev email-code path, and any SAML mapping that does not fill `name`:
+  // An identity whose token carried no `name` claim — a Google account with no
+  // name set, or a session token missing the customization:
   // a display name is all this payload may carry, so there is no rung below it
   // that leaks an address to every Member on the page.
   await t.run(async (ctx) => {
