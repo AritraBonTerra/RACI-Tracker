@@ -1,8 +1,18 @@
-import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import schema from "./schema";
+import {
+  ADMIN,
+  NEWCOMER,
+  PLAN_MEMBER,
+  PROMO_MEMBER,
+  TODAY,
+  YEAR_MEMBER,
+  bytes,
+  token,
+  world,
+  type Caller,
+} from "./world.fixture";
 
 // The authorization matrix for reads (#32), asserted the only way it is worth
 // asserting: by calling the public functions the browser calls, with an
@@ -12,149 +22,9 @@ import schema from "./schema";
 // what a wrapper is. A Member is defined by what they get, and the property
 // that matters most — "out of scope is indistinguishable from deleted" — is
 // checked by comparing the two responses byte for byte.
-
-const modules = import.meta.glob(["./**/*.*s", "!./**/*.test.*"]);
-
-const CLERK_ISSUER = "https://tidy-marmoset-42.clerk.accounts.dev";
-
-/** Fixed, so "overdue" means the same thing on every run. */
-const TODAY = "2026-06-15";
-
-function token(subject: string, email: string) {
-  return { subject, issuer: CLERK_ISSUER, email, name: email };
-}
-
-const ADMIN = token("user_admin", "dana@vctusa.com");
-const YEAR_MEMBER = token("user_year", "yolanda@vctusa.com");
-const PLAN_MEMBER = token("user_plan", "marcus@vctusa.com");
-const PROMO_MEMBER = token("user_promo", "priya@vctusa.com");
-/** Signed in, granted nothing: the "access comes next" account. */
-const NEWCOMER = token("user_new", "sam@vctusa.com");
-
-const EVERYONE = [ADMIN, YEAR_MEMBER, PLAN_MEMBER, PROMO_MEMBER, NEWCOMER];
-
-/**
- * A plan year with three chains under it, promotions under two of them, and a
- * checklist on every node — enough that "only your slice" is a real claim and
- * not one record hiding behind another.
- *
- * Grants: Yolanda holds the year, Marcus holds the Kroger plan, Priya holds one
- * Albertsons promotion and not its sibling.
- */
-async function world() {
-  const t = convexTest(schema, modules);
-  for (const who of EVERYONE) {
-    await t.withIdentity(who).mutation(api.access.ensureUser, {});
-  }
-  await t.mutation(internal.bootstrap.grantAdmin, { email: ADMIN.email });
-  const as = t.withIdentity(ADMIN);
-
-  // The People directory needs a Function to hang off, and nothing creates one
-  // from the function surface — reference data arrives by seed. Setup only.
-  const functionId = await t.run(
-    async (ctx) =>
-      await ctx.db.insert("functions", {
-        key: "retail_marketing",
-        name: "Retail Marketing",
-        kind: "internal",
-        order: 1,
-      }),
-  );
-  const carol = await as.mutation(api.people.create, {
-    name: "Carol Diaz",
-    functionId,
-  });
-
-  const seasonId = await as.mutation(api.seasons.create, { year: 2026 });
-  await checklist(t, { tier: "season", seasonId }, 0, "Phase zero", carol);
-
-  const plans: Record<string, Id<"chainPlans">> = {};
-  for (const name of ["Albertsons", "Kroger", "Ralphs"]) {
-    const chainId = await as.mutation(api.chains.create, { name });
-    const chainPlanId = await as.mutation(api.chainPlans.create, {
-      seasonId,
-      chainId,
-    });
-    plans[name] = chainPlanId;
-    await checklist(t, { tier: "chainPlan", chainPlanId }, 2, `${name} plan`, carol);
-  }
-
-  const promotions: Record<string, Id<"promotions">> = {};
-  for (const [name, chain] of [
-    ["Gift Sets", "Albertsons"],
-    ["Spring Rosé", "Albertsons"],
-    ["Holiday Endcap", "Kroger"],
-  ] as const) {
-    const promotionId = await as.mutation(api.promotions.create, {
-      chainPlanId: plans[chain],
-      name,
-      startDate: "2026-11-01",
-      endDate: "2026-12-24",
-    });
-    promotions[name] = promotionId;
-    await checklist(t, { tier: "promotion", promotionId }, 6, name, carol);
-  }
-
-  await t.mutation(internal.bootstrap.grantAccess, {
-    email: YEAR_MEMBER.email,
-    scope: { tier: "season", seasonId },
-  });
-  await t.mutation(internal.bootstrap.grantAccess, {
-    email: PLAN_MEMBER.email,
-    scope: { tier: "chainPlan", chainPlanId: plans.Kroger },
-  });
-  await t.mutation(internal.bootstrap.grantAccess, {
-    email: PROMO_MEMBER.email,
-    scope: { tier: "promotion", promotionId: promotions["Gift Sets"] },
-  });
-
-  return { t, seasonId, plans, promotions, carol };
-}
-
-/**
- * Three tasks on one owner, in the three states the whole tool is about: work
- * nobody owns, work that is stuck, and work that is late. Every rollup and
- * every rail entry in these tests traces back to one of these.
- */
-async function checklist(
-  t: ReturnType<typeof convexTest>,
-  owner:
-    | { tier: "season"; seasonId: Id<"seasons"> }
-    | { tier: "chainPlan"; chainPlanId: Id<"chainPlans"> }
-    | { tier: "promotion"; promotionId: Id<"promotions"> },
-  phase: 0 | 2 | 6,
-  label: string,
-  personId: Id<"people">,
-) {
-  const as = t.withIdentity(ADMIN);
-  await as.mutation(api.tasks.create, { owner, phase, name: `${label}: unowned` });
-
-  const blocked = await as.mutation(api.tasks.create, {
-    owner,
-    phase,
-    name: `${label}: stuck`,
-    responsiblePersonIds: [personId],
-  });
-  await as.mutation(api.tasks.setStatus, {
-    taskId: blocked,
-    status: "blocked",
-    blockedReason: "No inventory at distributor",
-  });
-
-  await as.mutation(api.tasks.create, {
-    owner,
-    phase,
-    name: `${label}: late`,
-    eta: "2026-01-05",
-    responsiblePersonIds: [personId],
-  });
-}
-
-/** Byte-for-byte, the way scenario 14 defines "indistinguishable". */
-const bytes = (value: unknown) => JSON.stringify(value ?? null);
-
-/** A caller with an identity, as every assertion below addresses one. */
-type Caller = Pick<ReturnType<typeof convexTest>, "query" | "mutation">;
+//
+// The world these claims are made about lives in `world.fixture.ts`, shared
+// with the write matrix (#33) so both are arguing over the same records.
 
 /** Every public read, called at once, so a whole role is one assertion. */
 async function reads(
