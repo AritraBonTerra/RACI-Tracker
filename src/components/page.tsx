@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { formatStamp } from "../lib/dates";
 import { href, type Route } from "../lib/router";
 import { errorMessage } from "../lib/toast";
 import { Button, Skeleton } from "./ui";
@@ -78,6 +79,44 @@ export function PageHeader({
       )}
       {children}
     </header>
+  );
+}
+
+/**
+ * Names for the last-modified stamps in one payload, keyed by User id. Sent
+ * alongside the records rather than folded into them, because a checklist of
+ * twenty rows edited by two people carries two names (convex/access.ts).
+ */
+export type Editors = Readonly<Record<string, string>>;
+
+/** A record carrying the stamp every ordinary edit writes (#22, story 28). */
+export type Stamped = { lastModifiedBy?: string; lastModifiedAt?: number };
+
+/**
+ * Who last touched this record, and when — the first answer to a data question,
+ * short of the audit feed (which is about access, not content).
+ *
+ * Renders nothing at all for a record with no stamp: rows written before the
+ * stamp existed have no honest answer, and "Last edited by —" is worse than
+ * silence. Same for a stamp naming a User who has since been deleted, which the
+ * backend resolves to no name.
+ */
+export function LastEdited({
+  record,
+  editors,
+  className = "",
+}: {
+  record: Stamped;
+  editors: Editors;
+  className?: string;
+}) {
+  const name = record.lastModifiedBy === undefined ? undefined : editors[record.lastModifiedBy];
+  if (name === undefined || record.lastModifiedAt === undefined) return null;
+  return (
+    <span className={`text-2xs text-ink-600 ${className}`}>
+      Last edited by <span className="text-ink-500">{name}</span> ·{" "}
+      {formatStamp(record.lastModifiedAt)}
+    </span>
   );
 }
 

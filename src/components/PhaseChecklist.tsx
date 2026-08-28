@@ -6,6 +6,7 @@ import type { TaskOwner } from "../../convex/model";
 import { PHASES, roleLetters, type PhaseNumber } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
+import type { Editors } from "./page";
 import { TaskRow } from "./TaskRow";
 import { Button, EmptyState, inputClass } from "./ui";
 
@@ -23,6 +24,7 @@ export function PhaseChecklist({
   tasks,
   today,
   people,
+  editors,
   raciDefault,
   focusTaskId,
 }: {
@@ -31,6 +33,8 @@ export function PhaseChecklist({
   tasks: readonly Doc<"tasks">[];
   today: string;
   people: PeopleDirectory;
+  /** Names for the last-modified stamps on these rows (convex/access.ts). */
+  editors: Editors;
   raciDefault?: RaciDefault;
   /** The row a needs-attention link pointed at, if it lives in this phase. */
   focusTaskId?: Id<"tasks">;
@@ -124,6 +128,7 @@ export function PhaseChecklist({
                   task={task}
                   today={today}
                   people={people}
+                  editors={editors}
                   isFirst={index === 0 && group === groups[0]}
                   isLast={index === group.tasks.length - 1 && group === groups.at(-1)}
                   focused={task._id === focusTaskId}

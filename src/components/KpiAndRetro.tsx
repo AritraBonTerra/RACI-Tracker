@@ -4,6 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
 import { InlineText } from "./inline";
+import { LastEdited, type Stamped } from "./page";
 import { Panel, Skeleton } from "./ui";
 import { useReportedMutation } from "../lib/toast";
 
@@ -100,6 +101,18 @@ function formatUplift(uplift: NonNullable<MetricRow["uplift"]>, unit: Unit): str
   return `${absolute} (${signed(uplift.percent, `${oneDecimal.format(Math.abs(uplift.percent))}%`)})`;
 }
 
+/**
+ * The most recent stamp across the KPI grid. The table is one act of typing
+ * spread over five rows, so it carries one line rather than five.
+ */
+function lastTyped(metrics: Board["metrics"]): Stamped {
+  return metrics.reduce<Stamped>(
+    (latest, row) =>
+      (row.lastModifiedAt ?? 0) > (latest.lastModifiedAt ?? 0) ? row : latest,
+    {},
+  );
+}
+
 function upliftTone(absolute: number): string {
   if (absolute > 0) return "text-emerald-300";
   if (absolute < 0) return "text-rose-300";
@@ -124,8 +137,13 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
       title="Phase 7 · KPI table"
       subtitle="Typed by hand — there is no data feed. Uplift is computed wherever both columns hold a number."
       actions={
-        <span className="text-2xs text-ink-500 tabular-nums">
-          {filled}/{METRIC_ORDER.length} metrics entered
+        <span className="flex items-center gap-3">
+          {/* Every figure here was typed by a person, so who typed one last is
+              part of reading the grid (#22, story 28). */}
+          <LastEdited record={lastTyped(board.metrics)} editors={board.editors} />
+          <span className="text-2xs text-ink-500 tabular-nums">
+            {filled}/{METRIC_ORDER.length} metrics entered
+          </span>
         </span>
       }
     >
@@ -364,6 +382,11 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
           onCommit={(notes) => void save({ promotionId, notes })}
         />
       </div>
+      {retro !== null && (
+        <div className="border-t border-ink-800 px-4 py-2">
+          <LastEdited record={retro} editors={board.editors} />
+        </div>
+      )}
     </Panel>
   );
 }

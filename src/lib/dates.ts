@@ -41,6 +41,26 @@ export function formatDay(iso: string, relativeTo = todayIso()): string {
   return sameYear ? base : `${base}, ${value.year}`;
 }
 
+/**
+ * A last-modified stamp, which is a *moment* rather than a calendar day —
+ * "today, 14:32" beats "Aug 27" for an edit somebody is asking about, and the
+ * day alone is enough once it stops being recent.
+ */
+export function formatStamp(at: number, relativeTo = todayIso()): string {
+  const when = new Date(at);
+  const day = [
+    when.getFullYear(),
+    String(when.getMonth() + 1).padStart(2, "0"),
+    String(when.getDate()).padStart(2, "0"),
+  ].join("-");
+  const time = `${String(when.getHours()).padStart(2, "0")}:${String(
+    when.getMinutes(),
+  ).padStart(2, "0")}`;
+  if (day === relativeTo) return `today, ${time}`;
+  if (day === addDays(relativeTo, -1)) return `yesterday, ${time}`;
+  return formatDay(day, relativeTo);
+}
+
 /** "Oct 5 – Nov 1" for a promotion's date window. */
 export function formatRange(start: string, end: string): string {
   return `${formatDay(start)} – ${formatDay(end)}`;

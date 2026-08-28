@@ -7,6 +7,7 @@ import { PhaseChecklist } from "../components/PhaseChecklist";
 import { RollupTiles } from "../components/Rollup";
 import {
   Breadcrumb,
+  LastEdited,
   MetaItem,
   NotFound,
   PageHeader,
@@ -163,6 +164,7 @@ export function PromotionView({
                 </Button>
               </span>
             </MetaItem>
+            <LastEdited record={data.promotion} editors={data.editors} />
           </>
         }
       >
@@ -197,6 +199,7 @@ export function PromotionView({
             tasks={data.tasks}
             today={today}
             people={people}
+            editors={data.editors}
             raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
             focusTaskId={focusTaskId}
           />

@@ -6,6 +6,7 @@ import { PhaseChecklist } from "../components/PhaseChecklist";
 import { RollupChips, RollupTiles } from "../components/Rollup";
 import {
   Breadcrumb,
+  LastEdited,
   cardClass,
   cardGrid,
   MetaItem,
@@ -75,6 +76,7 @@ export function SeasonView({
             <MetaItem label="Year">{data.season.year}</MetaItem>
             <MetaItem label="Chain plans">{planCards.length}</MetaItem>
             <MetaItem label="Today">{formatDay(today)}</MetaItem>
+            <LastEdited record={data.season} editors={data.editors} />
           </>
         }
       >
@@ -105,6 +107,7 @@ export function SeasonView({
           tasks={data.tasks}
           today={today}
           people={people}
+          editors={data.editors}
           raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
           focusTaskId={focusTaskId}
         />
