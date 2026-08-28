@@ -278,10 +278,15 @@ export const account = adminQuery({
     const user = await fromUrl(ctx, "users", args.userId);
     if (user === null) return null;
 
+    const summary = await summarize(ctx, user);
     return {
-      ...(await summarize(ctx, user)),
+      ...summary,
       grants: await grantsOf(ctx, user._id),
-      candidates: user.personId === undefined ? await candidatesFor(ctx, user) : [],
+      // Candidates hang off the Person that actually resolved, not off the id
+      // stored on the account. `people.remove` refuses to delete a linked
+      // Person, but a link left dangling by anything else has to be repairable
+      // from this pane rather than being a permanent, buttonless nothing.
+      candidates: summary.person === null ? await candidatesFor(ctx, user) : [],
       isLastActiveAdministrator: await isLastActiveAdministrator(ctx, user),
     };
   },

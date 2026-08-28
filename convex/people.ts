@@ -201,6 +201,11 @@ export const update = adminMutation({
 /**
  * Deleting a person who is Responsible somewhere would silently push tasks into
  * the Unassigned state the tool exists to surface, so it is refused instead.
+ *
+ * A person carrying a sign-in is refused for the same reason: deleting them
+ * would leave the account pointing at nothing, which reads on the Directory as
+ * an unlink nobody performed and no Audit event explains (#34). Unlink first,
+ * which is one click and is recorded.
  */
 export const remove = adminMutation({
   args: { personId: v.id("people") },
@@ -211,6 +216,16 @@ export const remove = adminMutation({
     if (held > 0) {
       throw new ConvexError(
         `This person is Responsible or Accountable on ${held} task(s). Reassign those first.`,
+      );
+    }
+
+    const linked = await ctx.db
+      .query("users")
+      .withIndex("by_person", (q) => q.eq("personId", args.personId))
+      .first();
+    if (linked !== null) {
+      throw new ConvexError(
+        "This person is linked to a sign-in account. Unlink them in the Directory first.",
       );
     }
     await ctx.db.delete(args.personId);

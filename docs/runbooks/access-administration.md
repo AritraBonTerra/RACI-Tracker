@@ -23,6 +23,8 @@ nobody sits at the "access comes next" screen unnoticed.
    carrying their RACI history — it grants nothing. Distributor and Buyer
    People are never offered: an external contact never has a sign-in. If none
    of the candidates is right, create the Person in Manage first and come back.
+   The link is one-to-one and Manage refuses to delete a Person who holds one —
+   *Unlink* here first, which is recorded like every other access change.
 4. **Grant a scope.** *+ Grant access* → pick a Plan Year, Chain Plan or
    Promotion. The tree below the picker shows exactly what they will see before
    you confirm: `full` for what they get, `label only` for the ancestors they

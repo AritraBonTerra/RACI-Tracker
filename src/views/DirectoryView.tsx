@@ -239,9 +239,44 @@ function AccountPane({
           )}
         </div>
 
+        <AccountHistory userId={detail.userId} />
+
         <Offboarding detail={detail} />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * What has been done to this account, in the pane where it is being done. The
+ * same audit feed as the whole-company one at the bottom of the page, filtered
+ * to one subject — an Administrator about to change a role should be able to
+ * see the last one without reading past everybody else's week.
+ */
+function AccountHistory({ userId }: { userId: Id<"users"> }) {
+  const feed = useQuery(api.directory.auditFeed, { userId, limit: 8 });
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SectionLabel>History</SectionLabel>
+      {feed === undefined ? (
+        <Skeleton className="h-10 w-full" />
+      ) : feed.length === 0 ? (
+        <p className="text-xs text-ink-500">Nothing recorded for this account yet.</p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {feed.map((event) => (
+            <li key={event.id} className="text-3xs text-ink-500">
+              <span className="text-ink-300">
+                {ACTION_VERB[event.action]}
+                {event.detail === undefined ? "" : ` (${event.detail})`}
+              </span>{" "}
+              · {event.actorName ?? "Deploy credentials"} · {formatStamp(event.at)}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -414,6 +449,14 @@ function Offboarding({ detail }: { detail: Detail }) {
             confirmLabel="Deactivate now"
             size="sm"
             className="self-start"
+            // Same guard the demote button carries and the server enforces:
+            // arming a button that can only end in a toast is a worse way to
+            // learn the rule than reading it here.
+            disabledReason={
+              detail.isLastActiveAdministrator
+                ? "The last active Administrator can't be deactivated"
+                : undefined
+            }
             onConfirm={() =>
               void setActive({ userId: detail.userId, isActive: false })
             }

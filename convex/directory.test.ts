@@ -252,6 +252,52 @@ test("linking and unlinking a Person both work and are audited", async () => {
   ]);
 });
 
+test("a Person carrying a sign-in cannot be deleted out from under the account", async () => {
+  const { t, functionId } = await world();
+  const as = t.withIdentity(ADMIN);
+  const samId = await userIdOf(t, NEWCOMER.email);
+  const sam = await as.mutation(api.people.create, { name: "Sam Rivera", functionId });
+
+  await as.mutation(api.directory.linkPerson, { userId: samId, personId: sam });
+  await expect(as.mutation(api.people.remove, { personId: sam })).rejects.toThrow(
+    /linked to a sign-in account/,
+  );
+
+  // Unlinking is the recorded way to break the link, and it clears the way.
+  await as.mutation(api.directory.linkPerson, { userId: samId, personId: null });
+  await as.mutation(api.people.remove, { personId: sam });
+  expect((await as.query(api.directory.account, { userId: samId }))?.person).toBeNull();
+});
+
+test("a link left pointing at nothing is repairable from the pane", async () => {
+  const { t, functionId } = await world();
+  const as = t.withIdentity(ADMIN);
+  const samId = await userIdOf(t, NEWCOMER.email);
+  const gone = await as.mutation(api.people.create, { name: "Sam Rivera", functionId });
+  await as.mutation(api.directory.linkPerson, { userId: samId, personId: gone });
+
+  // `people.remove` refuses this, so the dangling link can only arrive from
+  // outside the tool — a migration, a dashboard delete. The pane still has to
+  // offer a way out of it rather than showing a link to nothing forever.
+  await t.run(async (ctx) => await ctx.db.delete(gone));
+  const replacement = await as.mutation(api.people.create, {
+    name: "Sam Rivera",
+    functionId,
+    email: NEWCOMER.email,
+  });
+
+  const detail = await as.query(api.directory.account, { userId: samId });
+  expect(detail?.person).toBeNull();
+  expect(detail?.candidates.map((candidate) => candidate.personId)).toEqual([
+    replacement,
+  ]);
+
+  await as.mutation(api.directory.linkPerson, { userId: samId, personId: replacement });
+  expect((await as.query(api.directory.account, { userId: samId }))?.person).toMatchObject(
+    { personId: replacement },
+  );
+});
+
 test("an external Person cannot be linked even when named directly", async () => {
   const { t } = await world();
   const as = t.withIdentity(ADMIN);
@@ -542,23 +588,27 @@ test("a second Administrator releases the guard, and taking them away restores i
   });
 });
 
-test("break-glass still reaches a deployment whose Administrators are all gone", async () => {
+test("no legal sequence of Directory moves empties the deployment of Administrators", async () => {
   const { t } = await world();
   const as = t.withIdentity(ADMIN);
   const danaId = await userIdOf(t, ADMIN.email);
   const yolandaId = await userIdOf(t, YEAR_MEMBER.email);
+  const asYolanda = t.withIdentity(YEAR_MEMBER);
 
-  // Two Administrators, then one demotes the other and is deactivated by them:
-  // legal moves, and the lights go out.
+  // The closest anyone gets to turning the lights out from inside: promote a
+  // second Administrator, have them deactivate the first, then have them try to
+  // hand the role back. The last move is the one the guard exists for.
   await as.mutation(api.directory.setRole, { userId: yolandaId, role: "administrator" });
-  await t
-    .withIdentity(YEAR_MEMBER)
-    .mutation(api.directory.setActive, { userId: danaId, isActive: false });
-  await t
-    .withIdentity(YEAR_MEMBER)
-    .mutation(api.directory.setRole, { userId: yolandaId, role: "member" })
-    .catch(() => undefined);
+  await asYolanda.mutation(api.directory.setActive, { userId: danaId, isActive: false });
+  await expect(
+    asYolanda.mutation(api.directory.setRole, { userId: yolandaId, role: "member" }),
+  ).rejects.toThrow(/last active Administrator/);
+  expect((await asYolanda.query(api.directory.roster, {})).activeAdministrators).toBe(1);
 
+  // Break-glass is for the lockout the guard cannot prevent — an Administrator
+  // disappearing on the Entra side — and it reaches an account the Directory
+  // deactivated, with the role that account already had.
+  // (bootstrap.test.ts covers the deployment with no Administrator at all.)
   await t.mutation(internal.bootstrap.grantAdmin, { email: ADMIN.email });
   expect(await as.query(api.directory.myAccess, {})).toMatchObject({
     role: "administrator",
