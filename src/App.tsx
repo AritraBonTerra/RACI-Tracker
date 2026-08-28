@@ -2,6 +2,8 @@ import { useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
+import { useAccount } from "./components/AuthGate";
+import { AccountMenu } from "./components/AuthScreens";
 import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
 import { NotFound, TierSkeleton, ViewBoundary } from "./components/page";
 import { Button, Field, Modal, inputClass } from "./components/ui";
@@ -34,6 +36,7 @@ export default function App() {
   const people = usePeople();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [newYearOpen, setNewYearOpen] = useState(false);
+  const account = useAccount();
 
   const seasons = useQuery(api.seasons.list);
 
@@ -133,6 +136,11 @@ export default function App() {
               <option value="__new__">+ New year…</option>
             </select>
           )}
+          <AccountMenu
+            displayName={account.displayName}
+            email={account.email}
+            role={account.role}
+          />
         </div>
       </header>
 
