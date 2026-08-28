@@ -41,6 +41,11 @@ function returnTo(): string {
   return sessionStorage.getItem(RETURN_TO_KEY) ?? "#/";
 }
 
+/** The same place, as the absolute URL Clerk's redirect props want. */
+export function returnToUrl(): string {
+  return appUrl(returnTo());
+}
+
 export function useRememberLocation(active: boolean) {
   useEffect(() => {
     if (!active) return;
@@ -72,7 +77,7 @@ export function useStartSignIn() {
         strategy: "enterprise_sso",
         identifier: `sso@${ENTERPRISE_DOMAIN}`,
         redirectUrl: `${window.location.origin}${CALLBACK_PATH}`,
-        redirectUrlComplete: appUrl(returnTo()),
+        redirectUrlComplete: returnToUrl(),
       });
     } catch {
       // The redirect never happened, so the sign-in card is still on screen and
@@ -96,20 +101,41 @@ export function useSignOut() {
 
 // A session can end two ways and the screens are different: a deliberate sign
 // out gets "you're signed out", an expired one gets a way back to where the
-// user was. Clerk reports both as "not signed in", so the intent is recorded
-// here at the moment the user asks for it.
-let deliberateSignOut = false;
+// user was. Clerk reports both as "not signed in", so the intent is recorded at
+// the moment the user asks for it.
+//
+// It has to outlive the JavaScript that recorded it: signing out navigates to
+// `afterSignOutUrl`, which re-evaluates every module, so a variable in this
+// file would be back to `false` by the time the sign-in card renders. It is
+// written to `localStorage` rather than `sessionStorage` so the *other* open
+// tabs — which Clerk signs out too — also say "you're signed out" instead of
+// accusing the identity provider of expiring the session.
+const SIGN_OUT_KEY = "raci-signed-out-at";
+
+/** How long after the click a session ending still counts as that click. */
+const SIGN_OUT_WINDOW_MS = 30_000;
 
 function markDeliberateSignOut() {
-  deliberateSignOut = true;
+  localStorage.setItem(SIGN_OUT_KEY, String(Date.now()));
+}
+
+function clearDeliberateSignOut() {
+  localStorage.removeItem(SIGN_OUT_KEY);
+}
+
+function signedOutDeliberately(): boolean {
+  const at = Number(localStorage.getItem(SIGN_OUT_KEY));
+  return Number.isFinite(at) && at > 0 && Date.now() - at < SIGN_OUT_WINDOW_MS;
 }
 
 export type SessionEnding = "none" | "signedOut" | "expired";
 
 /**
- * Why the session ended, for a tab that had one. Clerk refreshes silently, so
- * "expired" is the rare case where Microsoft demanded a fresh interactive
- * sign-in rather than the usual invisible renewal.
+ * Why the session ended. A recorded sign-out is checked before "did this tab
+ * have a session", because the navigation that follows `signOut()` throws away
+ * everything this tab remembered. Clerk refreshes silently, so "expired" is the
+ * rare case where Microsoft demanded a fresh interactive sign-in rather than
+ * the usual invisible renewal.
  */
 export function useSessionEnding(): SessionEnding {
   const { isLoaded, isSignedIn } = useAuth();
@@ -120,13 +146,18 @@ export function useSessionEnding(): SessionEnding {
     if (!isLoaded) return;
     if (isSignedIn === true) {
       hadSession.current = true;
-      deliberateSignOut = false;
+      clearDeliberateSignOut();
       setEnding("none");
+      return;
+    }
+    if (signedOutDeliberately()) {
+      hadSession.current = false;
+      setEnding("signedOut");
       return;
     }
     if (!hadSession.current) return;
     hadSession.current = false;
-    setEnding(deliberateSignOut ? "signedOut" : "expired");
+    setEnding("expired");
   }, [isLoaded, isSignedIn]);
 
   return ending;

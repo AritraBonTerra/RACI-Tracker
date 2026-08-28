@@ -1,6 +1,6 @@
 import { AuthenticateWithRedirectCallback, SignIn } from "@clerk/clerk-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { SIGN_IN_MODE, useSignOut, useStartSignIn } from "../lib/auth";
+import { SIGN_IN_MODE, returnToUrl, useSignOut, useStartSignIn } from "../lib/auth";
 import { Button, Pill } from "./ui";
 
 // Every screen the app shows *outside* itself: the sign-in card, the two dead
@@ -45,6 +45,22 @@ function Card({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Clerk's prebuilt sign-in, shown only on a laptop. `forceRedirectUrl` is the
+ * development half of what `redirectUrlComplete` does on the enterprise path:
+ * without it Clerk finishes on `/` and the page the user was reading is lost.
+ */
+function DevSignIn({ onBack }: { onBack: () => void }) {
+  return (
+    <CenterScreen>
+      <SignIn routing="virtual" forceRedirectUrl={returnToUrl()} />
+      <Button size="sm" variant="ghost" onClick={onBack}>
+        Back
+      </Button>
+    </CenterScreen>
+  );
+}
+
+/**
  * The only way in: one button, no password fields, no local accounts. In
  * development the button reveals Clerk's prebuilt sign-in instead of leaving
  * for Microsoft, because a laptop has no corporate identity provider behind it.
@@ -53,16 +69,7 @@ export function SignInScreen({ signedOut = false }: { signedOut?: boolean }) {
   const { start, pending, ready } = useStartSignIn();
   const [showDevSignIn, setShowDevSignIn] = useState(false);
 
-  if (showDevSignIn) {
-    return (
-      <CenterScreen>
-        <SignIn routing="virtual" />
-        <Button size="sm" variant="ghost" onClick={() => setShowDevSignIn(false)}>
-          Back
-        </Button>
-      </CenterScreen>
-    );
-  }
+  if (showDevSignIn) return <DevSignIn onBack={() => setShowDevSignIn(false)} />;
 
   return (
     <CenterScreen>
@@ -166,13 +173,7 @@ export function SessionExpiredScreen() {
   const { start, pending, ready } = useStartSignIn();
   const [showDevSignIn, setShowDevSignIn] = useState(false);
 
-  if (showDevSignIn) {
-    return (
-      <CenterScreen>
-        <SignIn routing="virtual" />
-      </CenterScreen>
-    );
-  }
+  if (showDevSignIn) return <DevSignIn onBack={() => setShowDevSignIn(false)} />;
 
   return (
     <CenterScreen>

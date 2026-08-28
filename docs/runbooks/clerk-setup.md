@@ -145,6 +145,21 @@ are not available on production instances of the free plan.
 - `bunx convex run bootstrap:grantAdmin '{"email":"…"}' --prod` promotes, and
   the open client changes without a reload.
 
+## What this does *not* protect yet
+
+Finishing this runbook gets you sign-in, not authorization. Every pre-existing
+Convex function — `promotions`, `tasks`, `seasons`, `people`, and the rest — is
+still a bare `query` or `mutation`, so a caller holding any Convex client can
+read and write every record without a token, exactly as before. The sign-in
+screens are presentation; they refuse nobody.
+
+The guarded wrappers exist (`authedQuery` / `authedMutation` / `adminQuery` /
+`adminMutation` in `convex/access.ts`) and the modules still to be moved behind
+them are listed as `AWAITING_MIGRATION` in `convex/accessBoundary.test.ts`. That
+list has to reach zero in the authorization slice before this deployment holds
+anything an outsider must not see. Until then, treat the production data as
+public and put nothing in it you would not hand out.
+
 ## Break-glass
 
 If every Administrator is locked out, whoever holds the Convex deploy

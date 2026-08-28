@@ -1,4 +1,5 @@
 import { convexTest } from "convex-test";
+import { makeFunctionReference } from "convex/server";
 import { describe, expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import schema from "./schema";
@@ -31,6 +32,28 @@ const BEN = token("user_2ben", { name: "Ben Ortiz", email: "ben@vctusa.com" });
 function harness() {
   return convexTest(schema, modules);
 }
+
+/**
+ * The four wrappers, addressed the way a real module would be. They are the
+ * only authorization the app has, so they are exercised through
+ * `access.fixture.ts` rather than trusted — see that file for why it is not a
+ * deployed module and therefore not in `api`.
+ */
+type Role = "administrator" | "member";
+const probe = {
+  authedQuery: makeFunctionReference<"query", Record<string, never>, Role>(
+    "access.fixture:viewerRole",
+  ),
+  adminQuery: makeFunctionReference<"query", Record<string, never>, Role>(
+    "access.fixture:administratorRole",
+  ),
+  authedMutation: makeFunctionReference<"mutation", Record<string, never>, Role>(
+    "access.fixture:writeAsViewer",
+  ),
+  adminMutation: makeFunctionReference<"mutation", Record<string, never>, Role>(
+    "access.fixture:writeAsAdministrator",
+  ),
+};
 
 describe("anonymous callers", () => {
   test("me reports the caller is signed out, with no account attached", async () => {
@@ -156,6 +179,135 @@ describe("a deactivated account", () => {
     expect(JSON.stringify(result)).not.toContain("administrator");
   });
 });
+
+describe("the wrappers every guarded function will be built from", () => {
+  test("refuse an anonymous caller at all four doors", async () => {
+    expect(await wrapperResults(harness())).toEqual({
+      authedQuery: "refused",
+      adminQuery: "refused",
+      authedMutation: "refused",
+      adminMutation: "refused",
+    });
+  });
+
+  test("refuse a verified token that has no User record yet", async () => {
+    // Signed in as far as Clerk is concerned, unknown as far as we are.
+    const t = harness();
+    expect(await wrapperResults(t.withIdentity(ALICE))).toEqual({
+      authedQuery: "refused",
+      adminQuery: "refused",
+      authedMutation: "refused",
+      adminMutation: "refused",
+    });
+  });
+
+  test("let a Member through the authed pair and refuse the Administrator pair", async () => {
+    const t = harness();
+    await t.withIdentity(ALICE).mutation(api.access.ensureUser, {});
+
+    expect(await wrapperResults(t.withIdentity(ALICE))).toEqual({
+      authedQuery: "member",
+      authedMutation: "member",
+      adminQuery: "refused",
+      adminMutation: "refused",
+    });
+  });
+
+  test("let an Administrator through all four", async () => {
+    const t = harness();
+    await t.withIdentity(ALICE).mutation(api.access.ensureUser, {});
+    await t.mutation(internal.bootstrap.grantAdmin, { email: "alice@vctusa.com" });
+
+    expect(await wrapperResults(t.withIdentity(ALICE))).toEqual({
+      authedQuery: "administrator",
+      adminQuery: "administrator",
+      authedMutation: "administrator",
+      adminMutation: "administrator",
+    });
+  });
+
+  test("refuse a deactivated Member everywhere", async () => {
+    const t = harness();
+    await t.withIdentity(ALICE).mutation(api.access.ensureUser, {});
+    await deactivate(t, ALICE.subject);
+
+    expect(await wrapperResults(t.withIdentity(ALICE))).toEqual({
+      authedQuery: "refused",
+      adminQuery: "refused",
+      authedMutation: "refused",
+      adminMutation: "refused",
+    });
+  });
+
+  test("refuse a deactivated Administrator everywhere", async () => {
+    // Offboarding outranks the role: the Administrator bit is still set, and
+    // it buys nothing.
+    const t = harness();
+    await t.withIdentity(ALICE).mutation(api.access.ensureUser, {});
+    await t.mutation(internal.bootstrap.grantAdmin, { email: "alice@vctusa.com" });
+    await deactivate(t, ALICE.subject);
+
+    expect(await wrapperResults(t.withIdentity(ALICE))).toEqual({
+      authedQuery: "refused",
+      adminQuery: "refused",
+      authedMutation: "refused",
+      adminMutation: "refused",
+    });
+  });
+
+  test("say the same thing however the caller was refused", async () => {
+    // A refusal that named the reason would tell an outsider whether an email
+    // is an employee, and a Member whether a function is Administrator-only.
+    const t = harness();
+    await t.withIdentity(BEN).mutation(api.access.ensureUser, {});
+    await deactivate(t, BEN.subject);
+
+    const messages = [
+      await refusal(() => harness().query(probe.authedQuery, {})),
+      await refusal(() => t.withIdentity(ALICE).query(probe.authedQuery, {})),
+      await refusal(() => t.withIdentity(BEN).query(probe.authedQuery, {})),
+      await refusal(() => t.withIdentity(BEN).query(probe.adminQuery, {})),
+    ];
+
+    expect(new Set(messages).size).toBe(1);
+    expect(messages[0]).toContain("You don't have access to this.");
+  });
+});
+
+/** A caller — anonymous or carrying an identity — as the wrapper tests use it. */
+type Caller = Pick<ReturnType<typeof harness>, "query" | "mutation">;
+
+/**
+ * Every wrapper called with one identity: the role it injected, or `"refused"`.
+ * One shape per caller means a test states the whole boundary at once, and a
+ * wrapper that silently starts letting people through fails an equality check
+ * rather than going unnoticed.
+ */
+async function wrapperResults(caller: Caller) {
+  const attempt = async (call: () => Promise<string>) => {
+    try {
+      return await call();
+    } catch {
+      return "refused";
+    }
+  };
+  return {
+    authedQuery: await attempt(() => caller.query(probe.authedQuery, {})),
+    adminQuery: await attempt(() => caller.query(probe.adminQuery, {})),
+    authedMutation: await attempt(() => caller.mutation(probe.authedMutation, {})),
+    adminMutation: await attempt(() => caller.mutation(probe.adminMutation, {})),
+  };
+}
+
+/** The message a refused call came back with — failing loudly if it succeeded. */
+async function refusal(call: () => Promise<unknown>): Promise<string> {
+  try {
+    await call();
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  throw new Error("Expected the call to be refused, but it succeeded.");
+}
 
 /**
  * Offboarding has no public mutation until the Directory slice, so the flag is
