@@ -34,6 +34,15 @@ conversation.
 - **Status** — Not started → In progress → Delivered, plus **Blocked** (requires
   a reason — "no inventory at distributor" must scream, not hide).
 - **ETA** — a task's due date. **Overdue** — past ETA and not Delivered.
+- **Pathway** — the always-visible strip at the top of the Season, Chain Plan,
+  and Promotion views: every phase in sequence with its % delivered and phase
+  window, a "you are here" marker on the current phase, and one headline call
+  to action. Red = overdue work or a passed window; amber = window ends within
+  a week and the phase isn't done. Visual only — it never gates anything.
+- **Phase window** — the derived date range of a Phase; never stored. Anchored
+  by dates that already exist (a Promotion's start/end window, a Chain Plan's
+  JBP date) and refined by the min→max ETAs of the phase's tasks. A phase with
+  neither anchor nor ETAs is *unscheduled*, not guessed.
 - **KPI entry** — manually typed phase-7 numbers per promotion: Depletions, POS
   data, CWD, $/Store/Wk, $ investment × Baseline / Promotional period / Uplift.
 - **Retro** — the phase-8 review on a promotion: worked / didn't / repeat next

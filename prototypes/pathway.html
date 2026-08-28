@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pathway prototypes — RACI Tracker</title>
+<style>
+  /* The app's ink/sand ramps (src/index.css), dark-first. Status fills are the
+     app's tailwind steps; light mode swaps only the *text* steps, like the app. */
+  :root {
+    color-scheme: dark;
+    --ink-50:#f3f6fb; --ink-100:#e5ebf5; --ink-200:#cbd6e7; --ink-300:#a7b6ce;
+    --ink-400:#7e8fac; --ink-500:#5e6e8b; --ink-600:#46546e; --ink-700:#303d55;
+    --ink-800:#1e293f; --ink-900:#101a2e; --ink-950:#070c18;
+    --sand-300:#dcc59f; --sand-400:#c9a971; --sand-500:#b8904f;
+    --emerald:#10b981; --sky:#38bdf8; --amber:#fbbf24; --rose:#f43f5e;
+    --emerald-text:#6ee7b7; --sky-text:#7dd3fc; --amber-text:#fcd34d; --rose-text:#fda4af;
+  }
+  html[data-theme="light"] {
+    color-scheme: light;
+    --ink-50:#0a1120; --ink-100:#182338; --ink-200:#29364f; --ink-300:#3b4a66;
+    --ink-400:#4d5d7d; --ink-500:#5e6e8b; --ink-600:#8fa0ba; --ink-700:#c9d3e4;
+    --ink-800:#dfe6f1; --ink-900:#ffffff; --ink-950:#f2f5fa;
+    --sand-300:#82612d;
+    --emerald-text:#047857; --sky-text:#0369a1; --amber-text:#b45309; --rose-text:#be123c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--ink-950); color:var(--ink-100);
+    font:14px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:24px 20px 80px; }
+  header.page { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+  header.page h1 { font-size:20px; margin:0; }
+  header.page .sub { color:var(--ink-400); font-size:12px; }
+  .theme-btn {
+    margin-left:auto; background:var(--ink-900); color:var(--ink-200);
+    border:1px solid var(--ink-700); border-radius:8px; padding:5px 12px; font:inherit;
+    font-size:12px; cursor:pointer;
+  }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; align-items:center;
+    font-size:11px; color:var(--ink-300); margin:14px 0 34px; }
+  .legend .k { display:inline-flex; align-items:center; gap:6px; }
+  .sw { width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+  section.variant { margin-bottom:56px; }
+  section.variant > h2 { font-size:15px; margin:0 0 2px; }
+  section.variant > p.blurb { color:var(--ink-400); font-size:12px; margin:0 0 16px; max-width:720px; }
+  .card {
+    background:var(--ink-900); border:1px solid var(--ink-800); border-radius:12px;
+    padding:16px 18px 14px; margin-bottom:14px;
+  }
+  .card .lvl { font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--ink-400); margin-bottom:2px; }
+  .card h3 { font-size:14px; margin:0 0 10px; font-weight:600; }
+
+  /* Headline: the one call to action. Icon + words, never color alone. */
+  .headline { display:flex; gap:8px; align-items:flex-start; font-size:13px;
+    padding:8px 10px; border-radius:8px; margin-bottom:14px;
+    background:color-mix(in srgb, var(--ink-800) 60%, transparent); }
+  .headline.red  { color:var(--rose-text);  background:color-mix(in srgb, var(--rose) 12%, transparent); }
+  .headline.amber{ color:var(--amber-text); background:color-mix(in srgb, var(--amber) 12%, transparent); }
+  .headline.ok   { color:var(--emerald-text); }
+  .headline .ic { flex:none; }
+
+  /* --- Variant A: stepper ------------------------------------------------ */
+  .stepper { display:flex; gap:10px; align-items:stretch; overflow-x:auto; padding:11px 0 4px; }
+  .step {
+    flex:1 1 0; min-width:132px; background:var(--ink-950); border:1px solid var(--ink-800);
+    border-radius:10px; padding:9px 11px 10px; position:relative; outline-offset:2px;
+  }
+  .step.current { border-color:var(--sand-500); }
+  .step .here { position:absolute; top:-9px; left:9px; background:var(--sand-500);
+    color:#101a2e; font-size:9px; font-weight:700; letter-spacing:.05em;
+    padding:1px 7px; border-radius:99px; text-transform:uppercase; }
+  .step .ph { font-size:10px; color:var(--ink-400); letter-spacing:.06em; }
+  .step .nm { font-size:12px; font-weight:600; margin:1px 0 7px; color:var(--ink-100);
+    white-space:nowrap; overflow:visible; }
+  .step .meta { font-size:11px; color:var(--ink-400); margin-top:6px; display:flex;
+    justify-content:space-between; gap:6px; }
+  .badge { font-size:10px; font-weight:600; display:inline-flex; gap:4px; align-items:center; }
+  .badge.red { color:var(--rose-text); } .badge.amber { color:var(--amber-text); }
+  .badge.ok { color:var(--emerald-text); } .badge.mut { color:var(--ink-400); font-weight:400; }
+
+  /* Meter: composition segments with 2px surface gaps; track = ink-800. */
+  .meter { display:flex; height:8px; border-radius:4px; overflow:hidden;
+    background:var(--ink-800); gap:2px; }
+  .meter i { display:block; height:100%; }
+  .meter i.d { background:var(--emerald); } .meter i.p { background:var(--sky); }
+  .meter i.b { background:var(--rose); }
+
+  /* Chain mini-rows on the season card */
+  .chains { margin-top:14px; border-top:1px solid var(--ink-800); padding-top:10px;
+    display:grid; gap:7px; }
+  .chainrow { display:flex; align-items:center; gap:10px; font-size:12px; }
+  .chainrow .cn { width:110px; flex:none; color:var(--ink-200); }
+  .dots { display:flex; gap:5px; align-items:center; }
+  .dot { width:16px; height:16px; border-radius:5px; background:var(--ink-800);
+    display:inline-flex; align-items:center; justify-content:center;
+    font-size:9px; color:var(--ink-400); }
+  .dot.done { background:var(--emerald); color:#06281c; font-weight:700; }
+  .dot.cur { outline:2px solid var(--sand-500); outline-offset:1px; color:var(--ink-100); }
+  .chainrow .cm { color:var(--ink-400); font-size:11px; margin-left:4px; }
+
+  /* --- Variant B: time axis ---------------------------------------------- */
+  .gantt { position:relative; margin-top:4px; }
+  .g-grid { position:absolute; inset:0; pointer-events:none; }
+  .g-tick { position:absolute; top:0; bottom:18px; width:1px; background:var(--ink-800); }
+  .g-ticklab { position:absolute; bottom:0; transform:translateX(-50%);
+    font-size:10px; color:var(--ink-400); }
+  .g-today { position:absolute; top:-4px; bottom:14px; width:1px; background:var(--sand-400); }
+  .g-todaylab { position:absolute; top:-18px; transform:translateX(-50%);
+    font-size:9px; font-weight:700; letter-spacing:.06em; color:var(--sand-300);
+    text-transform:uppercase; }
+  .g-rows { position:relative; padding:14px 0 22px; display:grid; gap:9px; }
+  .g-row { display:flex; align-items:center; gap:10px; height:22px; }
+  .g-label { width:150px; flex:none; font-size:11px; color:var(--ink-200);
+    display:flex; gap:6px; align-items:baseline; }
+  .g-label .ph { color:var(--ink-400); font-size:9px; }
+  .g-lane { position:relative; flex:1; height:100%; }
+  .g-bar { position:absolute; top:3px; height:16px; border-radius:4px;
+    background:var(--ink-800); overflow:hidden; }
+  .g-bar > i { position:absolute; inset:0 auto 0 0; border-radius:4px 0 0 4px; }
+  .g-bar.done > i { border-radius:4px; }
+  .g-bar.st-ok > i { background:var(--emerald); }
+  .g-bar.st-amber > i { background:var(--amber); }
+  .g-bar.st-red > i { background:var(--rose); }
+  .g-bar.current { outline:2px solid var(--sand-500); outline-offset:1px; }
+  .g-end { position:absolute; top:2px; font-size:10px; color:var(--ink-300); white-space:nowrap; }
+  .g-diamond { position:absolute; top:5px; width:10px; height:10px; transform:translateX(-50%) rotate(45deg);
+    background:var(--sand-400); border-radius:2px; }
+  .g-unsched { font-size:11px; color:var(--ink-400); font-style:italic; padding-top:4px; }
+
+  /* --- Variant C: hybrid -------------------------------------------------- */
+  .mini-steps { display:flex; gap:8px; overflow-x:auto; padding-top:10px; }
+  .mini {
+    flex:1 1 0; min-width:104px; background:var(--ink-950); border:1px solid var(--ink-800);
+    border-radius:9px; padding:7px 9px 8px; position:relative;
+  }
+  .mini.current { border-color:var(--sand-500); }
+  .mini .nm { font-size:11px; font-weight:600; white-space:nowrap; margin-bottom:6px; }
+  .mini .pct { font-size:11px; color:var(--ink-300); margin-top:5px; display:flex;
+    justify-content:space-between; }
+  .rail { position:relative; height:46px; margin-top:14px; }
+  .rail .axis { position:absolute; left:0; right:0; top:30px; height:1px; background:var(--ink-700); }
+  .rail .seg { position:absolute; height:8px; top:14px; border-radius:4px; background:var(--ink-800); overflow:hidden; }
+  .rail .seg.lane1 { top:26px; }
+  .rail .seg > i { position:absolute; inset:0 auto 0 0; }
+  .rail .seg.st-ok > i { background:var(--emerald); }
+  .rail .seg.st-amber > i { background:var(--amber); }
+  .rail .seg.st-red > i { background:var(--rose); }
+  .rail .seglab { position:absolute; top:-1px; font-size:9px; color:var(--ink-400); white-space:nowrap; }
+  .rail .today { position:absolute; top:6px; bottom:4px; width:1px; background:var(--sand-400); }
+  .rail .todaylab { position:absolute; bottom:-12px; transform:translateX(-50%); font-size:9px;
+    font-weight:700; color:var(--sand-300); letter-spacing:.06em; text-transform:uppercase; }
+  .rail .tick { position:absolute; top:26px; bottom:8px; width:1px; background:var(--ink-800); }
+  .rail .ticklab { position:absolute; bottom:-12px; transform:translateX(-50%); font-size:9px; color:var(--ink-500); }
+
+  /* Table view (the WCAG-clean twin) */
+  details.tbl { margin-top:10px; }
+  details.tbl summary { font-size:11px; color:var(--ink-400); cursor:pointer; }
+  details.tbl table { border-collapse:collapse; margin-top:8px; font-size:11px; width:100%; }
+  details.tbl th { text-align:left; color:var(--ink-400); font-weight:500;
+    border-bottom:1px solid var(--ink-800); padding:3px 10px 3px 0; }
+  details.tbl td { border-bottom:1px solid var(--ink-800); padding:3px 10px 3px 0;
+    font-variant-numeric:tabular-nums; color:var(--ink-200); }
+
+  /* Tooltip */
+  #tip { position:fixed; z-index:10; max-width:280px; background:var(--ink-900);
+    border:1px solid var(--ink-700); border-radius:8px; padding:8px 10px; font-size:11px;
+    color:var(--ink-200); pointer-events:none; display:none; box-shadow:0 6px 24px rgba(0,0,0,.35); }
+  #tip b { color:var(--ink-100); } #tip .mut { color:var(--ink-400); }
+  #tip .red { color:var(--rose-text); } #tip .amber { color:var(--amber-text); }
+  [data-tt] { cursor:default; }
+  [data-tt]:focus-visible { outline:2px solid var(--sand-400); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <h1>Pathway — three prototypes</h1>
+    <span class="sub">live prod data snapshot · today = <span id="today-label"></span></span>
+    <button class="theme-btn" id="theme">Light mode</button>
+  </header>
+  <div class="legend" role="note">
+    <span class="k"><span class="sw" style="background:var(--emerald)"></span>Delivered</span>
+    <span class="k"><span class="sw" style="background:var(--sky)"></span>In progress</span>
+    <span class="k"><span class="sw" style="background:var(--rose)"></span>Blocked</span>
+    <span class="k"><span class="sw" style="background:var(--ink-800);border:1px solid var(--ink-700)"></span>Not started</span>
+    <span class="k" style="color:var(--rose-text)">⚠ overdue / late</span>
+    <span class="k" style="color:var(--amber-text)">◔ due within 7 days</span>
+    <span class="k"><span class="sw" style="background:transparent;outline:2px solid var(--sand-500);outline-offset:-2px"></span>you are here</span>
+    <span class="k"><span class="g-diamond" style="position:static;transform:rotate(45deg);display:inline-block"></span> JBP date</span>
+  </div>
+  <div id="root"></div>
+</div>
+<div id="tip"></div>
+
+<script>
+const SNAPSHOT = {"today": null, "season": {"label": "2026", "tasks": [{"phase": 0, "name": "Channel investment split (on/off premise)", "eta": "2026-03-31", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 0, "name": "Trade spend budget envelope", "eta": "2026-02-28", "status": "delivered", "assigned": true, "responsible": ["Hana Sato"], "blockedReason": null}, {"phase": 0, "name": "2026 brand activity calendar", "eta": "2026-08-01", "status": "in_progress", "assigned": true, "responsible": ["Tom Brennan"], "blockedReason": null}, {"phase": 0, "name": "Portfolio priorities by brand", "eta": "2026-02-15", "status": "delivered", "assigned": true, "responsible": ["Priya Raghunathan"], "blockedReason": null}, {"phase": 0, "name": "Volume & value targets by chain", "eta": "2026-01-31", "status": "delivered", "assigned": true, "responsible": ["Devin Okafor"], "blockedReason": null}], "chains": [{"id": "j97d97cv3pz31jv29dtdzy03958cw90v", "name": "Albertsons", "currentPhase": 4, "jbpDate": "2026-03-11", "tasks": [{"phase": 4, "name": "H2 calendar amendment", "eta": "2026-08-14", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 3, "name": "JBP presentation & the ask", "eta": "2026-03-11", "status": "delivered", "assigned": true, "responsible": ["Marisol Vega"], "blockedReason": null}, {"phase": 1, "name": "Internal JBP brief", "eta": "2026-01-30", "status": "delivered", "assigned": true, "responsible": ["Devin Okafor"], "blockedReason": null}], "promotions": [{"name": "Albertsons Summer Ros\u00e9 Feature", "start": "2026-05-25", "end": "2026-07-06", "currentPhase": 7, "tasks": [{"phase": 8, "name": "Post-promo retro", "eta": "2026-09-04", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "Spend ROI summary", "eta": "2026-08-21", "status": "not_started", "assigned": true, "responsible": ["Hana Sato"], "blockedReason": null}, {"phase": 7, "name": "POS / scan data pull", "eta": "2026-08-07", "status": "in_progress", "assigned": true, "responsible": ["Wes Aldana"], "blockedReason": null}, {"phase": 7, "name": "Post-promo depletion pull", "eta": "2026-07-31", "status": "in_progress", "assigned": true, "responsible": ["Wes Aldana"], "blockedReason": null}, {"phase": 6, "name": "Execution audit", "eta": "2026-06-12", "status": "delivered", "assigned": true, "responsible": ["Bianca Ferrell"], "blockedReason": null}, {"phase": 5, "name": "Displays", "eta": "2026-05-08", "status": "delivered", "assigned": true, "responsible": ["Jordan Whitfield"], "blockedReason": null}]}, {"name": "test", "start": "2026-08-14", "end": "2026-09-05", "currentPhase": 5, "tasks": [{"phase": 8, "name": "Post-promo retro", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "Spend ROI summary", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "POS / scan data pull", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "Post-promo depletion pull", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Price compliance check", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Store photo audit", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Sell-in & CWD check", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Sales rep training", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Social media", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Geo-target ads", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Features", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Secondary placement", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Cold box", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "3 case", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Shelf talkers", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Stores list", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}]}, {"name": "test2", "start": "2026-09-03", "end": "2026-09-25", "currentPhase": 5, "tasks": [{"phase": 8, "name": "Post-promo retro", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "Spend ROI summary", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "POS / scan data pull", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 7, "name": "Post-promo depletion pull", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Price compliance check", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Store photo audit", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Sell-in & CWD check", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Sales rep training", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Social media", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Geo-target ads", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Features", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Secondary placement", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Cold box", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "3 case", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Displays", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Shelf talkers", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Stores list", "eta": null, "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}]}]}, {"id": "j973gw5nrcba54patzqm6xdma98cxdkb", "name": "Kroger", "currentPhase": 3, "jbpDate": "2026-09-15", "tasks": [{"phase": 3, "name": "Negotiation range sign-off", "eta": "2026-09-11", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 3, "name": "The offer: trade spend & shopper programs", "eta": "2026-09-08", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 3, "name": "Business review & category story deck", "eta": "2026-09-04", "status": "in_progress", "assigned": true, "responsible": ["Devin Okafor"], "blockedReason": null}, {"phase": 2, "name": "Distributor incentive structure", "eta": "2026-08-28", "status": "in_progress", "assigned": true, "responsible": ["Bianca Ferrell"], "blockedReason": null}, {"phase": 2, "name": "Distributor capability check", "eta": "2026-08-14", "status": "blocked", "assigned": true, "responsible": ["Ray Delgado"], "blockedReason": "no inventory at distributor"}, {"phase": 1, "name": "Shopper program menu for Kroger profile", "eta": "2026-08-07", "status": "in_progress", "assigned": true, "responsible": ["Alicia Contreras"], "blockedReason": null}, {"phase": 1, "name": "Spend envelope & pricing guardrails", "eta": "2026-07-17", "status": "delivered", "assigned": true, "responsible": ["Hana Sato"], "blockedReason": null}, {"phase": 1, "name": "Reason to exist & right to win", "eta": "2026-07-10", "status": "delivered", "assigned": true, "responsible": ["Marisol Vega"], "blockedReason": null}], "promotions": []}, {"id": "j973vf6a4da04ex35p9ftt424s8cxs3c", "name": "Ralphs", "currentPhase": 4, "jbpDate": "2026-05-20", "tasks": [{"phase": 4, "name": "Document & book agreed terms", "eta": "2026-06-05", "status": "delivered", "assigned": true, "responsible": ["Hana Sato"], "blockedReason": null}, {"phase": 3, "name": "JBP presentation & the ask", "eta": "2026-05-20", "status": "delivered", "assigned": true, "responsible": ["Devin Okafor"], "blockedReason": null}, {"phase": 2, "name": "Distributor capability check", "eta": "2026-04-17", "status": "delivered", "assigned": true, "responsible": ["Bianca Ferrell"], "blockedReason": null}, {"phase": 1, "name": "Internal JBP brief", "eta": "2026-04-03", "status": "delivered", "assigned": true, "responsible": ["Devin Okafor"], "blockedReason": null}], "promotions": [{"name": "Ralphs Back-to-School Ros\u00e9 Endcap", "start": "2026-08-03", "end": "2026-09-07", "currentPhase": 6, "tasks": [{"phase": 6, "name": "Price compliance check", "eta": "2026-08-17", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 6, "name": "Store photo audit \u2014 week 2", "eta": "2026-08-24", "status": "not_started", "assigned": true, "responsible": ["Jordan Whitfield"], "blockedReason": null}, {"phase": 6, "name": "Sell-in & CWD check", "eta": "2026-08-10", "status": "in_progress", "assigned": true, "responsible": ["Bianca Ferrell", "Jordan Whitfield"], "blockedReason": null}, {"phase": 5, "name": "Shelf talkers", "eta": "2026-07-24", "status": "delivered", "assigned": true, "responsible": ["Jordan Whitfield"], "blockedReason": null}, {"phase": 5, "name": "Displays", "eta": "2026-07-20", "status": "delivered", "assigned": true, "responsible": ["Jordan Whitfield"], "blockedReason": null}, {"phase": 5, "name": "Stores list", "eta": "2026-07-06", "status": "delivered", "assigned": true, "responsible": ["Alicia Contreras"], "blockedReason": null}]}]}, {"id": "j97amc61w5329hmvczhg31c4158cx8m5", "name": "Safeway", "currentPhase": 4, "jbpDate": "2026-06-10", "tasks": [{"phase": 4, "name": "State ABC compliance review", "eta": "2026-09-04", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 4, "name": "Confirm distributor readiness", "eta": "2026-07-24", "status": "in_progress", "assigned": true, "responsible": ["Ray Delgado"], "blockedReason": null}, {"phase": 4, "name": "Document & book agreed terms", "eta": "2026-06-26", "status": "delivered", "assigned": true, "responsible": ["Hana Sato"], "blockedReason": null}, {"phase": 3, "name": "JBP presentation & the ask", "eta": "2026-06-10", "status": "delivered", "assigned": true, "responsible": ["Marisol Vega"], "blockedReason": null}, {"phase": 2, "name": "Joint distributor plan", "eta": "2026-05-15", "status": "delivered", "assigned": true, "responsible": ["Ray Delgado"], "blockedReason": null}, {"phase": 1, "name": "Internal JBP brief", "eta": "2026-04-24", "status": "delivered", "assigned": true, "responsible": ["Marisol Vega"], "blockedReason": null}], "promotions": [{"name": "Safeway Halloween Demo Program", "start": "2026-10-05", "end": "2026-11-01", "currentPhase": 5, "tasks": [{"phase": 6, "name": "Photo audit setup", "eta": "2026-09-28", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Sales rep training", "eta": "2026-08-18", "status": "in_progress", "assigned": true, "responsible": ["Bianca Ferrell"], "blockedReason": null}, {"phase": 5, "name": "Social media", "eta": "2026-09-18", "status": "not_started", "assigned": true, "responsible": ["Tom Brennan"], "blockedReason": null}, {"phase": 5, "name": "Geo-target ads", "eta": "2026-09-18", "status": "not_started", "assigned": true, "responsible": ["Priya Raghunathan"], "blockedReason": null}, {"phase": 5, "name": "Features", "eta": "2026-09-01", "status": "in_progress", "assigned": true, "responsible": ["Devin Okafor"], "blockedReason": null}, {"phase": 5, "name": "Secondary placement", "eta": "2026-09-26", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Cold box", "eta": "2026-09-19", "status": "not_started", "assigned": true, "responsible": ["Jordan Whitfield"], "blockedReason": null}, {"phase": 5, "name": "3 case", "eta": "2026-08-10", "status": "blocked", "assigned": true, "responsible": ["Ray Delgado"], "blockedReason": "no inventory at distributor"}, {"phase": 5, "name": "Displays", "eta": "2026-09-12", "status": "in_progress", "assigned": true, "responsible": ["Jordan Whitfield"], "blockedReason": null}, {"phase": 5, "name": "Shelf talkers", "eta": "2026-09-05", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Stores list", "eta": "2026-08-15", "status": "in_progress", "assigned": true, "responsible": ["Alicia Contreras"], "blockedReason": null}]}, {"name": "Safeway Thanksgiving Wine Rack Program", "start": "2026-11-09", "end": "2026-11-29", "currentPhase": 5, "tasks": [{"phase": 5, "name": "Sales rep training", "eta": "2026-10-23", "status": "not_started", "assigned": true, "responsible": ["Bianca Ferrell"], "blockedReason": null}, {"phase": 5, "name": "Social media", "eta": "2026-10-16", "status": "not_started", "assigned": true, "responsible": ["Tom Brennan"], "blockedReason": null}, {"phase": 5, "name": "Shelf talkers", "eta": "2026-10-02", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Displays", "eta": "2026-09-25", "status": "not_started", "assigned": false, "responsible": [], "blockedReason": null}, {"phase": 5, "name": "Stores list", "eta": "2026-09-11", "status": "not_started", "assigned": true, "responsible": ["Alicia Contreras"], "blockedReason": null}]}]}]}};
+
+/* ---------- dates ---------- */
+const d = iso => { const [y,m,dd] = iso.split("-").map(Number); return new Date(y, m-1, dd); };
+const TODAY = new Date(); TODAY.setHours(0,0,0,0);
+const DAY = 864e5;
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmt = dt => `${MON[dt.getMonth()]} ${dt.getDate()}`;
+const daysUntil = dt => Math.round((dt - TODAY)/DAY);
+document.getElementById("today-label").textContent = fmt(TODAY) + ", " + TODAY.getFullYear();
+
+const PHASE_NAMES = ["Strategic foundation","Internal alignment","Distributor alignment",
+  "JBP & negotiation","Agreement","Activation planning","Retail execution",
+  "Tracking & measurement","Review"];
+
+/* ---------- the model: stats, windows, state, headline ---------- */
+// % done is delivered/total — status changes the color, never the math.
+function stats(tasks) {
+  const s = { total:tasks.length, delivered:0, inprog:0, blocked:0, notStarted:0,
+              overdue:0, worstLate:0, overdueNames:[] };
+  for (const t of tasks) {
+    if (t.status === "delivered") s.delivered++;
+    else if (t.status === "in_progress") s.inprog++;
+    else if (t.status === "blocked") s.blocked++;
+    else s.notStarted++;
+    if (t.eta && t.status !== "delivered" && d(t.eta) < TODAY) {
+      s.overdue++; s.overdueNames.push(t.name);
+      s.worstLate = Math.max(s.worstLate, -daysUntil(d(t.eta)));
+    }
+  }
+  s.pct = s.total ? Math.round(100 * s.delivered / s.total) : null;
+  return s;
+}
+
+// Phase window: anchors from dates that already exist, refined by task ETAs.
+// No anchor and no ETAs => unscheduled (never guessed). An end the data can't
+// name is inferred as start+14d and flagged.
+function window_(tasks, anchorStart, anchorEnd) {
+  const etas = tasks.filter(t => t.eta).map(t => d(t.eta));
+  const lo = etas.length ? new Date(Math.min(...etas)) : null;
+  const hi = etas.length ? new Date(Math.max(...etas)) : null;
+  let start = [anchorStart, lo].filter(Boolean).sort((a,b)=>a-b)[0] ?? null;
+  let end   = [anchorEnd, hi].filter(Boolean).sort((a,b)=>b-a)[0] ?? null;
+  if (!start && !end) return null;
+  let inferred = false;
+  if (!end)   { end = new Date(start.getTime() + 14*DAY); inferred = true; }
+  if (!start) { start = new Date(end.getTime() - 14*DAY); inferred = true; }
+  return { start, end, inferred };
+}
+
+// Red: overdue work, or the window has passed and the phase isn't done.
+// Amber: window ends within 7 days and the phase isn't done.
+function state(st, win) {
+  const done = st.total > 0 && st.delivered === st.total;
+  if (done) return "done";
+  if (st.overdue > 0) return "red";
+  if (win && !win.inferred && win.end < TODAY && st.total > 0) return "red";
+  if (win && daysUntil(win.end) <= 7 && st.total > 0) return "amber";
+  return "ok";
+}
+
+function buildPhases(range, tasks, anchors, currentPhase) {
+  return range.map(ph => {
+    const ts = tasks.filter(t => t.phase === ph);
+    const st = stats(ts);
+    const win = window_(ts, anchors[ph]?.[0] ?? null, anchors[ph]?.[1] ?? null);
+    return { ph, name: PHASE_NAMES[ph], tasks: ts, st, win,
+             state: state(st, win), current: ph === currentPhase };
+  });
+}
+
+function promoPhases(promo) {
+  const s = d(promo.start), e = d(promo.end);
+  return buildPhases([5,6,7,8], promo.tasks,
+    {5:[null,s], 6:[s,e], 7:[e,null], 8:[e,null]}, promo.currentPhase);
+}
+function chainPhases(cp) {
+  const jbp = cp.jbpDate ? d(cp.jbpDate) : null;
+  return buildPhases([1,2,3,4], cp.tasks, {3:[null,jbp], 4:[jbp,null]}, cp.currentPhase);
+}
+function seasonPhases(season) { return buildPhases([0], season.tasks, {}, 0); }
+
+// One headline: the single most urgent finding.
+function headline(phases) {
+  let best = null;
+  const pick = (score, cls, text) => { if (!best || score > best.score) best = {score, cls, text}; };
+  for (let i = 0; i < phases.length; i++) {
+    const p = phases[i];
+    if (p.st.overdue > 0)
+      pick(300 + p.st.overdue*10 + p.st.worstLate, "red",
+        `${p.name} has ${p.st.overdue} overdue task${p.st.overdue>1?"s":""} — worst is ${p.st.worstLate} days late.`);
+    if (p.state === "red" && p.st.overdue === 0 && p.win)
+      pick(250, "red", `${p.name} window ended ${fmt(p.win.end)} and it is at ${p.st.pct}%.`);
+    // Emmanuel's trigger: the next phase is (nearly) here and this one isn't done.
+    const next = phases[i+1];
+    if (next && p.st.total > 0 && p.st.pct < 100 && next.win) {
+      const inDays = daysUntil(next.win.start);
+      if (inDays <= 0)
+        pick(280, "red", `${next.name} already started ${fmt(next.win.start)} — ${p.name} is only at ${p.st.pct}%.`);
+      else if (inDays <= 14)
+        pick(200 + (14-inDays)*5, "amber", `${next.name} starts in ${inDays} day${inDays>1?"s":""} — ${p.name} is at ${p.st.pct}%.`);
+    }
+    if (p.state === "amber")
+      pick(100, "amber", `${p.name} is due ${fmt(p.win.end)} (${daysUntil(p.win.end)} days) and is at ${p.st.pct}%.`);
+    if (p.st.blocked > 0)
+      pick(290, "red", `${p.st.blocked} blocked task${p.st.blocked>1?"s":""} in ${p.name}.`);
+  }
+  return best ?? { cls:"ok", text:"All phases on track." };
+}
+
+/* ---------- tooltips ---------- */
+const TT = [];
+const tip = document.getElementById("tip");
+function ttFor(p) {
+  const w = p.win
+    ? `${fmt(p.win.start)} – ${fmt(p.win.end)}${p.win.inferred ? " <span class='mut'>(end inferred)</span>" : ""}`
+    : "unscheduled — no anchor date, no task ETAs";
+  const rows = [
+    `<b>Phase ${p.ph} · ${p.name}</b>`,
+    `<span class="mut">Window:</span> ${w}`,
+    `${p.st.delivered}/${p.st.total} delivered · ${p.st.inprog} in progress · ${p.st.blocked} blocked · ${p.st.notStarted} not started`,
+  ];
+  if (p.st.overdue) rows.push(`<span class="red">⚠ ${p.st.overdue} overdue:</span> ${p.st.overdueNames.join(", ")}`);
+  else if (p.state === "amber" && p.win) rows.push(`<span class="amber">◔ due in ${daysUntil(p.win.end)} days</span>`);
+  TT.push(rows.join("<br>"));
+  return `data-tt="${TT.length-1}" tabindex="0"`;
+}
+document.addEventListener("mouseover", e => {
+  const el = e.target.closest("[data-tt]");
+  if (!el) { tip.style.display = "none"; return; }
+  tip.innerHTML = TT[+el.dataset.tt]; tip.style.display = "block";
+  const r = el.getBoundingClientRect();
+  tip.style.left = Math.min(r.left, innerWidth - 300) + "px";
+  tip.style.top = (r.bottom + 8) + "px";
+});
+document.addEventListener("focusin", e => {
+  const el = e.target.closest("[data-tt]");
+  if (!el) { tip.style.display = "none"; return; }
+  tip.innerHTML = TT[+el.dataset.tt]; tip.style.display = "block";
+  const r = el.getBoundingClientRect();
+  tip.style.left = Math.min(r.left, innerWidth - 300) + "px";
+  tip.style.top = (r.bottom + 8) + "px";
+});
+document.addEventListener("mouseout", e => { if (!e.relatedTarget?.closest?.("[data-tt]")) tip.style.display = "none"; });
+document.addEventListener("scroll", () => { tip.style.display = "none"; }, true);
+
+/* ---------- shared bits ---------- */
+const stateBadge = p => {
+  if (p.st.total === 0) return `<span class="badge mut">no tasks</span>`;
+  if (p.st.overdue) return `<span class="badge red">⚠ ${p.st.overdue} overdue</span>`;
+  if (p.state === "red") return `<span class="badge red">⚠ past due</span>`;
+  if (p.state === "amber") return `<span class="badge amber">◔ due in ${daysUntil(p.win.end)}d</span>`;
+  if (p.state === "done") return `<span class="badge ok">✓ done</span>`;
+  return `<span class="badge mut">on track</span>`;
+};
+// Composition meter: delivered / in-progress / blocked segments over the track.
+const meter = st => {
+  if (!st.total) return `<div class="meter"></div>`;
+  const seg = (n, cls) => n ? `<i class="${cls}" style="flex:${n}"></i>` : "";
+  const rest = st.total - st.delivered - st.inprog - st.blocked;
+  return `<div class="meter">${seg(st.delivered,"d")}${seg(st.inprog,"p")}${seg(st.blocked,"b")}${rest?`<i style="flex:${rest};background:transparent"></i>`:""}</div>`;
+};
+const headlineHtml = h => {
+  const ic = h.cls === "red" ? "⚠" : h.cls === "amber" ? "◔" : "✓";
+  return `<div class="headline ${h.cls}"><span class="ic">${ic}</span><span>${h.text}</span></div>`;
+};
+const tableView = phases => `
+  <details class="tbl"><summary>Table view</summary><table>
+    <tr><th>Phase</th><th>Window</th><th>Tasks</th><th>Delivered</th><th>In prog</th><th>Blocked</th><th>Overdue</th><th>%</th></tr>
+    ${phases.map(p => `<tr><td>${p.ph} · ${p.name}</td>
+      <td>${p.win ? `${fmt(p.win.start)} – ${fmt(p.win.end)}` : "—"}</td>
+      <td>${p.st.total}</td><td>${p.st.delivered}</td><td>${p.st.inprog}</td>
+      <td>${p.st.blocked}</td><td>${p.st.overdue}</td>
+      <td>${p.st.pct ?? "—"}${p.st.pct != null ? "%" : ""}</td></tr>`).join("")}
+  </table></details>`;
+
+/* ---------- variant A: stepper ---------- */
+function stepperStrip(phases) {
+  return `<div class="stepper">` + phases.map(p => `
+    <div class="step ${p.current ? "current" : ""}" ${ttFor(p)}>
+      ${p.current ? `<span class="here">You are here</span>` : ""}
+      <div class="ph">PHASE ${p.ph}</div>
+      <div class="nm">${p.name}</div>
+      ${meter(p.st)}
+      <div class="meta"><span>${p.st.total ? `${p.st.delivered}/${p.st.total}` : "—"}</span>${stateBadge(p)}</div>
+      <div class="meta"><span>${p.win ? `${fmt(p.win.start)} – ${fmt(p.win.end)}` : "unscheduled"}</span></div>
+    </div>`).join("") + `</div>`;
+}
+function chainMiniRows(chains) {
+  return `<div class="chains">` + chains.map(c => {
+    const dots = [1,2,3,4].map(ph => {
+      const done = ph < c.currentPhase;
+      const cur = ph === c.currentPhase;
+      return `<span class="dot ${done ? "done" : ""} ${cur ? "cur" : ""}">${done ? "✓" : ph}</span>`;
+    }).join("");
+    const jbp = c.jbpDate ? ` · JBP ${fmt(d(c.jbpDate))}` : "";
+    const promos = c.promotions.length ? ` · ${c.promotions.length} promotion${c.promotions.length>1?"s":""}` : "";
+    return `<div class="chainrow"><span class="cn">${c.name}</span><span class="dots">${dots}</span>
+      <span class="cm">phase ${c.currentPhase} · ${PHASE_NAMES[c.currentPhase]}${jbp}${promos}</span></div>`;
+  }).join("") + `</div>`;
+}
+
+/* ---------- variant B: time axis ---------- */
+function timeScale(dates, pad = 0.04) {
+  const lo = Math.min(...dates.map(x => +x)), hi = Math.max(...dates.map(x => +x));
+  const span = Math.max(hi - lo, 30*DAY), p = span * pad;
+  const min = lo - p, max = hi + p;
+  return { min, max, x: dt => (100 * (+dt - min) / (max - min)) };
+}
+function monthTicks(scale) {
+  const out = [];
+  const t = new Date(scale.min); t.setDate(1); t.setMonth(t.getMonth()+1);
+  for (let m = new Date(t); +m < scale.max; m.setMonth(m.getMonth()+1))
+    out.push({ x: scale.x(m), label: MON[m.getMonth()] });
+  return out;
+}
+function ganttChrome(scale) {
+  const ticks = monthTicks(scale)
+    .map(t => `<div class="g-tick" style="left:${t.x}%"></div><div class="g-ticklab" style="left:${t.x}%">${t.label}</div>`).join("");
+  const tx = scale.x(TODAY);
+  const today = tx >= 0 && tx <= 100
+    ? `<div class="g-today" style="left:${tx}%"></div><div class="g-todaylab" style="left:${tx}%">Today</div>` : "";
+  return ticks + today;
+}
+function ganttStrip(phases) {
+  const wins = phases.filter(p => p.win);
+  if (!wins.length) return `<div class="g-unsched">No dated phases.</div>`;
+  const scale = timeScale([...wins.flatMap(p => [p.win.start, p.win.end]), TODAY]);
+  const rows = phases.map(p => {
+    let lane;
+    if (p.win) {
+      const l = scale.x(p.win.start), r = scale.x(p.win.end);
+      const wPct = Math.max(r - l, 1.2);
+      const fill = p.st.pct ?? 0;
+      const stCls = p.state === "done" ? "st-ok done" : p.state === "red" ? "st-red" : p.state === "amber" ? "st-amber" : "st-ok";
+      lane = `<div class="g-lane">
+        <div class="g-bar ${stCls} ${p.current ? "current" : ""}" style="left:${l}%;width:${wPct}%" ${ttFor(p)}>
+          <i style="width:${fill}%"></i></div>
+        <div class="g-end" style="left:calc(${l + wPct}% + 8px)">${p.st.total ? `${p.st.pct}%` : ""} ${stateBadge(p)}</div>
+      </div>`;
+    } else {
+      lane = `<div class="g-lane"><div class="g-unsched" ${ttFor(p)}>unscheduled — ${p.st.total} task${p.st.total===1?"":"s"}, no dates</div></div>`;
+    }
+    return `<div class="g-row"><span class="g-label"><span class="ph">P${p.ph}</span>${p.name}</span>${lane}</div>`;
+  }).join("");
+  return `<div class="gantt"><div class="g-rows">${rows}
+    <div class="g-row"><span class="g-label"></span><div class="g-lane" style="height:14px">
+      <div class="g-grid" style="position:absolute;inset:-999px 0 0 0;pointer-events:none"></div></div></div>
+  </div><div class="g-grid" style="left:160px">${ganttChrome(scale)}</div></div>`;
+}
+// Season-level year band: phase 0 + one row per chain carrying its promotion
+// windows and its JBP diamond. This is the "whole year on one screen" variant.
+function yearBand(season) {
+  const dates = [TODAY];
+  for (const t of season.tasks) if (t.eta) dates.push(d(t.eta));
+  for (const c of season.chains) {
+    if (c.jbpDate) dates.push(d(c.jbpDate));
+    for (const p of c.promotions) dates.push(d(p.start), d(p.end));
+  }
+  const scale = timeScale(dates, 0.03);
+  const p0 = seasonPhases(season)[0];
+  const rows = [];
+  if (p0.win) {
+    const l = scale.x(p0.win.start), w = Math.max(scale.x(p0.win.end) - l, 1.2);
+    const stCls = p0.state === "done" ? "st-ok done" : p0.state === "red" ? "st-red" : p0.state === "amber" ? "st-amber" : "st-ok";
+    rows.push(`<div class="g-row"><span class="g-label"><span class="ph">P0</span>Strategic foundation</span>
+      <div class="g-lane"><div class="g-bar ${stCls}" style="left:${l}%;width:${w}%" ${ttFor(p0)}><i style="width:${p0.st.pct}%"></i></div>
+      <div class="g-end" style="left:calc(${l + w}% + 8px)">${p0.st.pct}% ${stateBadge(p0)}</div></div></div>`);
+  }
+  for (const c of season.chains) {
+    const bars = c.promotions.map(pr => {
+      const phs = promoPhases(pr);
+      const worst = phs.some(p => p.state === "red") ? "st-red"
+        : phs.some(p => p.state === "amber") ? "st-amber" : "st-ok";
+      const all = pr.tasks.length ? Math.round(100 * pr.tasks.filter(t=>t.status==="delivered").length / pr.tasks.length) : 0;
+      const l = scale.x(d(pr.start)), w = Math.max(scale.x(d(pr.end)) - l, 1.2);
+      TT.push(`<b>${pr.name}</b><br><span class="mut">${fmt(d(pr.start))} – ${fmt(d(pr.end))} · phase ${pr.currentPhase} · ${PHASE_NAMES[pr.currentPhase]}</span><br>${all}% of ${pr.tasks.length} tasks delivered`);
+      return `<div class="g-bar ${worst}" style="left:${l}%;width:${w}%" data-tt="${TT.length-1}" tabindex="0"><i style="width:${all}%"></i></div>`;
+    }).join("");
+    const jbp = c.jbpDate ? `<div class="g-diamond" style="left:${scale.x(d(c.jbpDate))}%"></div>` : "";
+    rows.push(`<div class="g-row"><span class="g-label">${c.name}</span><div class="g-lane">${bars}${jbp}</div></div>`);
+  }
+  return `<div class="gantt"><div class="g-rows">${rows.join("")}</div>
+    <div class="g-grid" style="left:160px">${ganttChrome(scale)}</div></div>`;
+}
+
+/* ---------- variant C: hybrid ---------- */
+function hybridStrip(phases) {
+  const chips = `<div class="mini-steps">` + phases.map(p => `
+    <div class="mini ${p.current ? "current" : ""}" ${ttFor(p)}>
+      ${p.current ? `<span class="here" style="position:absolute;top:-8px;left:8px;background:var(--sand-500);color:#101a2e;font-size:8px;font-weight:700;padding:1px 6px;border-radius:99px;text-transform:uppercase;letter-spacing:.05em">Here</span>` : ""}
+      <div class="nm">P${p.ph} · ${p.name}</div>
+      ${meter(p.st)}
+      <div class="pct"><span>${p.st.total ? p.st.pct + "%" : "—"}</span>${stateBadge(p)}</div>
+    </div>`).join("") + `</div>`;
+  const wins = phases.filter(p => p.win);
+  if (!wins.length) return chips;
+  const scale = timeScale([...wins.flatMap(p => [p.win.start, p.win.end]), TODAY]);
+  let lastEnd = -100, segs = "", lane = 0;
+  for (const p of phases) {
+    if (!p.win) continue;
+    const l = scale.x(p.win.start), w = Math.max(scale.x(p.win.end) - l, 1.2);
+    lane = l < lastEnd ? 1 - lane : 0; lastEnd = l + w;
+    const stCls = p.state === "done" ? "st-ok" : p.state === "red" ? "st-red" : p.state === "amber" ? "st-amber" : "st-ok";
+    segs += `<div class="seg ${stCls} ${lane ? "lane1" : ""}" style="left:${l}%;width:${w}%" ${ttFor(p)}><i style="width:${p.st.pct ?? 0}%"></i></div>
+      <div class="seglab" style="left:${l}%">P${p.ph}</div>`;
+  }
+  const ticks = monthTicks(scale).map(t =>
+    `<div class="tick" style="left:${t.x}%"></div><div class="ticklab" style="left:${t.x}%">${t.label}</div>`).join("");
+  const tx = scale.x(TODAY);
+  const today = tx >= 0 && tx <= 100
+    ? `<div class="today" style="left:${tx}%"></div><div class="todaylab" style="left:${tx}%">Today</div>` : "";
+  return chips + `<div class="rail"><div class="axis"></div>${ticks}${segs}${today}</div>`;
+}
+
+/* ---------- assemble the page ---------- */
+const season = SNAPSHOT.season;
+const albertsons = season.chains.find(c => c.name === "Albertsons");
+const rose = albertsons.promotions.find(p => p.name.includes("Ros"));
+
+const sPhases = () => seasonPhases(season);
+const cPhases = () => chainPhases(albertsons);
+const pPhases = () => promoPhases(rose);
+
+const card = (lvl, title, phases, body, extra = "") => `
+  <div class="card">
+    <div class="lvl">${lvl}</div><h3>${title}</h3>
+    ${headlineHtml(headline(phases))}
+    ${body}${extra}
+    ${tableView(phases)}
+  </div>`;
+
+const variants = [
+  {
+    id: "A", name: "Variant A — Stepper", blurb:
+      "The pathway as steps: every phase is a chip with its delivered/in-progress/blocked composition, its window, and one badge. Reads left to right like the cycle itself; no time axis.",
+    render: () => [
+      card("Promotion", rose.name, pPhases(), stepperStrip(pPhases())),
+      card("Chain plan", "Albertsons — 2026", cPhases(), stepperStrip(cPhases())),
+      card("Plan year", "2026", sPhases(), stepperStrip(sPhases()), chainMiniRows(season.chains)),
+    ],
+  },
+  {
+    id: "B", name: "Variant B — Time axis", blurb:
+      "The pathway on a calendar: each phase is a bar spanning its window, filled to its % delivered, with a Today line. The plan-year card becomes the whole year — every chain's promotions and JBP date on one band.",
+    render: () => [
+      card("Promotion", rose.name, pPhases(), ganttStrip(pPhases())),
+      card("Chain plan", "Albertsons — 2026", cPhases(), ganttStrip(cPhases())),
+      card("Plan year", "2026 — all chains", sPhases(), yearBand(season)),
+    ],
+  },
+  {
+    id: "C", name: "Variant C — Hybrid", blurb:
+      "Compact chips for what's done, a thin rail underneath for when: the rail places each phase window against Today, so \"retail execution is 5 days away and planning is at 50%\" is visible without reading a single number.",
+    render: () => [
+      card("Promotion", rose.name, pPhases(), hybridStrip(pPhases())),
+      card("Chain plan", "Albertsons — 2026", cPhases(), hybridStrip(cPhases())),
+      card("Plan year", "2026", sPhases(), hybridStrip(sPhases()), chainMiniRows(season.chains)),
+    ],
+  },
+];
+
+document.getElementById("root").innerHTML = variants.map(v => `
+  <section class="variant" id="variant-${v.id}">
+    <h2>${v.name}</h2><p class="blurb">${v.blurb}</p>
+    ${v.render().join("")}
+  </section>`).join("");
+
+/* ---------- theme toggle ---------- */
+const btn = document.getElementById("theme");
+btn.addEventListener("click", () => {
+  const h = document.documentElement;
+  const light = h.dataset.theme !== "light";
+  h.dataset.theme = light ? "light" : "dark";
+  btn.textContent = light ? "Dark mode" : "Light mode";
+});
+</script>
+</body>
+</html>
