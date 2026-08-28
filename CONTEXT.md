@@ -6,10 +6,12 @@ conversation.
 
 ## Glossary
 
-- **Season** — a planning year (e.g. "2026"). Carries the company-wide phase 0
-  work (targets, portfolio strategy, brand calendar, trade budget).
+- **Plan Year** (formerly "Season") — the planning year (e.g. "2026") for one
+  Integrated Commercial Cycle; exactly one per calendar year. Carries the
+  company-wide phase 0 work (targets, portfolio strategy, brand calendar, trade
+  budget).
 - **Chain** — a retail account: Safeway, Albertsons, Ralphs, Kroger, …
-- **Chain Plan** — one Chain × one Season. Carries phases 1–4: internal
+- **Chain Plan** — one Chain × one Plan Year. Carries phases 1–4: internal
   alignment → distributor alignment → JBP & negotiation → agreement.
 - **Promotion** — an approved program under a Chain Plan: one Chain, one or more
   Brands, a date window, a program name. Carries phases 5–8: activation
@@ -20,16 +22,21 @@ conversation.
 - **Task** — a unit of work on a phase checklist ("shelf talkers, 32 in,
   qty 20"). Has a spec, an optional quantity, an ETA, RACI assignments, and a
   status. The deck's slide 11 rows are the seed menu.
+- **Task Template** — the default checklist for a phase: one global menu (not
+  chain-specific), editable in-app, stamped onto a new Plan Year, Chain Plan,
+  or Promotion at creation.
 - **Function** — a stakeholder bucket: Commercial Strat Account, Marketing,
   Retail Marketing / Local Sales, Finance (internal); Distributor, Buyer
   (external).
 - **Person** — a named human belonging to a Function. Created in-app; not a
   login account in v0.
-- **RACI** — per task: **Responsible** does the work (a task needs a *named*
-  Person as R to count as assigned), **Accountable** owns the outcome,
-  **Consulted** gives input before decisions, **Informed** is kept up to date.
-  The deck's slide-16 matrix provides function-level defaults per phase.
-- **Unassigned** — derived state: a task with no named Responsible. The red
+- **RACI** — per task: **Responsible** does the work — one or more named
+  People, and a task needs at least one to count as assigned. **Accountable**
+  owns the outcome — always exactly one Person, the one you chase when a task
+  is late; there is no "lead" among the Responsibles. **Consulted** gives input
+  before decisions, **Informed** is kept up to date. The deck's slide-16 matrix
+  provides function-level defaults per phase.
+- **Unassigned** — derived state: a task with zero named Responsibles. The red
   state the whole tool exists to surface. A named-A gap is a softer warning.
 - **Status** — Not started → In progress → Delivered, plus **Blocked** (requires
   a reason — "no inventory at distributor" must scream, not hide).
@@ -46,4 +53,4 @@ conversation.
 - **KPI entry** — manually typed phase-7 numbers per promotion: Depletions, POS
   data, CWD, $/Store/Wk, $ investment × Baseline / Promotional period / Uplift.
 - **Retro** — the phase-8 review on a promotion: worked / didn't / repeat next
-  year, feeding the next Season's plan.
+  year, feeding the next Plan Year's plan.

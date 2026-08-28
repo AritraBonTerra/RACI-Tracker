@@ -9,9 +9,10 @@ import {
   raciDefaults,
   rollup,
   fromUrl,
+  stampTemplates,
 } from "./model";
 
-// The middle tier: one chain x one season, carrying phases 1-4 (internal
+// The middle tier: one chain x one plan year, carrying phases 1-4 (internal
 // alignment -> distributor alignment -> JBP & negotiation -> agreement).
 
 /**
@@ -84,16 +85,18 @@ export const create = mutation({
       )
       .first();
     if (existing !== null) {
-      throw new ConvexError(`${chain.name} already has a plan for this season.`);
+      throw new ConvexError(`${chain.name} already has a plan for this year.`);
     }
 
-    return await ctx.db.insert("chainPlans", {
+    const chainPlanId = await ctx.db.insert("chainPlans", {
       seasonId: args.seasonId,
       chainId: args.chainId,
       currentPhase: args.currentPhase ?? 1,
       jbpDate: optionalText(args.jbpDate),
       notes: optionalText(args.notes),
     });
+    await stampTemplates(ctx, { tier: "chainPlan", chainPlanId }, CHAIN_PLAN_PHASES);
+    return chainPlanId;
   },
 });
 

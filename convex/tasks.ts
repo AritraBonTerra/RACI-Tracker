@@ -38,8 +38,9 @@ function checkedQuantity(quantity: number | null | undefined): number | undefine
 }
 
 /**
- * Cleans a Consulted/Informed list: no duplicates, and no ids whose person has
- * since been deleted — an unresolvable id would render as a blank chip forever.
+ * Cleans a person list (Responsible, Consulted or Informed): no duplicates, and
+ * no ids whose person has since been deleted — an unresolvable id would render
+ * as a blank chip forever.
  */
 async function livePeople(ctx: QueryCtx, ids: readonly Id<"people">[]) {
   const found = await Promise.all([...new Set(ids)].map((id) => ctx.db.get(id)));
@@ -56,7 +57,7 @@ export const create = mutation({
     category: v.optional(v.string()),
     quantity: v.optional(v.union(v.number(), v.null())),
     eta: v.optional(v.union(v.string(), v.null())),
-    responsiblePersonId: v.optional(v.id("people")),
+    responsiblePersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
     assertPhaseMatchesOwner(args.phase, args.owner);
@@ -73,7 +74,7 @@ export const create = mutation({
       quantity: checkedQuantity(args.quantity),
       eta: checkedEta(args.eta),
       status: "not_started",
-      responsiblePersonId: args.responsiblePersonId,
+      responsiblePersonIds: await livePeople(ctx, args.responsiblePersonIds ?? []),
       consultedPersonIds: [],
       informedPersonIds: [],
       order: nextOrder(siblings),
@@ -96,9 +97,10 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
     deliveredTo: v.optional(v.union(v.string(), v.null())),
     proofOfExecution: v.optional(v.union(v.string(), v.null())),
-    responsiblePersonId: v.optional(v.union(v.id("people"), v.null())),
+    // R, C and I are whole-list replacements: the editor sends the set it wants.
+    // A stays a single person — one name to chase (CONTEXT.md: RACI).
+    responsiblePersonIds: v.optional(v.array(v.id("people"))),
     accountablePersonId: v.optional(v.union(v.id("people"), v.null())),
-    // C and I are whole-list replacements: the editor sends the set it wants.
     consultedPersonIds: v.optional(v.array(v.id("people"))),
     informedPersonIds: v.optional(v.array(v.id("people"))),
   },
@@ -116,8 +118,10 @@ export const update = mutation({
     if (args.proofOfExecution !== undefined) {
       patch.proofOfExecution = optionalText(args.proofOfExecution);
     }
-    if (args.responsiblePersonId !== undefined) {
-      patch.responsiblePersonId = args.responsiblePersonId ?? undefined;
+    if (args.responsiblePersonIds !== undefined) {
+      patch.responsiblePersonIds = await livePeople(ctx, args.responsiblePersonIds);
+      // Writes migrate as they happen: the list is now the truth for this task.
+      patch.responsiblePersonId = undefined;
     }
     if (args.accountablePersonId !== undefined) {
       patch.accountablePersonId = args.accountablePersonId ?? undefined;
@@ -195,7 +199,7 @@ function ownerOf(task: Doc<"tasks">) {
   if (task.promotionId !== undefined) {
     return { tier: "promotion", promotionId: task.promotionId } as const;
   }
-  throw new ConvexError("Task is not attached to a season, chain plan or promotion.");
+  throw new ConvexError("Task is not attached to a plan year, chain plan or promotion.");
 }
 
 /** Every task under the same owner, across all of that tier's phases. */

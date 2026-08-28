@@ -9,6 +9,7 @@ import {
   raciDefaults,
   requiredText,
   rollup,
+  stampTemplates,
 } from "./model";
 
 // The top tier: a planning year and its phase-0 checklist, plus the navigation
@@ -154,13 +155,15 @@ export const create = mutation({
       .query("seasons")
       .withIndex("by_year", (q) => q.eq("year", args.year))
       .first();
-    if (existing !== null) throw new ConvexError(`Season ${args.year} already exists.`);
+    if (existing !== null) throw new ConvexError(`Year ${args.year} already exists.`);
 
-    return await ctx.db.insert("seasons", {
+    const seasonId = await ctx.db.insert("seasons", {
       year: args.year,
       label: optionalText(args.label) ?? String(args.year),
       notes: optionalText(args.notes),
     });
+    await stampTemplates(ctx, { tier: "season", seasonId }, SEASON_PHASES);
+    return seasonId;
   },
 });
 
@@ -175,13 +178,13 @@ export const update = mutation({
     await ctx.db.patch(args.seasonId, {
       ...(args.label === undefined
         ? {}
-        : { label: requiredText(args.label, "Season label") }),
+        : { label: requiredText(args.label, "Year label") }),
       ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
     });
   },
 });
 
-/** Removing a season takes its phase-0 checklist with it, but never a chain plan. */
+/** Removing a plan year takes its phase-0 checklist with it, but never a chain plan. */
 export const remove = mutation({
   args: { seasonId: v.id("seasons") },
   handler: async (ctx, args) => {
@@ -191,7 +194,7 @@ export const remove = mutation({
       .collect();
     if (plans.length > 0) {
       throw new ConvexError(
-        `This season still has ${plans.length} chain plan(s). Delete those first.`,
+        `This year still has ${plans.length} chain plan(s). Delete those first.`,
       );
     }
 

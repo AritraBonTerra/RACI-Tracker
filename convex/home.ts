@@ -8,6 +8,7 @@ import {
   byEta,
   isOverdue,
   placeResolver,
+  responsiblesOf,
   rollup,
   fromUrl,
   type PhaseNumber,
@@ -126,7 +127,7 @@ export const dashboard = query({
       attention: {
         // The red list: no named Responsible, so nobody is doing the work.
         unassigned: await withPlace(
-          sorted.filter((task) => task.responsiblePersonId === undefined),
+          sorted.filter((task) => responsiblesOf(task).length === 0),
         ),
         blocked: await withPlace(sorted.filter((task) => task.status === "blocked")),
         overdue: await withPlace(sorted.filter((task) => isOverdue(task, args.today))),
