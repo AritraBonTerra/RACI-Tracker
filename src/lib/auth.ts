@@ -15,13 +15,47 @@ import { useCallback, useEffect, useRef, useState } from "react";
 //   Development leaves it unset. The button opens Clerk's prebuilt sign-in
 //   (email code on a development instance), because there is no corporate IdP
 //   to hand off to on a laptop. Same one button, different door behind it.
+//
+// Which of the two a build gets is decided here, from the environment alone,
+// and a build that names neither door opens none: see `signInMode`.
 
 export const CLERK_PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
-/** The email domain the Clerk enterprise connection is registered against. */
-const ENTERPRISE_DOMAIN = import.meta.env.VITE_CLERK_ENTERPRISE_DOMAIN;
+/**
+ * Which door the sign-in button opens, or which environment variable is
+ * missing. Pure, and taking both values as arguments, because this decision is
+ * the difference between a production cutover and a sign-in screen that cannot
+ * work — it is worth asserting rather than reading.
+ *
+ * The development door needs a development key (`pk_test_…`) *and* the absence
+ * of an enterprise domain to route to. A live Clerk instance with no domain set
+ * is the cutover's sharpest trap: Clerk's prebuilt widget would render on a
+ * production instance whose only sign-in strategy is enterprise SSO, offering
+ * employees an email field that refuses every address they own. That build is
+ * misconfigured, and says so instead of opening a door that leads nowhere.
+ */
+export function signInMode(
+  publishableKey: string | undefined,
+  enterpriseDomain: string | undefined,
+):
+  | { kind: "enterprise"; domain: string }
+  | { kind: "development" }
+  | { kind: "unconfigured"; missing: string } {
+  const key = publishableKey?.trim() ?? "";
+  // An environment variable set to the empty string is Vercel's way of being
+  // unset, and reads that way here too.
+  const domain = enterpriseDomain?.trim() ?? "";
 
-export const SIGN_IN_MODE = ENTERPRISE_DOMAIN ? "enterprise" : "development";
+  if (key === "") return { kind: "unconfigured", missing: "VITE_CLERK_PUBLISHABLE_KEY" };
+  if (domain !== "") return { kind: "enterprise", domain };
+  if (key.startsWith("pk_test_")) return { kind: "development" };
+  return { kind: "unconfigured", missing: "VITE_CLERK_ENTERPRISE_DOMAIN" };
+}
+
+export const SIGN_IN = signInMode(
+  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
+  import.meta.env.VITE_CLERK_ENTERPRISE_DOMAIN,
+);
 
 /** The path that finishes a redirect sign-in (see `SsoCallback`). */
 const CALLBACK_PATH = "/sso-callback";
@@ -69,13 +103,13 @@ export function useStartSignIn() {
   const start = useCallback(async () => {
     // Development has no enterprise connection to route to; the sign-in screen
     // opens Clerk's prebuilt component there instead of calling this.
-    if (ENTERPRISE_DOMAIN === undefined) return;
+    if (SIGN_IN.kind !== "enterprise") return;
     if (!isLoaded || signIn === undefined) return;
     setPending(true);
     try {
       await signIn.authenticateWithRedirect({
         strategy: "enterprise_sso",
-        identifier: `sso@${ENTERPRISE_DOMAIN}`,
+        identifier: `sso@${SIGN_IN.domain}`,
         redirectUrl: `${window.location.origin}${CALLBACK_PATH}`,
         redirectUrlComplete: returnToUrl(),
       });

@@ -2,7 +2,7 @@ import { AuthenticateWithRedirectCallback, SignIn } from "@clerk/clerk-react";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
-import { SIGN_IN_MODE, returnToUrl, useSignOut, useStartSignIn } from "../lib/auth";
+import { SIGN_IN, returnToUrl, useSignOut, useStartSignIn } from "../lib/auth";
 import { Button, Pill } from "./ui";
 
 // Every screen the app shows *outside* itself: the sign-in card, the two dead
@@ -94,7 +94,7 @@ export function SignInScreen({ signedOut = false }: { signedOut?: boolean }) {
           className="mt-5 w-full"
           disabled={!ready || pending}
           onClick={() => {
-            if (SIGN_IN_MODE === "development") {
+            if (SIGN_IN.kind === "development") {
               setShowDevSignIn(true);
               return;
             }
@@ -191,7 +191,7 @@ export function SessionExpiredScreen() {
           className="mt-4"
           disabled={!ready || pending}
           onClick={() => {
-            if (SIGN_IN_MODE === "development") {
+            if (SIGN_IN.kind === "development") {
               setShowDevSignIn(true);
               return;
             }
@@ -236,18 +236,19 @@ export function SsoCallback() {
 }
 
 /**
- * The app is deployed without a Clerk publishable key. Said plainly rather than
- * crashing, because the fix is an environment variable, not a code change.
+ * The app is deployed without the environment variables sign-in needs. Said
+ * plainly rather than crashing — and rather than opening a door that cannot
+ * work — because the fix is an environment variable, not a code change.
  */
-export function AuthUnconfigured() {
+export function AuthUnconfigured({ missing }: { missing: string }) {
   return (
     <CenterScreen>
       <Card>
         <Wordmark />
         <p className="mt-3 text-sm font-medium text-ink-100">Sign-in isn't configured.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-          This build has no <code className="text-ink-200">VITE_CLERK_PUBLISHABLE_KEY</code>.
-          Set it for this environment and redeploy.
+          This build has no <code className="text-ink-200">{missing}</code>. Set it
+          for this environment and redeploy.
         </p>
       </Card>
     </CenterScreen>

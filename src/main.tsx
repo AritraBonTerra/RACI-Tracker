@@ -6,7 +6,7 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import App from "./App";
 import { AuthGate } from "./components/AuthGate";
 import { AuthUnconfigured } from "./components/AuthScreens";
-import { CLERK_PUBLISHABLE_KEY } from "./lib/auth";
+import { CLERK_PUBLISHABLE_KEY, SIGN_IN } from "./lib/auth";
 import { ToastProvider } from "./lib/toast";
 import "./index.css";
 
@@ -18,12 +18,15 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
 const root = createRoot(document.getElementById("root")!);
 
-if (!CLERK_PUBLISHABLE_KEY) {
+if (SIGN_IN.kind === "unconfigured") {
+  // Two ways a build can be wrong about sign-in, and neither may render a door.
   // Without a key `ClerkProvider` throws on mount, which reads as a white
-  // screen. A missing environment variable deserves a sentence.
+  // screen; with a production key and no enterprise domain the button would
+  // open Clerk's development widget against a tenant that refuses it. A missing
+  // environment variable deserves a sentence, and nothing else.
   root.render(
     <StrictMode>
-      <AuthUnconfigured />
+      <AuthUnconfigured missing={SIGN_IN.missing} />
     </StrictMode>,
   );
 } else {
