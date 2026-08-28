@@ -137,15 +137,21 @@ const EVERYTHING: Scope = {
 };
 
 /**
- * Read the viewer's assignments and turn them into the three answers above.
+ * Turn a set of Access Assignment roots into the three answers above.
+ *
+ * Exported because the Directory's effective-access preview asks exactly this
+ * question about somebody else, and about a grant that has not been made yet
+ * (#34): "what would they see?" has to be answered by the code that decides
+ * what they see, or the preview is a second opinion.
  *
  * An assignment whose target has since been deleted expands to nothing rather
  * than to everything: the grant is a pointer, and a dangling pointer is not a
  * key to the tier it used to name.
  */
-async function scopeOf(ctx: QueryCtx, viewer: Viewer): Promise<Scope> {
-  if (viewer.role === "administrator") return EVERYTHING;
-
+export async function expandScopes(
+  ctx: QueryCtx,
+  scopes: readonly AccessScope[],
+): Promise<Scope> {
   const grantedSeasons = new Set<Id<"seasons">>();
   const grantedPlans = new Set<Id<"chainPlans">>();
   const grantedPromotions = new Set<Id<"promotions">>();
@@ -153,23 +159,18 @@ async function scopeOf(ctx: QueryCtx, viewer: Viewer): Promise<Scope> {
   const contextSeasons = new Set<Id<"seasons">>();
   const contextPlans = new Set<Id<"chainPlans">>();
 
-  const assignments = await ctx.db
-    .query("accessAssignments")
-    .withIndex("by_user", (q) => q.eq("userId", viewer._id))
-    .collect();
-
-  for (const assignment of assignments) {
-    if (assignment.seasonId !== undefined) {
-      const season = await ctx.db.get(assignment.seasonId);
+  for (const scope of scopes) {
+    if (scope.tier === "season") {
+      const season = await ctx.db.get(scope.seasonId);
       if (season !== null) grantedSeasons.add(season._id);
-    } else if (assignment.chainPlanId !== undefined) {
-      const plan = await ctx.db.get(assignment.chainPlanId);
+    } else if (scope.tier === "chainPlan") {
+      const plan = await ctx.db.get(scope.chainPlanId);
       if (plan !== null) {
         grantedPlans.add(plan._id);
         contextSeasons.add(plan.seasonId);
       }
-    } else if (assignment.promotionId !== undefined) {
-      const promotion = await ctx.db.get(assignment.promotionId);
+    } else {
+      const promotion = await ctx.db.get(scope.promotionId);
       if (promotion !== null) {
         grantedPromotions.add(promotion._id);
         contextPlans.add(promotion.chainPlanId);
@@ -200,6 +201,12 @@ async function scopeOf(ctx: QueryCtx, viewer: Viewer): Promise<Scope> {
         ? "full"
         : "none",
   };
+}
+
+/** The viewer's own reach: their assignment roots, expanded. */
+async function scopeOf(ctx: QueryCtx, viewer: Viewer): Promise<Scope> {
+  if (viewer.role === "administrator") return EVERYTHING;
+  return await expandScopes(ctx, await scopesOf(ctx, viewer._id));
 }
 
 // --- The wrappers ---------------------------------------------------------
@@ -550,6 +557,264 @@ export async function recordAuditEvent(
   event: Omit<Doc<"auditEvents">, "_id" | "_creationTime">,
 ) {
   await ctx.db.insert("auditEvents", event);
+}
+
+// --- Administering access -------------------------------------------------
+// The five things an Administrator does to an account — role, activation,
+// Person link, grant, revoke — and the guard that stops the last one of them
+// locking everybody out.
+//
+// They live here rather than in the Directory module because the
+// deploy-credential CLI (bootstrap.ts) performs the same actions from the other
+// side of the deployment. One implementation means the surface an Administrator
+// clicks and the one an operator types cannot drift into different semantics,
+// and every one of them writes its Audit event on the way past — a caller
+// cannot perform half the action.
+
+/** Who did it: a signed-in Administrator, or whoever holds deploy credentials. */
+export type Actor = Doc<"auditEvents">["actor"];
+
+/** Names the operator in an audit detail, since they have no account to name. */
+function via(actor: Actor): string {
+  return actor.kind === "operator" ? " (deploy credentials)" : "";
+}
+
+/** The three columns an assignment can be pinned to, from one scope argument. */
+function scopeColumns(scope: AccessScope) {
+  return {
+    seasonId: scope.tier === "season" ? scope.seasonId : undefined,
+    chainPlanId: scope.tier === "chainPlan" ? scope.chainPlanId : undefined,
+    promotionId: scope.tier === "promotion" ? scope.promotionId : undefined,
+  };
+}
+
+/** The assignment for exactly this User at exactly this tier, if it exists. */
+async function assignmentFor(ctx: QueryCtx, userId: Id<"users">, scope: AccessScope) {
+  const columns = scopeColumns(scope);
+  const rows = await ctx.db
+    .query("accessAssignments")
+    .withIndex("by_user", (q) => q.eq("userId", userId))
+    .collect();
+  return (
+    rows.find(
+      (row) =>
+        row.seasonId === columns.seasonId &&
+        row.chainPlanId === columns.chainPlanId &&
+        row.promotionId === columns.promotionId,
+    ) ?? null
+  );
+}
+
+/**
+ * Refuses a grant naming a record that is not there. Raised as `missing()` —
+ * the same refusal a deleted record gives everywhere else — so a grant aimed at
+ * a forged promotion id cannot be told apart from one aimed at a deleted
+ * promotion, and the Directory is not a place to enumerate ids from.
+ */
+async function assertScopeExists(ctx: QueryCtx, scope: AccessScope) {
+  const target =
+    scope.tier === "season"
+      ? await ctx.db.get(scope.seasonId)
+      : scope.tier === "chainPlan"
+        ? await ctx.db.get(scope.chainPlanId)
+        : await ctx.db.get(scope.promotionId);
+  if (target === null) missing(TIER_LABEL[scope.tier]);
+}
+
+/**
+ * Give a User access to one Plan Year, Chain Plan or Promotion. Access is the
+ * union of a User's assignments, so granting a second overlapping scope is
+ * harmless and re-granting the same one is a no-op — which is what makes
+ * revoking a redundant grant safe (#30, story 23).
+ *
+ * Grants go to Members. An Administrator already reaches everything, so an
+ * assignment on one is dead weight and is refused rather than silently stored.
+ *
+ * Returns whether anything changed, so a caller can say "already had it".
+ */
+export async function grantScope(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  scope: AccessScope,
+  actor: Actor,
+): Promise<boolean> {
+  if (user.role === "administrator") {
+    throw new ConvexError(
+      "Administrators already reach everything — no assignment needed.",
+    );
+  }
+  await assertScopeExists(ctx, scope);
+  if ((await assignmentFor(ctx, user._id, scope)) !== null) return false;
+
+  await ctx.db.insert("accessAssignments", {
+    userId: user._id,
+    ...scopeColumns(scope),
+    grantedBy: actor.kind === "user" ? actor.userId : undefined,
+  });
+  await recordAuditEvent(ctx, {
+    action: "access_granted",
+    actor,
+    subjectUserId: user._id,
+    detail: `${scope.tier}${via(actor)}`,
+  });
+  return true;
+}
+
+/**
+ * Take one assignment back. Only that row goes: a Member holding a redundant
+ * second grant keeps everything the union still covers (#27, scenario 11).
+ *
+ * A scope that was never granted is not an error — the row is gone either way,
+ * and two Administrators revoking the same grant is a race, not a mistake.
+ */
+export async function revokeScope(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  scope: AccessScope,
+  actor: Actor,
+): Promise<boolean> {
+  const existing = await assignmentFor(ctx, user._id, scope);
+  if (existing === null) return false;
+
+  await ctx.db.delete(existing._id);
+  await recordAuditEvent(ctx, {
+    action: "access_revoked",
+    actor,
+    subjectUserId: user._id,
+    detail: `${scope.tier}${via(actor)}`,
+  });
+  return true;
+}
+
+/** The active Administrators — the people who can still let everyone back in. */
+export async function activeAdministrators(ctx: QueryCtx): Promise<Doc<"users">[]> {
+  const administrators = await ctx.db
+    .query("users")
+    .withIndex("by_role", (q) => q.eq("role", "administrator"))
+    .collect();
+  return administrators.filter((user) => user.isActive);
+}
+
+/**
+ * Whether this account is the only way back in (#30, story 26). Demoting or
+ * deactivating them would leave the deployment governed by nobody, recoverable
+ * only from the CLI — so the server refuses, and the UI reads the same answer
+ * from here rather than counting rows of its own.
+ */
+export async function isLastActiveAdministrator(
+  ctx: QueryCtx,
+  user: Doc<"users">,
+): Promise<boolean> {
+  if (user.role !== "administrator" || !user.isActive) return false;
+  return (await activeAdministrators(ctx)).length <= 1;
+}
+
+const LAST_ADMINISTRATOR =
+  "This is the last active Administrator. Promote someone else first.";
+
+/**
+ * Promote or demote. The role is the whole of an Administrator's access, so
+ * demoting the last one is refused here, at the server, whatever the button did.
+ *
+ * Access Assignments are left alone in both directions: a promoted Member's
+ * rows go dormant behind the Administrator's blanket reach, and demoting them
+ * again hands back exactly the access they had before.
+ */
+export async function setUserRole(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  role: Viewer["role"],
+  actor: Actor,
+): Promise<boolean> {
+  if (user.role === role) return false;
+  if (role === "member" && (await isLastActiveAdministrator(ctx, user))) {
+    throw new ConvexError(LAST_ADMINISTRATOR);
+  }
+
+  await ctx.db.patch(user._id, { role });
+  await recordAuditEvent(ctx, {
+    action: "role_changed",
+    actor,
+    subjectUserId: user._id,
+    detail: `${user.role} -> ${role}${via(actor)}`,
+  });
+  return true;
+}
+
+/**
+ * Offboarding and the return from it (#30, story 25). Deactivation touches one
+ * flag and nothing else — role and Access Assignments stay exactly as they were
+ * — so reactivation restores the account rather than reassembling it.
+ *
+ * The next call the account makes is denied, because every wrapper re-reads the
+ * flag; there is no session to expire and nothing cached to wait out.
+ */
+export async function setUserActive(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  isActive: boolean,
+  actor: Actor,
+): Promise<boolean> {
+  if (user.isActive === isActive) return false;
+  if (!isActive && (await isLastActiveAdministrator(ctx, user))) {
+    throw new ConvexError(LAST_ADMINISTRATOR);
+  }
+
+  await ctx.db.patch(user._id, { isActive });
+  await recordAuditEvent(ctx, {
+    action: isActive ? "user_activated" : "user_deactivated",
+    actor,
+    subjectUserId: user._id,
+    detail: isActive ? `reactivated${via(actor)}` : `deactivated${via(actor)}`,
+  });
+  return true;
+}
+
+/**
+ * Link a User to the Person carrying their RACI history, or unlink them.
+ *
+ * The link is orientation, never authorization (CONTEXT.md: Person) — it buys
+ * the account nothing. Two rules hold it to one meaning: only *internal* People
+ * are linkable, because a Distributor or Buyer contact is never an employee
+ * with a sign-in; and a Person belongs to at most one User, because "who is
+ * this account?" has one answer.
+ */
+export async function setPersonLink(
+  ctx: MutationCtx,
+  user: Doc<"users">,
+  personId: Id<"people"> | null,
+  actor: Actor,
+): Promise<boolean> {
+  if ((user.personId ?? null) === personId) return false;
+
+  let detail = "unlinked";
+  if (personId !== null) {
+    const person = await mustGet(ctx, personId, "person");
+    const fn = await ctx.db.get(person.functionId);
+    if (fn === null || fn.kind !== "internal") {
+      throw new ConvexError(
+        "Only internal People can be linked to a sign-in — Distributor and Buyer contacts never have one.",
+      );
+    }
+    const taken = await ctx.db
+      .query("users")
+      .withIndex("by_person", (q) => q.eq("personId", personId))
+      .first();
+    if (taken !== null && taken._id !== user._id) {
+      throw new ConvexError(`${person.name} is already linked to another account.`);
+    }
+    detail = `linked to ${person.name}`;
+  }
+
+  // `null` would fail validation; `undefined` is how Convex clears a field.
+  await ctx.db.patch(user._id, { personId: personId ?? undefined });
+  await recordAuditEvent(ctx, {
+    action: "person_linked",
+    actor,
+    subjectUserId: user._id,
+    detail: `${detail}${via(actor)}`,
+  });
+  return true;
 }
 
 /**

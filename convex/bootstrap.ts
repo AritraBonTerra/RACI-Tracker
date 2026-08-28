@@ -1,16 +1,14 @@
 import { ConvexError, v } from "convex/values";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Doc } from "./_generated/dataModel";
+import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import {
-  internalMutation,
-  internalQuery,
-  type MutationCtx,
-  type QueryCtx,
-} from "./_generated/server";
-import {
-  recordAuditEvent,
+  grantScope,
+  revokeScope,
   scopesOf,
+  setUserActive,
+  setUserRole,
   userByClerkId,
-  type AccessScope,
+  type Actor,
 } from "./access";
 import { accessScope } from "./schema";
 
@@ -112,6 +110,9 @@ export const listUsers = internalQuery({
   },
 });
 
+/** Nobody signed in is behind a `convex run`; the audit trail says so. */
+const OPERATOR: Actor = { kind: "operator" };
+
 /**
  * Promote a User to Administrator, reactivating them in the same step — a
  * deactivated Administrator is not an Administrator, and break-glass has to
@@ -122,22 +123,10 @@ export const grantAdmin = internalMutation({
   args: target,
   handler: async (ctx, args) => {
     const user = await resolveTarget(ctx, args);
-    if (user.role === "administrator" && user.isActive) {
-      return { changed: false, user: summarize(user) };
-    }
-
-    await ctx.db.patch(user._id, { role: "administrator", isActive: true });
-    if (!user.isActive) await auditActivation(ctx, user);
-    if (user.role !== "administrator") {
-      await recordAuditEvent(ctx, {
-        action: "role_changed",
-        actor: { kind: "operator" },
-        subjectUserId: user._id,
-        detail: `${user.role} -> administrator (deploy credentials)`,
-      });
-    }
+    const activated = await setUserActive(ctx, user, true, OPERATOR);
+    const promoted = await setUserRole(ctx, user, "administrator", OPERATOR);
     return {
-      changed: true,
+      changed: activated || promoted,
       user: summarize({ ...user, role: "administrator", isActive: true }),
     };
   },
@@ -151,94 +140,28 @@ export const reactivateUser = internalMutation({
   args: target,
   handler: async (ctx, args) => {
     const user = await resolveTarget(ctx, args);
-    if (user.isActive) return { changed: false, user: summarize(user) };
-
-    await ctx.db.patch(user._id, { isActive: true });
-    await auditActivation(ctx, user);
-    return { changed: true, user: summarize({ ...user, isActive: true }) };
+    const changed = await setUserActive(ctx, user, true, OPERATOR);
+    return { changed, user: summarize({ ...user, isActive: true }) };
   },
 });
 
 // --- Access Assignments ---------------------------------------------------
 //
-// The CLI half of granting, until the Directory surface lands (#34). Same
-// semantics the Directory will have — union, idempotent, audited — so the UI
-// inherits behavior that has already been exercised rather than defining it.
-
-/** The three columns an assignment can be pinned to, from one scope argument. */
-function columnsOf(scope: AccessScope) {
-  return {
-    seasonId: scope.tier === "season" ? scope.seasonId : undefined,
-    chainPlanId: scope.tier === "chainPlan" ? scope.chainPlanId : undefined,
-    promotionId: scope.tier === "promotion" ? scope.promotionId : undefined,
-  };
-}
-
-/** The assignment for exactly this User at exactly this tier, if it exists. */
-async function assignmentFor(ctx: QueryCtx, userId: Id<"users">, scope: AccessScope) {
-  const columns = columnsOf(scope);
-  const rows = await ctx.db
-    .query("accessAssignments")
-    .withIndex("by_user", (q) => q.eq("userId", userId))
-    .collect();
-  return (
-    rows.find(
-      (row) =>
-        row.seasonId === columns.seasonId &&
-        row.chainPlanId === columns.chainPlanId &&
-        row.promotionId === columns.promotionId,
-    ) ?? null
-  );
-}
-
-/** Refuses a grant naming a record that is not there — a typo, not a scope. */
-async function assertScopeExists(ctx: QueryCtx, scope: AccessScope) {
-  const target =
-    scope.tier === "season"
-      ? await ctx.db.get(scope.seasonId)
-      : scope.tier === "chainPlan"
-        ? await ctx.db.get(scope.chainPlanId)
-        : await ctx.db.get(scope.promotionId);
-  if (target === null) {
-    throw new ConvexError(`No ${scope.tier} with that id — check bootstrap:listUsers.`);
-  }
-}
+// The CLI half of granting, beside the Directory's (#34). Both call the same
+// model in `access.ts`, so a grant typed at a terminal and one clicked in the
+// roster are the same act — union semantics, idempotent, audited — differing
+// only in whose name the Audit event carries.
 
 /**
- * Give a User access to one Plan Year, Chain Plan or Promotion. Access is the
- * union of a User's assignments, so granting a second overlapping scope is
- * harmless and re-granting the same one is a no-op.
- *
- * Grants go to Members. An Administrator already reaches everything, so an
- * assignment on one is dead weight and is refused rather than silently stored.
+ * Give a User access to one Plan Year, Chain Plan or Promotion. Idempotent, and
+ * refused for an Administrator, who already reaches everything.
  */
 export const grantAccess = internalMutation({
   args: { ...target, scope: accessScope },
   handler: async (ctx, args) => {
     const user = await resolveTarget(ctx, args);
-    if (user.role === "administrator") {
-      throw new ConvexError(
-        "Administrators already reach everything — no assignment needed.",
-      );
-    }
-    await assertScopeExists(ctx, args.scope);
-
-    const existing = await assignmentFor(ctx, user._id, args.scope);
-    if (existing !== null) {
-      return { changed: false, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
-    }
-
-    await ctx.db.insert("accessAssignments", {
-      userId: user._id,
-      ...columnsOf(args.scope),
-    });
-    await recordAuditEvent(ctx, {
-      action: "access_granted",
-      actor: { kind: "operator" },
-      subjectUserId: user._id,
-      detail: `${args.scope.tier} (deploy credentials)`,
-    });
-    return { changed: true, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
+    const changed = await grantScope(ctx, user, args.scope, OPERATOR);
+    return { changed, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
   },
 });
 
@@ -251,27 +174,7 @@ export const revokeAccess = internalMutation({
   args: { ...target, scope: accessScope },
   handler: async (ctx, args) => {
     const user = await resolveTarget(ctx, args);
-    const existing = await assignmentFor(ctx, user._id, args.scope);
-    if (existing === null) {
-      return { changed: false, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
-    }
-
-    await ctx.db.delete(existing._id);
-    await recordAuditEvent(ctx, {
-      action: "access_revoked",
-      actor: { kind: "operator" },
-      subjectUserId: user._id,
-      detail: `${args.scope.tier} (deploy credentials)`,
-    });
-    return { changed: true, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
+    const changed = await revokeScope(ctx, user, args.scope, OPERATOR);
+    return { changed, user: summarize(user), scopes: await scopesOf(ctx, user._id) };
   },
 });
-
-async function auditActivation(ctx: MutationCtx, user: Doc<"users">) {
-  await recordAuditEvent(ctx, {
-    action: "user_activated",
-    actor: { kind: "operator" },
-    subjectUserId: user._id,
-    detail: "reactivated with deploy credentials",
-  });
-}
