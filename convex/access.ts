@@ -465,7 +465,9 @@ export async function writableTask(
  * Returned as a lookup beside the records rather than folded into each one, so
  * a checklist of twenty rows edited by the same two people carries two names.
  * Only the display name crosses the wire — a Member reading who last touched
- * their promotion learns a name, never a role or a scope (#22, story 17).
+ * their promotion learns a name, never a role, a scope, or a work address
+ * (#22, story 17). A User whose token carried no name claim is "Someone"
+ * rather than their email.
  *
  * A stamp naming a User who has since been deleted resolves to nothing, and the
  * client renders the record unstamped: a dangling id is not a person.
@@ -480,7 +482,7 @@ export async function editorsOf(
     users.flatMap((user) =>
       user === null
         ? []
-        : [[user._id, user.displayName ?? user.email ?? "Someone"] as const],
+        : [[user._id, user.displayName ?? "Someone"] as const],
     ),
   );
 }

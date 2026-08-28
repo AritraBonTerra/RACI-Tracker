@@ -93,13 +93,29 @@ export type Editors = Readonly<Record<string, string>>;
 export type Stamped = { lastModifiedBy?: string; lastModifiedAt?: number };
 
 /**
+ * The readable half of a record's stamp, or null when there is nothing honest
+ * to say: rows written before the stamp existed carry none, and a stamp naming
+ * a deleted User resolves to no name.
+ *
+ * Exported so a caller wrapping `LastEdited` in chrome of its own — a bordered
+ * strip, a divider — can ask whether the strip has anything to hold, instead of
+ * restating this condition and drifting from it.
+ */
+export function editorOf(
+  record: Stamped,
+  editors: Editors,
+): { name: string; at: number } | null {
+  const name = record.lastModifiedBy === undefined ? undefined : editors[record.lastModifiedBy];
+  if (name === undefined || record.lastModifiedAt === undefined) return null;
+  return { name, at: record.lastModifiedAt };
+}
+
+/**
  * Who last touched this record, and when — the first answer to a data question,
  * short of the audit feed (which is about access, not content).
  *
- * Renders nothing at all for a record with no stamp: rows written before the
- * stamp existed have no honest answer, and "Last edited by —" is worse than
- * silence. Same for a stamp naming a User who has since been deleted, which the
- * backend resolves to no name.
+ * Renders nothing at all for an unstamped record: "Last edited by —" is worse
+ * than silence.
  */
 export function LastEdited({
   record,
@@ -110,12 +126,12 @@ export function LastEdited({
   editors: Editors;
   className?: string;
 }) {
-  const name = record.lastModifiedBy === undefined ? undefined : editors[record.lastModifiedBy];
-  if (name === undefined || record.lastModifiedAt === undefined) return null;
+  const editor = editorOf(record, editors);
+  if (editor === null) return null;
   return (
     <span className={`text-2xs text-ink-600 ${className}`}>
-      Last edited by <span className="text-ink-500">{name}</span> ·{" "}
-      {formatStamp(record.lastModifiedAt)}
+      Last edited by <span className="text-ink-500">{editor.name}</span> ·{" "}
+      {formatStamp(editor.at)}
     </span>
   );
 }

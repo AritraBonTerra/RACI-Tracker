@@ -826,6 +826,60 @@ test("an edit records who made it, everywhere the record is shown", async () => 
   expect(board.editors[board.retro!.lastModifiedBy!]).toBe(PROMO_MEMBER.email);
 });
 
+test("an editor with no name is Someone, never their work address", async () => {
+  const { t, promotions } = await stage();
+  const promotionId = promotions["Gift Sets"];
+
+  // The dev email-code path, and any SAML mapping that does not fill `name`:
+  // a display name is all this payload may carry, so there is no rung below it
+  // that leaks an address to every Member on the page.
+  await t.run(async (ctx) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", PROMO_MEMBER.subject))
+      .unique();
+    await ctx.db.patch(user!._id, { displayName: undefined });
+  });
+
+  const priya = t.withIdentity(PROMO_MEMBER);
+  await priya.mutation(api.promotions.update, { promotionId, storeCount: 300 });
+
+  const after = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!;
+  expect(after.editors[after.promotion.lastModifiedBy!]).toBe("Someone");
+  expect(JSON.stringify(after.editors)).not.toContain(PROMO_MEMBER.email);
+});
+
+// --- A phase belongs to exactly one tier ----------------------------------
+
+test("a Member cannot label their plan or promotion with another tier's phase", async () => {
+  const { t, plans, promotions } = await stage();
+
+  // The picker offers only the tier's own phases, but the client is not the
+  // boundary: a chain plan on phase 7 or a promotion on phase 0 reads as a
+  // phase that tier never runs, in the nav tree and the pathway strip alike.
+  await expect(
+    t
+      .withIdentity(PLAN_MEMBER)
+      .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, currentPhase: 7 }),
+  ).rejects.toThrow(/Phase 7 belongs to a promotion/);
+
+  await expect(
+    t.withIdentity(PROMO_MEMBER).mutation(api.promotions.update, {
+      promotionId: promotions["Gift Sets"],
+      currentPhase: 0,
+    }),
+  ).rejects.toThrow(/Phase 0 belongs to the plan year/);
+
+  // The tier's own phases still move freely — this is a shape rule, not a lock.
+  await t
+    .withIdentity(PLAN_MEMBER)
+    .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, currentPhase: 3 });
+  await t.withIdentity(PROMO_MEMBER).mutation(api.promotions.update, {
+    promotionId: promotions["Gift Sets"],
+    currentPhase: 8,
+  });
+});
+
 // --- The derived states are unchanged -------------------------------------
 
 test("Unassigned, Blocked and Overdue mean the same thing after a Member writes", async () => {

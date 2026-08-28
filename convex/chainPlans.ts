@@ -11,6 +11,7 @@ import {
 import { phase } from "./schema";
 import {
   CHAIN_PLAN_PHASES,
+  assertPhaseInTier,
   deleteTasks,
   mustGet,
   optionalText,
@@ -140,6 +141,9 @@ export const update = authedMutation({
   },
   handler: async (ctx, args) => {
     const plan = await writableChainPlan(ctx, ctx.scope, args.chainPlanId);
+    // The picker offers only 1-4, but the client is not the boundary: a plan
+    // stamped with a promotion's phase mislabels itself everywhere it appears.
+    if (args.currentPhase !== undefined) assertPhaseInTier(args.currentPhase, "chainPlan");
     await ctx.db.patch(plan._id, {
       ...ctx.stamp,
       ...(args.currentPhase === undefined ? {} : { currentPhase: args.currentPhase }),

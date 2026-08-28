@@ -203,9 +203,13 @@ Two properties are worth knowing when you read a failure:
 
 Every ordinary edit now stamps who made it and when, shown as "Last edited by …"
 on the Plan Year, Chain Plan and Promotion pages, on each expanded task row, and
-under the KPI table and the Retro. That stamp is not the audit trail — access
-changes (roles, grants, revocations, activations) are Audit events and kept
-indefinitely.
+under the KPI table and the Retro. Reference data on Manage is stamped too but
+does not display it: only Administrators can edit those rows. The stamp names a
+User's display name and nothing else — no email, no role, no scope — and a User
+whose token carried no name claim reads as "Someone".
+
+That stamp is not the audit trail — access changes (roles, grants, revocations,
+activations) are Audit events and kept indefinitely.
 
 Still outstanding: access administration is CLI-only until the Directory surface
 lands (#34), so grants, role changes and deactivations go through the deploy

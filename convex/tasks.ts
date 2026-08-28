@@ -5,7 +5,7 @@ import { authedMutation, writableOwner, writableTask } from "./access";
 import { phase, taskStatus } from "./schema";
 import {
   assertBlockedReason,
-  assertPhaseMatchesOwner,
+  assertPhaseInTier,
   nextOrder,
   optionalText,
   ownerFields,
@@ -65,7 +65,7 @@ export const create = authedMutation({
     responsiblePersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
-    assertPhaseMatchesOwner(args.phase, args.owner);
+    assertPhaseInTier(args.phase, args.owner.tier);
     // The parent decides, not the argument: an owner the viewer cannot reach
     // fails here exactly as a deleted one does.
     await writableOwner(ctx, ctx.scope, args.owner);

@@ -12,6 +12,7 @@ import { phase } from "./schema";
 import { removeForPromotion } from "./kpi";
 import {
   PROMOTION_PHASES,
+  assertPhaseInTier,
   deleteTasks,
   mustGet,
   optionalText,
@@ -144,6 +145,9 @@ export const update = authedMutation({
   },
   handler: async (ctx, args) => {
     const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
+    // The picker offers only 5-8, but the client is not the boundary: a
+    // promotion stamped with phase 0 mislabels itself everywhere it appears.
+    if (args.currentPhase !== undefined) assertPhaseInTier(args.currentPhase, "promotion");
 
     const startDate =
       args.startDate === undefined

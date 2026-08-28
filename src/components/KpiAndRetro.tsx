@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
 import { InlineText } from "./inline";
-import { LastEdited, type Stamped } from "./page";
+import { LastEdited, editorOf, type Stamped } from "./page";
 import { Panel, Skeleton } from "./ui";
 import { useReportedMutation } from "../lib/toast";
 
@@ -382,7 +382,9 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
           onCommit={(notes) => void save({ promotionId, notes })}
         />
       </div>
-      {retro !== null && (
+      {/* The strip is chrome around the stamp, so it appears only when there is
+          a stamp: every retro written before this shipped has none. */}
+      {retro !== null && editorOf(retro, board.editors) !== null && (
         <div className="border-t border-ink-800 px-4 py-2">
           <LastEdited record={retro} editors={board.editors} />
         </div>

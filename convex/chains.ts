@@ -1,12 +1,16 @@
 import { ConvexError, v } from "convex/values";
-import { adminMutation, authedQuery } from "./access";
+import { adminMutation, adminQuery } from "./access";
 import { mustGet, optionalText, requiredText } from "./model";
 
 // Retail accounts. A chain is reference data: it owns nothing itself, but a
-// chain plan cannot exist without one, and it is readable by every signed-in
-// User (#22) — the name above a plan a Member holds comes from here.
+// chain plan cannot exist without one, and the name above a plan a Member holds
+// comes from here — reached through `seasons.tree`, which hands a Member only
+// the chains they hold a plan on.
 
-export const list = authedQuery({
+// The whole account list is the shape of the company's business, so it is the
+// Administrator's alone (#22, story 29): the one consumer is Manage, and
+// `seasons.tree` deliberately withholds planless chains from a Member.
+export const list = adminQuery({
   args: {},
   handler: async (ctx) => {
     const chains = await ctx.db.query("chains").collect();

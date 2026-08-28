@@ -52,9 +52,12 @@ conversation.
   indefinitely. Ordinary record edits are not audited; they carry a
   last-modified stamp instead.
 - **Last edited** — the stamp every ordinary record edit leaves: which User
-  wrote it and when, shown wherever the record is shown. One per record, always
-  overwritten, never a history — that is what the Audit event is for, and the
-  Audit event covers access only.
+  wrote it and when, shown on the plan work — the three tiers, tasks, the KPI
+  table and the Retro. Reference data (chains, brands, People, Functions, Task
+  Templates) carries the stamp but does not show it: those rows are the
+  Administrator's alone to edit, so "who last touched this" is a question with
+  one plausible answer. One per record, always overwritten, never a history —
+  that is what the Audit event is for, and the Audit event covers access only.
 - **RACI** — per task: **Responsible** does the work — one or more named
   People, and a task needs at least one to count as assigned. **Accountable**
   owns the outcome — always exactly one Person, the one you chase when a task

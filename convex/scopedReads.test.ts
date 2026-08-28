@@ -128,7 +128,6 @@ test("a signed-in Member with no grants gets reference data and nothing else", a
   // Readable by every authenticated User (#22): pickers and labels need them.
   expect(results.people).toHaveLength(1);
   expect(results.functions).toHaveLength(1);
-  expect(results.chains).toHaveLength(3);
   expect(results.brands).toEqual([]);
   expect(results.raci).not.toBe("refused");
 
@@ -142,8 +141,11 @@ test("a signed-in Member with no grants gets reference data and nothing else", a
   expect(results.dashboard).toBeNull();
   expect(results.kpi).toBeNull();
 
-  // Manage is an Administrator surface, so its data is too.
+  // Manage is an Administrator surface, so its data is too. The account list is
+  // the shape of the company's business: a Member reaches a chain's name through
+  // the tree, which carries only the chains they hold a plan on.
   expect(results.templates).toBe("refused");
+  expect(results.chains).toBe("refused");
 });
 
 // --- The scope matrix, one level at a time --------------------------------

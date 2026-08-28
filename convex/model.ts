@@ -50,14 +50,16 @@ const TIER_LABEL = {
 } as const satisfies Record<TaskOwner["tier"], string>;
 
 /**
- * Rejects a task whose phase does not match the tier it is being attached to —
- * a phase-6 task on a chain plan would be invisible everywhere in the UI.
+ * Rejects a phase that does not belong to the tier it is being written on — a
+ * chain plan whose `currentPhase` is 7 labels itself with a phase that tier
+ * never runs, in the nav tree and the pathway strip alike. Applies to a
+ * record's own phase and to the phase of a task hung beneath it.
  */
-export function assertPhaseMatchesOwner(value: PhaseNumber, owner: TaskOwner) {
+export function assertPhaseInTier(value: PhaseNumber, tier: TaskOwner["tier"]) {
   const expected = tierForPhase(value);
-  if (expected !== owner.tier) {
+  if (expected !== tier) {
     throw new ConvexError(
-      `Phase ${value} belongs to ${TIER_LABEL[expected]}, not ${TIER_LABEL[owner.tier]}.`,
+      `Phase ${value} belongs to ${TIER_LABEL[expected]}, not ${TIER_LABEL[tier]}.`,
     );
   }
 }
