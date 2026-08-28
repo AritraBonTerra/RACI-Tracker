@@ -40,6 +40,10 @@ Tests call the public Convex function surface through `convex-test`, injecting
 a signed-in identity per scenario with `withIdentity` — the same functions the
 browser calls, with no deployment involved.
 
+`checks/` holds the ones that read the repo instead of calling it: no credential
+or tenant identifier is committed, and the acceptance checklist cites tests that
+still exist.
+
 ## Access control
 
 Authorization lives in one module, `convex/access.ts`: the `authedQuery` /
@@ -68,6 +72,12 @@ the deploy-credential CLI, so clicking and typing cannot mean different things.
 `docs/runbooks/access-administration.md` is how to run it.
 
 ## Deployment
+
+`docs/runbooks/cutover.md` is the release that turns sign-in on: the environment
+matrix, the bootstrap drill, rollback, and lockout recovery.
+`docs/runbooks/acceptance.md` is the 30-scenario checklist it is judged by, each
+scenario pointing either at the test that proves it or at the manual run that
+does.
 
 - **Backend**: `bunx convex deploy` pushes functions to the production Convex deployment.
 - **Frontend**: Vercel builds via `vercel.json`, which runs `convex deploy --cmd 'bun run build'`

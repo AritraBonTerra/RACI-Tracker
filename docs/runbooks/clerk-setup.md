@@ -10,6 +10,10 @@ Two environments, set up in this order: development first, so the whole flow
 can be exercised on a laptop with no corporate identity provider involved, then
 production, where Entra becomes the boundary.
 
+Section B is step 1 of the release. `docs/runbooks/cutover.md` is the rest of
+it — the order the environment variables, the deploy, the bootstrap and the
+acceptance run happen in, and how to roll any of it back.
+
 ---
 
 ## A. Development instance (do this first)
@@ -127,8 +131,9 @@ are not available on production instances of the free plan.
    - `VITE_CLERK_PUBLISHABLE_KEY` = `pk_live_…`
    - `VITE_CLERK_ENTERPRISE_DOMAIN` = the company email domain (e.g.
      `vctusa.com`). **Setting this is what turns the button into one hop to
-     Microsoft.** Leave it unset and production would show the development
-     sign-in widget.
+     Microsoft.** Leave it unset on a `pk_live_` build and the app renders
+     "Sign-in isn't configured" naming this variable, rather than offering a
+     development widget the production instance would refuse.
 
 ---
 
