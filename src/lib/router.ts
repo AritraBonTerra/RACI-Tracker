@@ -15,7 +15,8 @@ export type Route =
   | { name: "plan"; chainPlanId: Id<"chainPlans">; focusTaskId?: Id<"tasks"> }
   | { name: "promotion"; promotionId: Id<"promotions">; focusTaskId?: Id<"tasks"> }
   | { name: "people"; personId?: Id<"people"> }
-  | { name: "manage" };
+  | { name: "manage" }
+  | { name: "directory" };
 
 function withTask(base: string, focusTaskId: Id<"tasks"> | undefined) {
   return focusTaskId === undefined ? base : `${base}/task/${focusTaskId}`;
@@ -35,6 +36,8 @@ export function href(route: Route): string {
       return route.personId === undefined ? "#/people" : `#/people/${route.personId}`;
     case "manage":
       return "#/manage";
+    case "directory":
+      return "#/directory";
   }
 }
 
@@ -57,6 +60,7 @@ function parse(hash: string): Route {
     return { name: "people", personId: id ? (id as Id<"people">) : undefined };
   }
   if (view === "manage") return { name: "manage" };
+  if (view === "directory") return { name: "directory" };
   return { name: "home" };
 }
 

@@ -13,6 +13,7 @@ import { href, navigate, useRoute } from "./lib/router";
 import { useReportedMutation } from "./lib/toast";
 import { ThemeToggle } from "./lib/theme";
 import { ChainPlanView } from "./views/ChainPlanView";
+import { DirectoryView } from "./views/DirectoryView";
 import { DashboardSkeleton, HomeView } from "./views/HomeView";
 import { ManageView } from "./views/ManageView";
 import { PeopleView } from "./views/PeopleView";
@@ -214,14 +215,23 @@ export default function App() {
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-5 lg:px-8">
           {/* Keyed on the route so a broken link does not poison the next one. */}
           <ViewBoundary key={hash}>
-            {/* Manage and the directory do not hang off a season, so they never
-                wait for one. Everything else shows the placeholder shaped like
-                the page it is about to become. */}
+            {/* Manage, the Directory and the People directory do not hang off a
+                season, so they never wait for one. Everything else shows the
+                placeholder shaped like the page it is about to become. */}
             {route.name === "manage" ? (
               // Manage governs the hierarchy, so a Member typing the URL gets
               // the same nothing the sidebar showed them.
               isAdministrator ? (
                 <ManageView people={people} />
+              ) : (
+                <NotFound />
+              )
+            ) : route.name === "directory" ? (
+              // The same rule for access administration — and the backend
+              // refuses every function behind this page regardless, so forcing
+              // the route open buys a page of refusals rather than a roster.
+              isAdministrator ? (
+                <DirectoryView />
               ) : (
                 <NotFound />
               )

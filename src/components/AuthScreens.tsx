@@ -1,5 +1,7 @@
 import { AuthenticateWithRedirectCallback, SignIn } from "@clerk/clerk-react";
+import { useQuery } from "convex/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { api } from "../../convex/_generated/api";
 import { SIGN_IN_MODE, returnToUrl, useSignOut, useStartSignIn } from "../lib/auth";
 import { Button, Pill } from "./ui";
 
@@ -318,11 +320,56 @@ export function AccountMenu({
               {role === "administrator" ? "Administrator" : "Member"}
             </Pill>
           </div>
+          <MyScopes open={open} role={role} />
           <Button size="sm" className="mt-3 w-full" onClick={() => void signOut()}>
             Sign out
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * What the signed-in account can reach, in their own words (#30, story 17). A
+ * Member is entitled to know exactly what they have — and to nothing about
+ * anybody else's, which is why this reads the one function on the access
+ * surface that answers only about the caller.
+ *
+ * Asked only while the menu is open: a scope list nobody is looking at is a
+ * subscription on every page for a line of text behind a click.
+ */
+function MyScopes({
+  open,
+  role,
+}: {
+  open: boolean;
+  role: "administrator" | "member";
+}) {
+  const mine = useQuery(api.directory.myAccess, open ? {} : "skip");
+  if (role === "administrator") {
+    return (
+      <p className="mt-2 text-2xs text-ink-500">Reaches every plan year in full.</p>
+    );
+  }
+  if (mine === undefined) return null;
+  if (mine.scopes.length === 0) {
+    return (
+      <p className="mt-2 text-2xs text-ink-500">
+        No access granted yet — an Administrator is next.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-col gap-0.5">
+      <p className="text-3xs font-semibold tracking-wide text-ink-600 uppercase">
+        Your access
+      </p>
+      {mine.scopes.map((scope) => (
+        <p key={scope.label} className="truncate text-2xs text-ink-400">
+          {scope.label}
+        </p>
+      ))}
     </div>
   );
 }

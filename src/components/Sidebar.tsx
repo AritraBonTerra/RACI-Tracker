@@ -1,3 +1,4 @@
+import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
@@ -7,7 +8,7 @@ import { PHASES } from "../lib/domain";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 import { RollupChips, mergeRollups, type Rollup } from "./Rollup";
-import { Button, Field, Modal, Skeleton, inputClass } from "./ui";
+import { Button, Field, Modal, Pill, Skeleton, inputClass } from "./ui";
 
 // The navigation: the dashboard at the root, then the three tiers —
 // Plan Year -> Chain Plans -> Promotions — with each node carrying its own
@@ -424,8 +425,9 @@ export function SidebarSkeleton() {
 
 /**
  * People is readable by every signed-in account — pickers and task rows have to
- * resolve to real names (#22). Manage governs the hierarchy, so it is an
- * Administrator surface and is absent rather than greyed out for a Member.
+ * resolve to real names (#22). Manage governs the hierarchy and the Directory
+ * governs access, so both are Administrator surfaces and are absent rather than
+ * greyed out for a Member.
  */
 function ReferenceLinks({
   route,
@@ -443,14 +445,46 @@ function ReferenceLinks({
         meta="Who is loaded, and how much"
       />
       {isAdministrator && (
-        <PlainLink
-          to={{ name: "manage" }}
-          active={route.name === "manage"}
-          label="Manage"
-          meta="Chains, brands, people, years, templates"
-        />
+        <>
+          <PlainLink
+            to={{ name: "manage" }}
+            active={route.name === "manage"}
+            label="Manage"
+            meta="Chains, brands, people, years, templates"
+          />
+          <DirectoryLink route={route} />
+        </>
       )}
     </>
+  );
+}
+
+/**
+ * The Directory, with the awaiting-access queue on its badge (#30, story 20):
+ * nobody should sit at the "access comes next" screen unnoticed, and this is
+ * the only place in the shell that would notice.
+ *
+ * Its own component so the count query is skipped entirely for a Member —
+ * the query would refuse them anyway, and a refused query on every page is a
+ * console full of noise.
+ */
+function DirectoryLink({ route }: { route: Route }) {
+  const awaiting = useQuery(api.directory.awaitingCount, {});
+
+  return (
+    <PlainLink
+      to={{ name: "directory" }}
+      active={route.name === "directory"}
+      label="Directory"
+      meta="Accounts, roles, grants, audit"
+      badge={
+        awaiting !== undefined && awaiting > 0 ? (
+          <Pill className="bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/40 ring-inset">
+            {awaiting}
+          </Pill>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -556,11 +590,14 @@ function PlainLink({
   active,
   label,
   meta,
+  badge,
 }: {
   to: Route;
   active: boolean;
   label: string;
   meta: string;
+  /** A count worth interrupting for, where a tier node would carry chips. */
+  badge?: ReactNode;
 }) {
   return (
     <a href={href(to)} className={`${nodeClass(active)} px-2`}>
@@ -568,6 +605,7 @@ function PlainLink({
         <span className="block truncate text-sm font-medium">{label}</span>
         <span className="block truncate text-2xs text-ink-500">{meta}</span>
       </span>
+      {badge}
     </a>
   );
 }
