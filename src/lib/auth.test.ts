@@ -40,3 +40,48 @@ test("a variable set to blank reads as unset, and a padded one still works", () 
   // white screen this module exists to prevent.
   expect(signInConfig(` ${LIVE} `)).toEqual({ kind: "ready", publishableKey: LIVE });
 });
+
+// The stranded-session predicate. The bug it guards: Clerk's card finishes an
+// in-page email-code sign-in, `setActive` resolves, the client holds the new
+// session — and `clerk.session` stays null, so the gate shows "Checking your
+// sign-in…" until a manual reload. The adoption race itself only exists in a
+// real browser against a real Clerk instance (no seam here reaches it); this
+// locks down the decision of *when* adoption is allowed to fire, and the
+// browser step lives in the acceptance checklist.
+
+import { strandedSessionId } from "./auth";
+
+test("a completed-but-unadopted sign-in is stranded", () => {
+  expect(
+    strandedSessionId({
+      loaded: true,
+      session: null,
+      client: { lastActiveSessionId: "sess_abc" },
+    }),
+  ).toBe("sess_abc");
+});
+
+test("nothing is stranded before Clerk loads, while signed in, or after sign-out", () => {
+  // Not loaded: the boot path will adopt it; adopting first would race it.
+  expect(
+    strandedSessionId({
+      loaded: false,
+      session: null,
+      client: { lastActiveSessionId: "sess_abc" },
+    }),
+  ).toBeNull();
+  // An active session means there is nothing to recover.
+  expect(
+    strandedSessionId({
+      loaded: true,
+      session: { id: "sess_abc" },
+      client: { lastActiveSessionId: "sess_abc" },
+    }),
+  ).toBeNull();
+  // Signed out: the client names no session, so the hook must stay quiet
+  // rather than resurrect the one that just ended.
+  expect(
+    strandedSessionId({ loaded: true, session: null, client: { lastActiveSessionId: null } }),
+  ).toBeNull();
+  expect(strandedSessionId({ loaded: true, session: null, client: null })).toBeNull();
+});

@@ -9,6 +9,7 @@ import {
 import { api } from "../../convex/_generated/api";
 import {
   isSsoCallback,
+  useAdoptStrandedSession,
   useRememberLocation,
   useSessionEnding,
 } from "../lib/auth";
@@ -70,6 +71,9 @@ export function useLanding(): Viewer["landing"] {
 export function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading } = useConvexAuth();
   const ending = useSessionEnding();
+  // An in-page sign-in can complete without this tab activating the session
+  // (see `useAdoptStrandedSession`); adopt it here or the gate waits forever.
+  useAdoptStrandedSession();
   const me = useMe();
   const ensureUser = useMutation(api.access.ensureUser);
   const ensured = useRef(false);

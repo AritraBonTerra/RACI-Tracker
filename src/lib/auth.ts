@@ -90,12 +90,71 @@ export function useRememberLocation(active: boolean) {
   }, [active]);
 }
 
+/**
+ * The session the client holds but this tab never activated, or null.
+ *
+ * Clerk's prebuilt card can finish an in-page email-code sign-in without the
+ * Clerk singleton adopting the new session: `setActive` resolves, the client
+ * lists the session as active and `lastActiveSessionId` names it, yet
+ * `clerk.session` stays null and the shell sits on "Checking your sign-in…"
+ * until a reload lets Clerk's boot path adopt it. Pure so the predicate is
+ * testable; the hook below supplies the polling and the one-shot guard.
+ */
+export function strandedSessionId(clerk: {
+  loaded?: boolean;
+  session?: { id: string } | null | undefined;
+  client?: { lastActiveSessionId?: string | null } | null | undefined;
+}): string | null {
+  if (!clerk.loaded || clerk.session) return null;
+  return clerk.client?.lastActiveSessionId ?? null;
+}
+
+/**
+ * Adopts a stranded session — what a manual refresh does, minus the refresh.
+ *
+ * Polls only while signed out (the signal lives outside React state, so no
+ * render or effect dependency announces it) and stops the moment a session is
+ * active. Two hard-won constraints:
+ *
+ * - **Never adopt the session a sign-out is ending.** Ending a session passes
+ *   through this exact shape — `session` already null, `lastActiveSessionId`
+ *   not yet cleared — and adopting in that window resurrects the session the
+ *   user is ending (observed: the Sign out button bounced straight back to
+ *   signed-in). `useSignOut` records the ended session's id, and that one id
+ *   is never adopted; a different id is a fresh sign-in and adopts at once.
+ * - **Retry, but not forever.** A single silent attempt can fail transiently
+ *   and would wedge the pending screen behind a stale guard; unlimited
+ *   attempts would hammer a genuinely dead session. Three tries per session
+ *   id, then a manual reload is the (pre-existing) fallback.
+ */
+export function useAdoptStrandedSession() {
+  const clerk = useClerk();
+  const attempts = useRef({ id: null as string | null, count: 0 });
+  useEffect(() => {
+    // Polls for the app's lifetime, not only while React thinks the caller is
+    // signed out: in the stranded state clerk-react's *context* can already
+    // claim the session (`isSignedIn` true) while the singleton has none —
+    // and the singleton is what `getToken` reads, so Convex spins on a null
+    // token and the gate never leaves "Checking your sign-in…". The singleton
+    // is the only honest signal, and `strandedSessionId` reads it live.
+    const timer = setInterval(() => {
+      const stranded = strandedSessionId(clerk);
+      if (stranded === null || stranded === deliberatelySignedOutSessionId()) return;
+      if (attempts.current.id !== stranded) attempts.current = { id: stranded, count: 0 };
+      if (attempts.current.count >= 3) return;
+      attempts.current.count += 1;
+      void clerk.setActive({ session: stranded }).catch(() => {});
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [clerk]);
+}
+
 /** Sign out and land back on the card with a confirmation, not a blank page. */
 export function useSignOut() {
   const clerk = useClerk();
   return useCallback(async () => {
     sessionStorage.removeItem(RETURN_TO_KEY);
-    markDeliberateSignOut();
+    markDeliberateSignOut(clerk.session?.id ?? null);
     await clerk.signOut();
   }, [clerk]);
 }
@@ -113,15 +172,28 @@ export function useSignOut() {
 // accusing the identity provider of expiring the session.
 const SIGN_OUT_KEY = "raci-signed-out-at";
 
+/** The session id a deliberate sign-out is ending — the one id that must
+ * never be re-adopted by `useAdoptStrandedSession`, no matter how long the
+ * sign-out takes. Any *other* session appearing afterwards is a fresh
+ * sign-in and adoptable immediately. */
+const SIGN_OUT_SESSION_KEY = "raci-signed-out-session";
+
 /** How long after the click a session ending still counts as that click. */
 const SIGN_OUT_WINDOW_MS = 30_000;
 
-function markDeliberateSignOut() {
+function markDeliberateSignOut(sessionId: string | null) {
   localStorage.setItem(SIGN_OUT_KEY, String(Date.now()));
+  if (sessionId === null) localStorage.removeItem(SIGN_OUT_SESSION_KEY);
+  else localStorage.setItem(SIGN_OUT_SESSION_KEY, sessionId);
 }
 
 function clearDeliberateSignOut() {
   localStorage.removeItem(SIGN_OUT_KEY);
+  localStorage.removeItem(SIGN_OUT_SESSION_KEY);
+}
+
+function deliberatelySignedOutSessionId(): string | null {
+  return localStorage.getItem(SIGN_OUT_SESSION_KEY);
 }
 
 function signedOutDeliberately(): boolean {
