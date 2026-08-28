@@ -84,22 +84,30 @@ identity key is the Clerk user id either way.
    first-time employee's address has to be allowed to create a Clerk user.
    Admission to *this app* is decided afterwards, by section C and by an
    Administrator's grant — not here.
-4. **Turn on the Convex integration.** *Integrations → Convex*. This maps
-   `aud: "convex"` into the default session token, which is what
-   `convex/auth.config.ts` expects. Do **not** create a `convex` JWT template —
-   the template path is legacy, and claims placed there are silently dropped by
-   recent Convex clients.
-5. **Add the three claims.** *Sessions → Customize session token*:
+4. **Create the `convex` JWT template with the three claims.** Two token paths
+   exist and `ConvexProviderWithClerk` (convex 1.28) picks between them at
+   runtime: if the default session token carries `aud: "convex"` (the
+   *Integrations → Convex* toggle) it uses that token, otherwise it requests a
+   JWT template named `convex`. Either works; this deployment uses the
+   template, created via the CLI:
 
-   ```json
-   {
+   ```sh
+   clerk api /jwt_templates -d '{"name":"convex","claims":{
+     "aud": "convex",
      "email": "{{user.primary_email_address}}",
      "name": "{{user.full_name}}",
-     "email_verified": "{{user.primary_email_address_verified}}"
-   }
+     "email_verified": "{{user.email_verified}}"
+   }}'
    ```
 
-   All three are required, and none is in Clerk's default token.
+   If you use the integration toggle instead, put the same `email` / `name` /
+   `email_verified` claims under *Sessions → Customize session token* — the
+   toggle alone maps only `aud`. The verified-flag shortcode is
+   `{{user.email_verified}}`; `{{user.primary_email_address_verified}}` does
+   not exist and renders as a literal string, which reads as "not verified"
+   and makes the domain gate refuse everyone (verified empirically by minting
+   a session token from the template and decoding it).
+5. **Why all three claims are required** — none is in Clerk's default token:
 
    - Without `email`, `identity.email` is undefined, every User is created with
      no email, and `bootstrap:grantAdmin --email` is unusable.
@@ -212,16 +220,16 @@ Decide this before section B; the rest of it assumes you took the first option.
 One optional Convex environment variable, per deployment:
 
 ```sh
-bunx convex env set ALLOWED_EMAIL_DOMAIN vctusa.com --prod
+bunx convex env set ALLOWED_EMAIL_DOMAIN bonterraorganic.com --prod
 bunx convex env list --prod          # confirm
 bunx convex env remove ALLOWED_EMAIL_DOMAIN --prod   # turn it back off
 ```
 
-**Set**: only a *verified* address ending in `@vctusa.com` may create or keep a
+**Set**: only a *verified* address ending in `@bonterraorganic.com` may create or keep a
 User. Everyone else is refused — at first sign-in and on every call after it —
 with the one sentence every refusal in this app uses. The value is normalised,
 so `@VCTUSA.com` with a stray space means the same thing, and the match is on
-`@<domain>` so `notvctusa.com` and `vctusa.com.attacker.net` are both outside.
+`@<domain>` so `notbonterraorganic.com` and `bonterraorganic.com.attacker.net` are both outside.
 
 **Unset**: the gate is off. Any verified sign-in becomes a zero-access Member
 in the awaiting-access queue and stays there until an Administrator grants
@@ -237,7 +245,7 @@ Three things to know before you set it:
 - **It needs the `email_verified` claim** (A5). Without that claim mapped on the
   instance, the gate refuses everyone, including you.
 - **It mostly turns Google off.** "Continue with Google" only passes the gate if
-  the employee's Google account carries their `@vctusa.com` address, which at a
+  the employee's Google account carries their `@bonterraorganic.com` address, which at a
   Microsoft shop it usually will not. With the gate set, expect email code to be
   the real path in and Google to be a convenience for whoever happens to have a
   work-address Google account. That is fine — email code is the strategy the
