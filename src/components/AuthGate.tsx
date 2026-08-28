@@ -15,6 +15,7 @@ import {
 import {
   AuthPending,
   DeactivatedScreen,
+  IneligibleScreen,
   NoAccessScreen,
   SessionExpiredScreen,
   SignInScreen,
@@ -90,7 +91,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const active = me?.state === "active";
   useRememberLocation(active);
 
-  // Microsoft sends the browser back here; Clerk finishes and moves it along.
+  // Google sends the browser back here; Clerk finishes and moves it along.
   if (isSsoCallback()) return <SsoCallback />;
 
   if (ending === "expired") return <SessionExpiredScreen />;
@@ -102,6 +103,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     // A verified token whose User record is still being created.
     case "unregistered":
       return <AuthPending />;
+    // A verified token the deployment's email-domain gate does not admit. No
+    // User row exists, `ensureUser` would be refused, and there is nothing to
+    // wait for — only a way back out.
+    case "ineligible":
+      return <IneligibleScreen email={me.email} />;
     case "deactivated":
       return <DeactivatedScreen email={me.account.email} />;
     case "active":

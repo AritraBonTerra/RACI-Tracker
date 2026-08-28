@@ -19,11 +19,9 @@ const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 const root = createRoot(document.getElementById("root")!);
 
 if (SIGN_IN.kind === "unconfigured") {
-  // Two ways a build can be wrong about sign-in, and neither may render a door.
-  // Without a key `ClerkProvider` throws on mount, which reads as a white
-  // screen; with a production key and no enterprise domain the button would
-  // open Clerk's development widget against a tenant that refuses it. A missing
-  // environment variable deserves a sentence, and nothing else.
+  // Without a publishable key `ClerkProvider` throws on mount, which reads as a
+  // white screen. A missing environment variable deserves a sentence, and
+  // nothing else.
   root.render(
     <StrictMode>
       <AuthUnconfigured missing={SIGN_IN.missing} />
@@ -32,9 +30,17 @@ if (SIGN_IN.kind === "unconfigured") {
 } else {
   root.render(
     <StrictMode>
-      {/* The key `signInMode` approved, not the raw environment value: the two
-          differ by a stray space, and Clerk throws on the latter. */}
-      <ClerkProvider publishableKey={SIGN_IN.publishableKey} afterSignOutUrl="/">
+      {/* The key `signInConfig` approved, not the raw environment value: the
+          two differ by a stray space, and Clerk throws on the latter.
+
+          `signInUrl` is set so Clerk derives the Google round trip's return
+          path from this app rather than from the hosted account portal —
+          `/sign-in/sso-callback`, which `isSsoCallback` matches by suffix. */}
+      <ClerkProvider
+        publishableKey={SIGN_IN.publishableKey}
+        signInUrl="/sign-in"
+        afterSignOutUrl="/"
+      >
         <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
           <ToastProvider>
             <AuthGate>

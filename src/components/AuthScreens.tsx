@@ -2,13 +2,13 @@ import { AuthenticateWithRedirectCallback, SignIn } from "@clerk/clerk-react";
 import { useQuery } from "convex/react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
-import { SIGN_IN, returnToUrl, useSignOut, useStartSignIn } from "../lib/auth";
+import { returnToUrl, useSignOut } from "../lib/auth";
 import { Button, Pill } from "./ui";
 
-// Every screen the app shows *outside* itself: the sign-in card, the two dead
-// ends (no access yet, deactivated), and the rare expired session. They share
-// one centered card so signing in, waiting for access, and being offboarded all
-// read as the same tool in different states.
+// Every screen the app shows *outside* itself: the sign-in card, the three dead
+// ends (no access yet, deactivated, not an eligible account), and the rare
+// expired session. They share one centered card so signing in, waiting for
+// access, and being offboarded all read as the same tool in different states.
 //
 // None of these is a security boundary. They exist so a refused caller sees a
 // sentence instead of an error, while the backend refuses them regardless.
@@ -20,15 +20,6 @@ function Wordmark() {
     </span>
   );
 }
-
-const MICROSOFT_SQUARES = (
-  <span aria-hidden className="grid grid-cols-2 gap-px">
-    <span className="h-2 w-2 bg-[#f25022]" />
-    <span className="h-2 w-2 bg-[#7fba00]" />
-    <span className="h-2 w-2 bg-[#00a4ef]" />
-    <span className="h-2 w-2 bg-[#ffb900]" />
-  </span>
-);
 
 function CenterScreen({ children }: { children: ReactNode }) {
   return (
@@ -47,32 +38,36 @@ function Card({ children }: { children: ReactNode }) {
 }
 
 /**
- * Clerk's prebuilt sign-in, shown only on a laptop. `forceRedirectUrl` is the
- * development half of what `redirectUrlComplete` does on the enterprise path:
- * without it Clerk finishes on `/` and the page the user was reading is lost.
+ * The one way in, identical in development and production: Clerk's prebuilt
+ * card carrying the two strategies the free plan gives us — a verification code
+ * to your inbox, and "Continue with Google".
+ *
+ * `withSignUp` is what makes it one card rather than two: an employee signing
+ * in for the first time has no Clerk account yet, and without it Clerk answers
+ * their address with "couldn't find your account" and a link elsewhere.
+ *
+ * `forceRedirectUrl` is why a Google round trip comes back to the promotion the
+ * user was reading; without it Clerk finishes on `/`.
  */
-function DevSignIn({ onBack }: { onBack: () => void }) {
+function ClerkSignIn() {
   return (
-    <CenterScreen>
-      <SignIn routing="virtual" forceRedirectUrl={returnToUrl()} />
-      <Button size="sm" variant="ghost" onClick={onBack}>
-        Back
-      </Button>
-    </CenterScreen>
+    <SignIn
+      routing="virtual"
+      withSignUp
+      forceRedirectUrl={returnToUrl()}
+      signUpForceRedirectUrl={returnToUrl()}
+    />
   );
 }
 
 /**
- * The only way in: one button, no password fields, no local accounts. In
- * development the button reveals Clerk's prebuilt sign-in instead of leaving
- * for Microsoft, because a laptop has no corporate identity provider behind it.
+ * The only way in: an email code or Google, no password fields, no local
+ * accounts. Nothing here is the employee boundary — anyone who completes a
+ * sign-in reaches `NoAccessScreen` and nothing else until an Administrator
+ * grants them a scope (and, where `ALLOWED_EMAIL_DOMAIN` is set on the Convex
+ * deployment, not even that).
  */
 export function SignInScreen({ signedOut = false }: { signedOut?: boolean }) {
-  const { start, pending, ready } = useStartSignIn();
-  const [showDevSignIn, setShowDevSignIn] = useState(false);
-
-  if (showDevSignIn) return <DevSignIn onBack={() => setShowDevSignIn(false)} />;
-
   return (
     <CenterScreen>
       {signedOut && (
@@ -80,35 +75,18 @@ export function SignInScreen({ signedOut = false }: { signedOut?: boolean }) {
           You're signed out.
         </p>
       )}
-      <Card>
-        <div className="flex items-baseline justify-center gap-2.5">
-          <Wordmark />
-          <span className="text-2xs text-ink-500">Integrated Commercial Cycle</span>
-        </div>
-        <p className="mt-2 text-xs text-ink-400">
-          Viña Concha y Toro USA — internal employees only.
-        </p>
-        <Button
-          variant="primary"
-          size="md"
-          className="mt-5 w-full"
-          disabled={!ready || pending}
-          onClick={() => {
-            if (SIGN_IN.kind === "development") {
-              setShowDevSignIn(true);
-              return;
-            }
-            void start();
-          }}
-        >
-          {MICROSOFT_SQUARES}
-          {pending ? "Taking you to Microsoft…" : "Sign in with Microsoft"}
-        </Button>
-        <p className="mt-3 text-2xs leading-relaxed text-ink-500">
-          Use your company Microsoft account. Access inside the tracker is
-          granted by an Administrator after you first sign in.
-        </p>
-      </Card>
+      <div className="flex items-baseline justify-center gap-2.5">
+        <Wordmark />
+        <span className="text-2xs text-ink-500">Integrated Commercial Cycle</span>
+      </div>
+      <p className="text-xs text-ink-400">
+        Viña Concha y Toro USA — internal employees only.
+      </p>
+      <ClerkSignIn />
+      <p className="max-w-sm text-center text-2xs leading-relaxed text-ink-500">
+        Use your company work address. Access inside the tracker is granted by an
+        Administrator after you first sign in.
+      </p>
     </CenterScreen>
   );
 }
@@ -143,7 +121,36 @@ export function NoAccessScreen({ email }: { email?: string }) {
   );
 }
 
-/** Locally deactivated: denied server-side on every call, before Entra catches up. */
+/**
+ * The account signed in, and the deployment's `ALLOWED_EMAIL_DOMAIN` gate does
+ * not admit it (#30, story 6, as downgraded in `docs/adr/0003-…`). No User row
+ * exists and none will: every backend call from this identity is refused with
+ * the same sentence every other refusal uses. This screen only names the way
+ * out.
+ */
+export function IneligibleScreen({ email }: { email?: string }) {
+  const signOut = useSignOut();
+  return (
+    <CenterScreen>
+      <Card>
+        <Wordmark />
+        <p className="mt-3 text-sm font-medium text-ink-100">
+          This account can't be used here.
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
+          {email === undefined ? "That account" : <span className="text-ink-200">{email}</span>}{" "}
+          isn't a Viña Concha y Toro USA work account. Sign out and sign back in
+          with your company address.
+        </p>
+        <Button size="md" className="mt-4" onClick={() => void signOut()}>
+          Back to sign-in
+        </Button>
+      </Card>
+    </CenterScreen>
+  );
+}
+
+/** Locally deactivated: denied server-side on every call, immediately. */
 export function DeactivatedScreen({ email }: { email?: string }) {
   const signOut = useSignOut();
   return (
@@ -168,14 +175,24 @@ export function DeactivatedScreen({ email }: { email?: string }) {
 
 /**
  * Sessions refresh silently, so this is the rare case where the identity
- * provider wanted a fresh interactive sign-in. One button back through
- * Microsoft, returning to the page that was open.
+ * provider wanted a fresh interactive sign-in. The message comes first and the
+ * card second, so "your session expired" is read rather than guessed at from a
+ * sign-in form appearing over the work that was open. Either strategy returns
+ * to that page, because `returnToUrl` was recorded while the session was live.
  */
 export function SessionExpiredScreen() {
-  const { start, pending, ready } = useStartSignIn();
-  const [showDevSignIn, setShowDevSignIn] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
 
-  if (showDevSignIn) return <DevSignIn onBack={() => setShowDevSignIn(false)} />;
+  if (signingIn) {
+    return (
+      <CenterScreen>
+        <ClerkSignIn />
+        <Button size="sm" variant="ghost" onClick={() => setSigningIn(false)}>
+          Back
+        </Button>
+      </CenterScreen>
+    );
+  }
 
   return (
     <CenterScreen>
@@ -188,17 +205,9 @@ export function SessionExpiredScreen() {
         <Button
           variant="primary"
           size="md"
-          className="mt-4"
-          disabled={!ready || pending}
-          onClick={() => {
-            if (SIGN_IN.kind === "development") {
-              setShowDevSignIn(true);
-              return;
-            }
-            void start();
-          }}
+          className="mt-4 w-full"
+          onClick={() => setSigningIn(true)}
         >
-          {MICROSOFT_SQUARES}
           Sign in again
         </Button>
       </Card>
@@ -219,18 +228,26 @@ export function AuthPending() {
 }
 
 /**
- * The page Microsoft redirects back to. Clerk finishes the handshake and sends
- * the browser on to `redirectUrlComplete`; there is nothing to render but a
- * held breath.
+ * The page Google's round trip returns to. Clerk finishes the handshake and
+ * sends the browser on; there is nothing to render but a held breath.
+ *
+ * The two redirect props repeat what the sign-in card already asked for. Clerk
+ * normally carries that through the round trip itself, but `returnToUrl` reads
+ * `sessionStorage`, which survives the redirect in this tab — so saying it
+ * again here costs nothing and covers the case where it did not.
  */
 export function SsoCallback() {
+  const back = returnToUrl();
   return (
     <CenterScreen>
       <Card>
         <Wordmark />
         <p className="mt-3 text-xs text-ink-500">Finishing sign-in…</p>
       </Card>
-      <AuthenticateWithRedirectCallback />
+      <AuthenticateWithRedirectCallback
+        signInForceRedirectUrl={back}
+        signUpForceRedirectUrl={back}
+      />
     </CenterScreen>
   );
 }

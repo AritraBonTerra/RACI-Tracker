@@ -114,8 +114,8 @@ export function DirectoryView() {
         {selected === undefined ? (
           <Panel title="Account">
             <EmptyState title="Nobody has signed in yet">
-              A User is created the first time someone signs in with their Microsoft
-              account — they are never pre-provisioned.
+              A User is created the first time someone signs in with their work
+              address — they are never pre-provisioned.
             </EmptyState>
           </Panel>
         ) : (
@@ -462,8 +462,8 @@ function Offboarding({ detail }: { detail: Detail }) {
             }
           />
           <p className="text-3xs text-ink-600">
-            Denies everything immediately, server-side. Pair it with disabling the
-            account in Entra; RACI history stays on the linked Person.
+            Denies everything immediately, server-side. Pair it with deleting the
+            account in Clerk; RACI history stays on the linked Person.
           </p>
         </>
       ) : (

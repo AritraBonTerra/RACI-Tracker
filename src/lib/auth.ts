@@ -1,68 +1,55 @@
-import { useAuth, useClerk, useSignIn } from "@clerk/clerk-react";
+import { useAuth, useClerk } from "@clerk/clerk-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 // Sign-in, as the app sees it. Clerk owns the identity handshake; this file owns
-// the two questions the shell actually asks — "start a sign-in" and "did the
-// session lapse?" — and keeps every Clerk detail from leaking further in.
+// the two questions the shell actually asks — "where do we put them back?" and
+// "did the session lapse?" — and keeps every Clerk detail from leaking further
+// in.
 //
-// Two ways in, one button:
+// One door, everywhere. Development and production run the same two strategies,
+// both on Clerk's free plan: an **email verification code**, and **Continue with
+// Google**. There is no environment fork left — the same prebuilt card renders
+// on a laptop and in production, and the only thing an environment changes is
+// which Clerk instance it points at.
 //
-//   Production sets VITE_CLERK_ENTERPRISE_DOMAIN. The button calls Clerk's
-//   custom redirect flow straight at the tenant's SAML enterprise connection,
-//   so there is no email step in front of Microsoft. Entra refuses personal
-//   accounts and other tenants before Clerk ever hears about them.
-//
-//   Development leaves it unset. The button opens Clerk's prebuilt sign-in
-//   (email code on a development instance), because there is no corporate IdP
-//   to hand off to on a laptop. Same one button, different door behind it.
-//
-// Which of the two a build gets is decided here, from the environment alone,
-// and a build that names neither door opens none: see `signInMode`.
+// That is a deliberate change from the SAML-to-Entra design in #30 (see
+// `docs/adr/0003-…`). The employee boundary is no longer the identity provider:
+// it is the backend's deny-by-default access model, plus the optional
+// `ALLOWED_EMAIL_DOMAIN` gate in `convex/access.ts`. A stranger who signs in
+// with a personal Google account reaches the "access comes next" screen and no
+// data whatsoever.
 
 /**
- * Which door the sign-in button opens, or which environment variable is
- * missing. Pure, and taking both values as arguments, because this decision is
- * the difference between a production cutover and a sign-in screen that cannot
- * work — it is worth asserting rather than reading.
+ * Whether this build can sign anyone in, or which environment variable is
+ * missing. Pure, and taking the value as an argument, because a build that
+ * cannot complete a sign-in has to say so rather than render a door.
  *
- * The development door needs a development key (`pk_test_…`) *and* the absence
- * of an enterprise domain to route to. A live Clerk instance with no domain set
- * is the cutover's sharpest trap: Clerk's prebuilt widget would render on a
- * production instance whose only sign-in strategy is enterprise SSO, offering
- * employees an email field that refuses every address they own. That build is
- * misconfigured, and says so instead of opening a door that leads nowhere.
- *
- * An open door carries the key back out, trimmed. Clerk validates a
- * publishable key by prefix and payload and throws on mount if it cannot, so
- * handing `ClerkProvider` the raw environment value while deciding on the
- * trimmed one would let a key pasted into a dashboard with a stray space pass
- * here and blank the screen there.
+ * An open door carries the key back out, trimmed. Clerk validates a publishable
+ * key by prefix and payload and throws on mount if it cannot, so handing
+ * `ClerkProvider` the raw environment value while deciding on the trimmed one
+ * would let a key pasted into a dashboard with a stray space pass here and
+ * blank the screen there.
  */
-export function signInMode(
+export function signInConfig(
   publishableKey: string | undefined,
-  enterpriseDomain: string | undefined,
-):
-  | { kind: "enterprise"; publishableKey: string; domain: string }
-  | { kind: "development"; publishableKey: string }
-  | { kind: "unconfigured"; missing: string } {
-  const key = publishableKey?.trim() ?? "";
+): { kind: "ready"; publishableKey: string } | { kind: "unconfigured"; missing: string } {
   // An environment variable set to the empty string is Vercel's way of being
   // unset, and reads that way here too.
-  const domain = enterpriseDomain?.trim() ?? "";
-
+  const key = publishableKey?.trim() ?? "";
   if (key === "") return { kind: "unconfigured", missing: "VITE_CLERK_PUBLISHABLE_KEY" };
-  if (domain !== "") return { kind: "enterprise", publishableKey: key, domain };
-  if (key.startsWith("pk_test_")) return { kind: "development", publishableKey: key };
-  return { kind: "unconfigured", missing: "VITE_CLERK_ENTERPRISE_DOMAIN" };
+  return { kind: "ready", publishableKey: key };
 }
 
-export const SIGN_IN = signInMode(
-  import.meta.env.VITE_CLERK_PUBLISHABLE_KEY,
-  import.meta.env.VITE_CLERK_ENTERPRISE_DOMAIN,
-);
+export const SIGN_IN = signInConfig(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 
-/** The path that finishes a redirect sign-in (see `SsoCallback`). */
-const CALLBACK_PATH = "/sso-callback";
+/**
+ * The path Clerk sends a Google round trip back to. Clerk derives it from the
+ * instance's sign-in URL, so it arrives as `/sign-in/sso-callback` rather than
+ * as a fixed path — hence the suffix match in `isSsoCallback`. Every path on
+ * this app serves `index.html` (`vercel.json` rewrites, Vite's dev fallback),
+ * so whichever shape Clerk picks reaches the shell.
+ */
+const CALLBACK_SUFFIX = "/sso-callback";
 
 const RETURN_TO_KEY = "raci-return-to";
 
@@ -71,9 +58,9 @@ function appUrl(hash: string) {
 }
 
 /**
- * Where to put the user back after a round trip through Microsoft. Recorded
- * continuously while signed in, so an expired session returns to the promotion
- * they were reading rather than the dashboard.
+ * Where to put the user back after a round trip through the identity provider.
+ * Recorded continuously while signed in, so an expired session returns to the
+ * promotion they were reading rather than the dashboard.
  *
  * The address bar is the fallback, ahead of the dashboard: a tab reloaded on a
  * lapsed session, a browser restarted overnight, or a shared deep link opened
@@ -101,38 +88,6 @@ export function useRememberLocation(active: boolean) {
     window.addEventListener("hashchange", remember);
     return () => window.removeEventListener("hashchange", remember);
   }, [active]);
-}
-
-/**
- * Start a sign-in. In enterprise mode this leaves the page for Microsoft; the
- * identifier only tells Clerk which enterprise connection to route to, and the
- * account that comes back is whoever Entra says it is.
- */
-export function useStartSignIn() {
-  const { isLoaded, signIn } = useSignIn();
-  const [pending, setPending] = useState(false);
-
-  const start = useCallback(async () => {
-    // Development has no enterprise connection to route to; the sign-in screen
-    // opens Clerk's prebuilt component there instead of calling this.
-    if (SIGN_IN.kind !== "enterprise") return;
-    if (!isLoaded || signIn === undefined) return;
-    setPending(true);
-    try {
-      await signIn.authenticateWithRedirect({
-        strategy: "enterprise_sso",
-        identifier: `sso@${SIGN_IN.domain}`,
-        redirectUrl: `${window.location.origin}${CALLBACK_PATH}`,
-        redirectUrlComplete: returnToUrl(),
-      });
-    } catch {
-      // The redirect never happened, so the sign-in card is still on screen and
-      // is the right place to try again from.
-      setPending(false);
-    }
-  }, [isLoaded, signIn]);
-
-  return { start, pending, ready: isLoaded };
 }
 
 /** Sign out and land back on the card with a confirmation, not a blank page. */
@@ -180,8 +135,7 @@ export type SessionEnding = "none" | "signedOut" | "expired";
  * Why the session ended. A recorded sign-out is checked before "did this tab
  * have a session", because the navigation that follows `signOut()` throws away
  * everything this tab remembered. Clerk refreshes silently, so "expired" is the
- * rare case where Microsoft demanded a fresh interactive sign-in rather than
- * the usual invisible renewal.
+ * rare case where the session could not be renewed without asking the user.
  */
 export function useSessionEnding(): SessionEnding {
   const { isLoaded, isSignedIn } = useAuth();
@@ -209,7 +163,7 @@ export function useSessionEnding(): SessionEnding {
   return ending;
 }
 
-/** True while the browser is on the path Microsoft redirects back to. */
+/** True while the browser is on the path Google's round trip returns to. */
 export function isSsoCallback() {
-  return window.location.pathname === CALLBACK_PATH;
+  return window.location.pathname.endsWith(CALLBACK_SUFFIX);
 }
