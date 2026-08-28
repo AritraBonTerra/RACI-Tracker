@@ -169,25 +169,47 @@ only that row. The open client updates without a reload either way.
 Administrators reach everything, so `grantAccess` refuses to give one an
 assignment rather than storing a row that means nothing.
 
-## What this does *not* protect yet
+## What a Member can and cannot do
 
-Finishing this runbook gets you sign-in and **scoped reads**. Every public query
-resolves the caller's identity server-side and answers only over the records
-their Access Assignments reach; an out-of-scope link is answered with the same
-`null` a deleted record gets.
+Finishing this runbook gets you sign-in, **scoped reads** and **scoped writes**.
+Every public query and every public mutation resolves the caller's identity
+server-side; nothing outside `convex/access.ts` builds a function from a raw
+factory, and `convex/accessBoundary.test.ts` fails the build if anything does.
 
-Writes are not there yet. Every mutation — `tasks`, `promotions`, `seasons`,
-`people`, and the rest — is still a bare `mutation`, so a caller holding any
-Convex client can *change* every record without a token. The remaining modules
-and the exact factories they still reach for are listed as `AWAITING_MIGRATION`
-in `convex/accessBoundary.test.ts`; that table has to be empty before this
-deployment holds anything an outsider must not be able to edit. Until then,
-treat the production data as writable by anyone with the URL.
+Inside a granted scope a Member has full control of the work:
 
-The app itself shows a Member only the affordances their role has — creating a
-plan year, a chain plan or a promotion, and deleting a plan or a promotion, are
-all Administrator-only buttons — but that is the interface being honest, not a
-guard. The guard arrives with the scoped writes.
+- create, edit, reorder and delete tasks; set specs, quantities and ETAs
+- change status, with a reason still required to mark anything Blocked
+- assign and change RACI, choosing from the **whole** People directory — the
+  right owner often sits in another function
+- edit the fields of the records their scope covers: a Promotion's name, dates,
+  stores, brands and notes; a Chain Plan's phase, JBP date and notes; a Plan
+  Year's label and notes
+- write the KPI entries and the Retro of a Promotion they hold
+
+Reserved to Administrators, and refused server-side for everyone else:
+
+- creating and deleting Plan Years, Chains, Chain Plans, Promotions and Brands
+- every write to the People directory, including renaming a Function
+- the Task Template menu in Manage
+
+Two properties are worth knowing when you read a failure:
+
+- **A refused write says nothing.** A mutation aimed at a record outside the
+  caller's scope fails with the identical sentence a deleted record produces, so
+  no sequence of writes can map what exists.
+- **A create is judged by its parent.** The id in the argument is a lookup key,
+  never a claim: the parent is loaded and *its* stored ancestry decides.
+
+Every ordinary edit now stamps who made it and when, shown as "Last edited by …"
+on the Plan Year, Chain Plan and Promotion pages, on each expanded task row, and
+under the KPI table and the Retro. That stamp is not the audit trail — access
+changes (roles, grants, revocations, activations) are Audit events and kept
+indefinitely.
+
+Still outstanding: access administration is CLI-only until the Directory surface
+lands (#34), so grants, role changes and deactivations go through the deploy
+credentials described above.
 
 ## Break-glass
 

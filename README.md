@@ -50,6 +50,15 @@ outside it may build a public `query` or `mutation`, and
 break-glass live in `convex/bootstrap.ts` as internal functions, reachable only
 with deploy credentials.
 
+Reads answer over the caller's Access Assignments and writes obey the same
+scope: a Member has full task control and in-scope field editing, while the
+hierarchy, the reference data and the People directory are Administrator-only.
+Every scope check reads the ancestry off the *loaded* record, so a client-supplied
+id is a lookup key and never an authorization input, and a call aimed at
+something out of scope fails exactly as one aimed at something deleted does.
+`convex/scopedReads.test.ts` and `convex/scopedWrites.test.ts` are those two
+matrices, argued over the shared world in `convex/world.fixture.ts`.
+
 ## Deployment
 
 - **Backend**: `bunx convex deploy` pushes functions to the production Convex deployment.

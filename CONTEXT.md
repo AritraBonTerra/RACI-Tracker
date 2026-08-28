@@ -51,6 +51,10 @@ conversation.
   activation, deactivation, Person link) with its actor and timestamp, kept
   indefinitely. Ordinary record edits are not audited; they carry a
   last-modified stamp instead.
+- **Last edited** — the stamp every ordinary record edit leaves: which User
+  wrote it and when, shown wherever the record is shown. One per record, always
+  overwritten, never a history — that is what the Audit event is for, and the
+  Audit event covers access only.
 - **RACI** — per task: **Responsible** does the work — one or more named
   People, and a task needs at least one to count as assigned. **Accountable**
   owns the outcome — always exactly one Person, the one you chase when a task
