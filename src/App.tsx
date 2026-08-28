@@ -4,7 +4,7 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useAccount, useIsAdministrator, useLanding } from "./components/AuthGate";
 import { AccountMenu } from "./components/AuthScreens";
-import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
+import { CONTEXT_HINT, Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
 import { NotFound, TierSkeleton, ViewBoundary } from "./components/page";
 import { Button, Field, Modal, inputClass } from "./components/ui";
 import { formatDay, todayIso } from "./lib/dates";
@@ -141,19 +141,21 @@ export default function App() {
                   return;
                 }
                 const next = seasons.find((season) => season._id === event.target.value);
-                if (next === undefined) return;
-                // A year the viewer only sees as context has no page behind it,
-                // so switching to it lands on the dashboard for that year.
-                navigate(
-                  next.reach === "full"
-                    ? { name: "season", seasonId: next._id }
-                    : { name: "home" },
-                );
+                // A year the viewer only sees as context is a label, not a
+                // door: its option is disabled, and there is no page to send
+                // them to if a stray change event names one anyway.
+                if (next === undefined || next.reach !== "full") return;
+                navigate({ name: "season", seasonId: next._id });
               }}
               className="h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500"
             >
               {seasons.map((season) => (
-                <option key={season._id} value={season._id}>
+                <option
+                  key={season._id}
+                  value={season._id}
+                  disabled={season.reach !== "full"}
+                  title={season.reach === "full" ? undefined : CONTEXT_HINT}
+                >
                   Year {season.label}
                 </option>
               ))}

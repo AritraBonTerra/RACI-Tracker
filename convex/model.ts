@@ -271,15 +271,21 @@ export type TaskPlace =
       chain: string | null;
     };
 
-/** A read-through cache for one query's worth of lookups in a single table. */
+/**
+ * A read-through cache for one query's worth of lookups in a single table.
+ *
+ * Caches the in-flight read rather than its result, because every caller here
+ * fans out over `Promise.all`: the second lookup of an id arrives long before
+ * the first one resolves, and a cache of resolved docs would miss every time.
+ */
 export function memo<Table extends TableNames>(ctx: QueryCtx) {
-  const seen = new Map<Id<Table>, Doc<Table> | null>();
-  return async (id: Id<Table>): Promise<Doc<Table> | null> => {
+  const seen = new Map<Id<Table>, Promise<Doc<Table> | null>>();
+  return (id: Id<Table>): Promise<Doc<Table> | null> => {
     const hit = seen.get(id);
     if (hit !== undefined) return hit;
-    const doc = await ctx.db.get(id);
-    seen.set(id, doc);
-    return doc;
+    const reading = ctx.db.get(id);
+    seen.set(id, reading);
+    return reading;
   };
 }
 

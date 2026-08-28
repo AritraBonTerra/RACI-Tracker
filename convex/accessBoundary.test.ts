@@ -50,27 +50,44 @@ const GENERATED_SERVER = String.raw`"[^"]*_generated/server"`;
 
 /**
  * Which public factories a source file pulls out of the generated server
- * module. A namespace import is reported as one, unresolvable, offender:
- * `server.query({...})` is a bare factory that no named-import check can see,
- * so the boundary refuses the import itself rather than trying to trace it.
+ * module, by import *or* by re-export. A namespace form is reported as one,
+ * unresolvable, offender: `server.query({...})` is a bare factory that no
+ * named check can see, and `export * from "./_generated/server"` hands the
+ * whole set to whoever imports the module, so the boundary refuses the
+ * statement itself rather than trying to trace it.
+ *
+ * Re-exports count because the raw factory reaching a second module launders
+ * it: `export { mutation } from "./_generated/server"` in a shared helper turns
+ * `import { mutation } from "./model"` into an unguarded public function that a
+ * check reading only `_generated/server` import sites would call clean.
  *
  * Takes source rather than a path so the check is testable against the ways
  * around it (see the last test).
  */
 export function publicFactoriesIn(source: string): string[] {
-  const namespaced = [
-    ...source.matchAll(
-      new RegExp(String.raw`import\s*\*\s*as\s+(\w+)\s*from\s*${GENERATED_SERVER}`, "g"),
-    ),
-  ].map((match) => `* as ${match[1]}`);
+  // `import` and `export` share a grammar here; only the keyword differs.
+  const statements = (keyword: string, clause: string) =>
+    [
+      ...source.matchAll(
+        new RegExp(String.raw`${keyword}\s*${clause}\s*from\s*${GENERATED_SERVER}`, "g"),
+      ),
+    ].map((match) => match[1]);
 
+  const namespaced = [
+    ...statements("import", String.raw`\*\s*as\s+(\w+)`).map((name) => `* as ${name}`),
+    // `export *` binds no name of its own, so there is nothing to report but
+    // the statement.
+    ...statements("export", String.raw`(\*(?:\s*as\s+\w+)?)`).map(() => "export *"),
+  ];
+
+  // Both sides of an `as` are checked: the local name is what an import site
+  // reaches for, the exported name is what a consumer of this module writes.
   const named = [
-    ...source.matchAll(
-      new RegExp(String.raw`import\s*(?:type\s*)?{([^}]*)}\s*from\s*${GENERATED_SERVER}`, "g"),
-    ),
+    ...statements("import", String.raw`(?:type\s*)?{([^}]*)}`),
+    ...statements("export", String.raw`(?:type\s*)?{([^}]*)}`),
   ]
-    .flatMap((match) => match[1].split(","))
-    .map((clause) => clause.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0])
+    .flatMap((names) => names.split(","))
+    .flatMap((clause) => clause.trim().replace(/^type\s+/, "").split(/\s+as\s+/))
     .filter((name) => PUBLIC_FACTORIES.has(name));
 
   return [...namespaced, ...named];
@@ -164,6 +181,25 @@ test("the check sees the ways around it", () => {
   // An HTTP route is public on the `.convex.site` domain, token or not.
   expect(factories(`import { httpAction } from "./_generated/server";`)).toEqual([
     "httpAction",
+  ]);
+  // A re-export launders the factory through a module every other one already
+  // imports: `import { mutation } from "./model"` would look clean forever.
+  expect(factories(`export { mutation, query } from "./_generated/server";`)).toEqual([
+    "mutation",
+    "query",
+  ]);
+  // Renaming on the way out hides the factory's name from the export site, so
+  // both sides of the `as` are read.
+  expect(factories(`export { mutation as write } from "./_generated/server";`)).toEqual([
+    "mutation",
+  ]);
+  expect(factories(`import { query as ask } from "./_generated/server";`)).toEqual([
+    "query",
+  ]);
+  // A star re-export hands over the whole set, naming none of it.
+  expect(factories(`export * from "./_generated/server";`)).toEqual(["export *"]);
+  expect(factories(`export * as server from "../_generated/server";`)).toEqual([
+    "export *",
   ]);
 
   // Internal factories are unreachable from `api`, and the wrappers are the

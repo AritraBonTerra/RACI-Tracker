@@ -33,7 +33,7 @@ type ChainNode = Tree["chains"][number];
 type PlanNode = ChainNode["plans"][number];
 
 /** The tooltip on every node shown only to orient — never as a way in. */
-const CONTEXT_HINT = "Shown for context — you don't have access to this";
+export const CONTEXT_HINT = "Shown for context — you don't have access to this";
 
 const COLLAPSE_KEY = "raci.sidebar.collapsed";
 

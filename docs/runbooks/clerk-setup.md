@@ -184,6 +184,11 @@ in `convex/accessBoundary.test.ts`; that table has to be empty before this
 deployment holds anything an outsider must not be able to edit. Until then,
 treat the production data as writable by anyone with the URL.
 
+The app itself shows a Member only the affordances their role has — creating a
+plan year, a chain plan or a promotion, and deleting a plan or a promotion, are
+all Administrator-only buttons — but that is the interface being honest, not a
+guard. The guard arrives with the scoped writes.
+
 ## Break-glass
 
 If every Administrator is locked out, whoever holds the Convex deploy

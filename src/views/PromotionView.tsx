@@ -15,6 +15,7 @@ import {
 import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { Button, ConfirmButton, Modal, Pill } from "../components/ui";
 import { Pathway } from "../components/Pathway";
+import { useIsAdministrator } from "../components/AuthGate";
 import { formatDay } from "../lib/dates";
 import { PHASES, PROMOTION_PHASES, toPhase } from "../lib/domain";
 import { buildPathway, promotionAnchors } from "../lib/pathway";
@@ -41,6 +42,9 @@ export function PromotionView({
   const update = useReportedMutation(api.promotions.update);
   const remove = useReportedMutation(api.promotions.remove);
   const [editingBrands, setEditingBrands] = useState(false);
+  // Deleting a Promotion is an Administrator's alone (#22). For a
+  // promotion-only Member it would also delete their own way back in.
+  const isAdministrator = useIsAdministrator();
 
   if (data === undefined) return <TierSkeleton />;
   if (data === null) return <NotFound />;
@@ -81,21 +85,20 @@ export function PromotionView({
           />
         }
         actions={
-          <ConfirmButton
-            size="md"
-            label="Delete promotion"
-            confirmLabel="Delete and lose its checklist?"
-            onConfirm={async () => {
-              const removed = await remove({ promotionId });
-              if (!removed.ok) return;
-              // Back up the tree if there is a tree to go back up to.
-              navigate(
-                data.plan.reach === "full"
-                  ? { name: "plan", chainPlanId: data.plan._id }
-                  : { name: "home" },
-              );
-            }}
-          />
+          isAdministrator ? (
+            <ConfirmButton
+              size="md"
+              label="Delete promotion"
+              confirmLabel="Delete and lose its checklist?"
+              onConfirm={async () => {
+                const removed = await remove({ promotionId });
+                if (!removed.ok) return;
+                // Only an Administrator gets here, and their reach on the plan
+                // above is always full, so the plan is where to land.
+                navigate({ name: "plan", chainPlanId: data.plan._id });
+              }}
+            />
+          ) : undefined
         }
         meta={
           <>
