@@ -1,13 +1,14 @@
 import type { FunctionReturnType } from "convex/server";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { formatRange } from "../lib/dates";
 import { PHASES } from "../lib/domain";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
-import { RollupChips, mergeRollups, type Rollup } from "./Rollup";
-import { Button, Field, Modal, Skeleton, inputClass } from "./ui";
+import { NewChainPlanModal } from "./NewChainPlanModal";
+import { mergeRollups, type Rollup, RollupChips } from "./Rollup";
+import { Button, Skeleton } from "./ui";
 
 // The navigation: the dashboard at the root, then the three tiers —
 // Plan Year -> Chain Plans -> Promotions — with each node carrying its own
@@ -35,39 +36,39 @@ function loadCollapsed(): ReadonlySet<string> {
   }
 }
 
-export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
+export function Sidebar({
+  tree,
+  route,
+  today,
+  activePlanId,
+}: {
+  tree: Tree;
+  route: Route;
+  today: string;
+  /** The plan the current page lives under, resolved by the shell from the route. */
+  activePlanId?: Id<"chainPlans">;
+}) {
   const createPlan = useReportedMutation(api.chainPlans.create);
   const [collapsed, setCollapsed] = useState(loadCollapsed);
   const [creating, setCreating] = useState(false);
+
+  // Persisted as an effect, not inside the updater, which React may run twice.
+  useEffect(() => {
+    localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...collapsed]));
+  }, [collapsed]);
 
   const toggle = (id: string) =>
     setCollapsed((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
-      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]));
       return next;
     });
 
-  // The plan the current page lives under, so its branch stays open even when
-  // its chevron says collapsed — navigation never lands inside a hidden node.
-  const activePlanId =
-    route.name === "plan"
-      ? route.chainPlanId
-      : route.name === "promotion"
-        ? tree.chains
-            .flatMap((chain) => chain.plans)
-            .find((node) =>
-              node.promotions.some(
-                (promotion) => promotion.promotion._id === route.promotionId,
-              ),
-            )?.plan._id
-        : undefined;
-
+  // The branch holding the current page always renders open, whatever its
+  // chevron says — navigation never lands inside a hidden node.
   const yearOpen =
-    !collapsed.has(tree.season._id) ||
-    route.name === "season" ||
-    activePlanId !== undefined;
+    !collapsed.has(tree.season._id) || route.name === "season" || activePlanId !== undefined;
 
   // The root node speaks for the whole year, so it adds up every node below it.
   const everything = mergeRollups([
@@ -86,7 +87,8 @@ export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
     <nav className="flex flex-col gap-1 px-3 py-4">
       <TreeRow>
         <NodeLink
-          to={{ name: "home" }}
+          // Named year, so Dashboard stays on the year you are looking at.
+          to={{ name: "home", seasonId: tree.season._id }}
           active={route.name === "home"}
           label="Dashboard"
           meta="Everything that needs attention"
@@ -97,7 +99,11 @@ export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
       <GroupLabel>Plan year</GroupLabel>
 
       <TreeRow
-        chevron={{ open: yearOpen, onToggle: () => toggle(tree.season._id) }}
+        chevron={{
+          open: yearOpen,
+          label: `Year ${tree.season.label}`,
+          onToggle: () => toggle(tree.season._id),
+        }}
       >
         <NodeLink
           to={{ name: "season", seasonId: tree.season._id }}
@@ -131,19 +137,19 @@ export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
               {plans.length === 0 ? (
                 <TreeRow>
                   <div className="flex items-center justify-between gap-2 rounded-lg py-1 pr-1 pl-2">
-                    <span className="min-w-0 truncate text-sm text-ink-500">
-                      {chain.name}
-                    </span>
+                    <span className="min-w-0 truncate text-sm text-ink-500">{chain.name}</span>
                     <Button
                       size="xs"
                       variant="ghost"
                       title={`Start a ${chain.name} plan for ${tree.season.label}`}
-                      onClick={() =>
-                        void createPlan({
+                      onClick={async () => {
+                        const plan = await createPlan({
                           seasonId: tree.season._id,
                           chainId: chain._id,
-                        })
-                      }
+                        });
+                        // Same landing as the modal path: straight onto the new plan.
+                        if (plan.ok) navigate({ name: "plan", chainPlanId: plan.value });
+                      }}
                     >
                       + Plan
                     </Button>
@@ -156,9 +162,8 @@ export function Sidebar({ tree, route }: { tree: Tree; route: Route }) {
                     chainName={chain.name}
                     node={node}
                     route={route}
-                    open={
-                      !collapsed.has(node.plan._id) || node.plan._id === activePlanId
-                    }
+                    today={today}
+                    open={!collapsed.has(node.plan._id) || node.plan._id === activePlanId}
                     onToggle={() => toggle(node.plan._id)}
                   />
                 ))
@@ -188,12 +193,14 @@ function PlanBranch({
   chainName,
   node,
   route,
+  today,
   open,
   onToggle,
 }: {
   chainName: string;
   node: PlanNode;
   route: Route;
+  today: string;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -201,7 +208,7 @@ function PlanBranch({
 
   return (
     <div>
-      <TreeRow chevron={hasPromotions ? { open, onToggle } : undefined}>
+      <TreeRow chevron={hasPromotions ? { open, label: chainName, onToggle } : undefined}>
         <NodeLink
           to={{ name: "plan", chainPlanId: node.plan._id }}
           active={route.name === "plan" && route.chainPlanId === node.plan._id}
@@ -210,10 +217,7 @@ function PlanBranch({
           rollup={
             open || !hasPromotions
               ? node.rollup
-              : mergeRollups([
-                  node.rollup,
-                  ...node.promotions.map((promotion) => promotion.rollup),
-                ])
+              : mergeRollups([node.rollup, ...node.promotions.map((promotion) => promotion.rollup)])
           }
         />
       </TreeRow>
@@ -222,117 +226,15 @@ function PlanBranch({
           <TreeRow key={promotion.promotion._id}>
             <NodeLink
               to={{ name: "promotion", promotionId: promotion.promotion._id }}
-              active={
-                route.name === "promotion" &&
-                route.promotionId === promotion.promotion._id
-              }
+              active={route.name === "promotion" && route.promotionId === promotion.promotion._id}
               nested
               label={promotion.promotion.name}
-              meta={formatRange(
-                promotion.promotion.startDate,
-                promotion.promotion.endDate,
-              )}
+              meta={formatRange(promotion.promotion.startDate, promotion.promotion.endDate, today)}
               rollup={promotion.rollup}
             />
           </TreeRow>
         ))}
     </div>
-  );
-}
-
-/**
- * The "+ New" behind the Chain plans group: pick a chain that has no plan this
- * year, or name a brand-new chain without the detour through Manage. Either
- * way the plan lands with the phase 1–4 template stamped on it.
- */
-function NewChainPlanModal({
-  seasonId,
-  seasonLabel,
-  planless,
-  onClose,
-}: {
-  seasonId: Id<"seasons">;
-  seasonLabel: string;
-  planless: ReadonlyArray<{ _id: Id<"chains">; name: string }>;
-  onClose: () => void;
-}) {
-  const createChain = useReportedMutation(api.chains.create);
-  const createPlan = useReportedMutation(api.chainPlans.create);
-
-  const [chainId, setChainId] = useState<Id<"chains"> | "">(planless[0]?._id ?? "");
-  const [newName, setNewName] = useState("");
-
-  const usingNew = newName.trim() !== "";
-  const ready = usingNew || chainId !== "";
-
-  const submit = async () => {
-    let target: Id<"chains"> | "" = chainId;
-    if (usingNew) {
-      const chain = await createChain({ name: newName });
-      if (!chain.ok) return;
-      target = chain.value;
-    }
-    if (target === "") return;
-    const plan = await createPlan({ seasonId, chainId: target });
-    if (!plan.ok) return;
-    onClose();
-    navigate({ name: "plan", chainPlanId: plan.value });
-  };
-
-  return (
-    <Modal
-      title={`New chain plan for ${seasonLabel}`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button size="md" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="md" variant="primary" disabled={!ready} onClick={submit}>
-            Create plan
-          </Button>
-        </>
-      }
-    >
-      {planless.length > 0 && (
-        <Field label="Chain" hint="Only chains without a plan this year are listed.">
-          <select
-            value={usingNew ? "" : chainId}
-            disabled={usingNew}
-            onChange={(event) => {
-              const next = planless.find((chain) => chain._id === event.target.value);
-              setChainId(next?._id ?? "");
-            }}
-            className="h-9 w-full cursor-pointer rounded-md border border-ink-700 bg-ink-950 px-2 text-sm text-ink-100 transition hover:border-ink-500 focus:border-sand-500 focus:outline-none disabled:opacity-40"
-          >
-            {planless.map((chain) => (
-              <option key={chain._id} value={chain._id}>
-                {chain.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-      <Field
-        label={planless.length > 0 ? "…or a new chain" : "Chain name"}
-        hint="Typing a name here creates the chain and its plan together."
-      >
-        <input
-          autoFocus={planless.length === 0}
-          value={newName}
-          placeholder="Vons"
-          onChange={(event) => setNewName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && ready) void submit();
-          }}
-          className={inputClass}
-        />
-      </Field>
-      <p className="text-2xs text-ink-500">
-        One plan per chain per year. The new plan starts with the phase 1–4
-        template checklist — undated and unassigned until you say otherwise.
-      </p>
-    </Modal>
   );
 }
 
@@ -410,7 +312,7 @@ function TreeRow({
   chevron,
   children,
 }: {
-  chevron?: { open: boolean; onToggle: () => void };
+  chevron?: { open: boolean; label: string; onToggle: () => void };
   children: ReactNode;
 }) {
   return (
@@ -422,7 +324,7 @@ function TreeRow({
           type="button"
           onClick={chevron.onToggle}
           aria-expanded={chevron.open}
-          aria-label={chevron.open ? "Collapse" : "Expand"}
+          aria-label={`${chevron.open ? "Collapse" : "Expand"} ${chevron.label}`}
           className="mt-1.5 flex h-5 w-4 shrink-0 items-center justify-center rounded text-3xs text-ink-600 transition hover:bg-ink-800 hover:text-ink-200"
         >
           {chevron.open ? "▾" : "▸"}

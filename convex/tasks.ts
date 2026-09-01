@@ -1,32 +1,33 @@
+import type { WithoutSystemFields } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, type QueryCtx } from "./_generated/server";
-import { phase, taskStatus } from "./schema";
 import {
   assertBlockedReason,
   assertPhaseMatchesOwner,
+  checkedDay,
+  moveDirection,
   mustGet,
   nextOrder,
   optionalText,
   ownerFields,
+  ownerOf,
+  patchedText,
   requiredText,
-  taskOwner,
+  swapOrder,
   type TaskOwner,
+  taskOwner,
 } from "./model";
+import { phase, taskStatus } from "./schema";
 
 // Every write to a phase checklist. Reads live with the tier that owns the
 // checklist (seasons / chainPlans / promotions), because a task is never
 // interesting on its own — only as a row under its owner.
 
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** An ETA is a calendar day a human agreed to, so the string shape is the contract. */
+/** An ETA is optional, but once given it has to be a calendar day (model.ts: checkedDay). */
 function checkedEta(eta: string | null | undefined): string | undefined {
   const value = optionalText(eta);
-  if (value !== undefined && !ISO_DAY.test(value)) {
-    throw new ConvexError(`"${value}" is not a calendar day (expected 2026-10-31).`);
-  }
-  return value;
+  return value === undefined ? undefined : checkedDay(value, "ETA");
 }
 
 function checkedQuantity(quantity: number | null | undefined): number | undefined {
@@ -47,6 +48,16 @@ async function livePeople(ctx: QueryCtx, ids: readonly Id<"people">[]) {
   return found.filter((person) => person !== null).map((person) => person._id);
 }
 
+/**
+ * The owner a new task is attached to has to exist — a task under a deleted
+ * promotion would be invisible everywhere in the UI.
+ */
+async function assertOwnerExists(ctx: QueryCtx, owner: TaskOwner) {
+  if (owner.tier === "season") await mustGet(ctx, owner.seasonId, "plan year");
+  else if (owner.tier === "chainPlan") await mustGet(ctx, owner.chainPlanId, "chain plan");
+  else await mustGet(ctx, owner.promotionId, "promotion");
+}
+
 /** Adds a row to a phase checklist. Freeform: a name is the only requirement. */
 export const create = mutation({
   args: {
@@ -61,6 +72,7 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     assertPhaseMatchesOwner(args.phase, args.owner);
+    await assertOwnerExists(ctx, args.owner);
     const owner = ownerFields(args.owner);
 
     const siblings = await siblingsOf(ctx, args.owner);
@@ -106,7 +118,7 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const task = await mustGet(ctx, args.taskId, "task");
-    const patch: Partial<Doc<"tasks">> = {};
+    const patch: Partial<WithoutSystemFields<Doc<"tasks">>> = {};
 
     if (args.name !== undefined) patch.name = requiredText(args.name, "Task name");
     if (args.spec !== undefined) patch.spec = optionalText(args.spec);
@@ -156,8 +168,7 @@ export const setStatus = mutation({
     await ctx.db.patch(task._id, {
       status: args.status,
       blockedReason: assertBlockedReason(args.status, proposed),
-      deliveredTo:
-        args.deliveredTo === undefined ? task.deliveredTo : optionalText(args.deliveredTo),
+      deliveredTo: patchedText(args.deliveredTo, task.deliveredTo),
     });
   },
 });
@@ -169,38 +180,24 @@ export const remove = mutation({
   },
 });
 
-/** Nudges a task up or down its phase section by swapping `order` with its neighbour. */
+/**
+ * Nudges a task up or down within its category group — the rows the checklist
+ * draws under one heading (PhaseChecklist: groupByCategory) — so a move never
+ * jumps a task into another group.
+ */
 export const move = mutation({
   args: {
     taskId: v.id("tasks"),
-    direction: v.union(v.literal("up"), v.literal("down")),
+    direction: moveDirection,
   },
   handler: async (ctx, args) => {
     const task = await mustGet(ctx, args.taskId, "task");
-    const section = (await siblingsOf(ctx, ownerOf(task)))
-      .filter((candidate) => candidate.phase === task.phase)
-      .sort((a, b) => a.order - b.order);
-
-    const index = section.findIndex((candidate) => candidate._id === task._id);
-    const swapWith = section[args.direction === "up" ? index - 1 : index + 1];
-    if (swapWith === undefined) return;
-
-    await ctx.db.patch(task._id, { order: swapWith.order });
-    await ctx.db.patch(swapWith._id, { order: task.order });
+    const group = (await siblingsOf(ctx, ownerOf(task))).filter(
+      (candidate) => candidate.phase === task.phase && candidate.category === task.category,
+    );
+    await swapOrder(ctx, task, group, args.direction);
   },
 });
-
-/** Reconstructs a task's owner from its three ownership columns. */
-function ownerOf(task: Doc<"tasks">) {
-  if (task.seasonId !== undefined) return { tier: "season", seasonId: task.seasonId } as const;
-  if (task.chainPlanId !== undefined) {
-    return { tier: "chainPlan", chainPlanId: task.chainPlanId } as const;
-  }
-  if (task.promotionId !== undefined) {
-    return { tier: "promotion", promotionId: task.promotionId } as const;
-  }
-  throw new ConvexError("Task is not attached to a plan year, chain plan or promotion.");
-}
 
 /** Every task under the same owner, across all of that tier's phases. */
 async function siblingsOf(ctx: QueryCtx, owner: TaskOwner) {

@@ -1,5 +1,5 @@
 import type { Doc } from "../../convex/_generated/dataModel";
-import { addDays, daysBetween, isOverdue } from "./dates";
+import { addDays, daysBetween, formatDay, isOverdue } from "./dates";
 import { PHASES, type PhaseNumber } from "./domain";
 
 // The Pathway (CONTEXT.md): the derived model behind the strip at the top of
@@ -13,14 +13,9 @@ type Task = Doc<"tasks">;
  * knows. A promotion's in-market window pins phases 5–8; a chain plan's JBP
  * date pins phases 3–4. Task ETAs then widen the window, never shrink it.
  */
-export type PhaseAnchors = Partial<
-  Record<PhaseNumber, { start?: string; end?: string }>
->;
+export type PhaseAnchors = Partial<Record<PhaseNumber, { start?: string; end?: string }>>;
 
-export function promotionAnchors(promotion: {
-  startDate: string;
-  endDate: string;
-}): PhaseAnchors {
+export function promotionAnchors(promotion: { startDate: string; endDate: string }): PhaseAnchors {
   return {
     5: { end: promotion.startDate },
     6: { start: promotion.startDate, end: promotion.endDate },
@@ -152,10 +147,7 @@ export type PathwayHeadline = { tone: "red" | "amber" | "ok"; text: string };
  * Emmanuel's trigger — "retail execution is 5 days away and we're still at 50%
  * of planning" — outranks everything except work that is already late.
  */
-export function pathwayHeadline(
-  phases: readonly PathwayPhase[],
-  today: string,
-): PathwayHeadline {
+export function pathwayHeadline(phases: readonly PathwayPhase[], today: string): PathwayHeadline {
   let best: (PathwayHeadline & { score: number }) | null = null;
   const offer = (score: number, tone: PathwayHeadline["tone"], text: string) => {
     if (best === null || score > best.score) best = { score, tone, text };
@@ -163,8 +155,7 @@ export function pathwayHeadline(
 
   phases.forEach((phase, index) => {
     const { counts, window } = phase;
-    const pct =
-      counts.total === 0 ? 100 : Math.round((100 * counts.delivered) / counts.total);
+    const pct = counts.total === 0 ? 100 : Math.round((100 * counts.delivered) / counts.total);
 
     if (counts.overdue > 0)
       offer(
@@ -182,18 +173,14 @@ export function pathwayHeadline(
       offer(
         250,
         "red",
-        `${phase.title} window ended ${window.end} and it is at ${pct}%.`,
+        `${phase.title} window ended ${formatDay(window.end, today)} and it is at ${pct}%.`,
       );
 
     const next = phases[index + 1];
     if (next?.window && counts.total > 0 && pct < 100) {
       const inDays = daysBetween(today, next.window.start);
       if (inDays <= 0)
-        offer(
-          280,
-          "red",
-          `${next.title} already started — ${phase.title} is only at ${pct}%.`,
-        );
+        offer(280, "red", `${next.title} already started — ${phase.title} is only at ${pct}%.`);
       else if (inDays <= 14)
         offer(
           200 + (14 - inDays) * 5,

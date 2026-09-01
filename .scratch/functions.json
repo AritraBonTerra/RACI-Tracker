@@ -1,8 +1,0 @@
-[
-{ "_creationTime": 1787334708350.6624, "_id": "jh75gmnpm43hba8m8zzth9yfsn8cw2r3", "key": "buyer", "kind": "external", "name": "Buyer", "order": 5 },
-{ "_creationTime": 1787334708350.662, "_id": "jh7bp4a2n23e5m46ddz3zmz64s8cwyrr", "key": "distributor", "kind": "external", "name": "Distributor", "order": 4 },
-{ "_creationTime": 1787334708350.6619, "_id": "jh77fn09g1gdfm54y1n6vn71e98cwvbh", "key": "finance", "kind": "internal", "name": "Finance", "order": 3 },
-{ "_creationTime": 1787334708350.6616, "_id": "jh7dnaheymzsfvbwa4y02nnean8cxk9n", "key": "retail", "kind": "internal", "name": "Retail Marketing / Local Sales", "order": 2 },
-{ "_creationTime": 1787334708350.6614, "_id": "jh7527g9qg5h3hs894t6knefa98cw6yj", "key": "marketing", "kind": "internal", "name": "Marketing", "order": 1 },
-{ "_creationTime": 1787334708350.6611, "_id": "jh7fh2v3r9re131mbtw90ysvh18cx72w", "key": "commercial", "kind": "internal", "name": "Commercial Strat Account", "order": 0 }
-]

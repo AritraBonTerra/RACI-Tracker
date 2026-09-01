@@ -45,9 +45,7 @@ export const PHASES: Record<PhaseNumber, PhaseMeta> = {
 export const SEASON_PHASES = [0] as const satisfies readonly PhaseNumber[];
 export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly PhaseNumber[];
 export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
-export const ALL_PHASES = [
-  0, 1, 2, 3, 4, 5, 6, 7, 8,
-] as const satisfies readonly PhaseNumber[];
+export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
 
 type StatusMeta = {
   label: string;
@@ -93,7 +91,7 @@ export const STATUS_ORDER = [
   "delivered",
 ] as const satisfies readonly TaskStatus[];
 
-const ROLE_LETTER = {
+export const ROLE_LETTER = {
   responsible: "R",
   accountable: "A",
   consulted: "C",
@@ -117,8 +115,18 @@ export function responsiblesOf(
   return task.responsiblePersonId === undefined ? [] : [task.responsiblePersonId];
 }
 
-/** Coerces an unvalidated number (a URL fragment, a select value) to a phase. */
-export function toPhase(value: number): PhaseNumber | null {
-  const match = ALL_PHASES.find((candidate) => candidate === value);
-  return match ?? null;
+/** The one rule for a typed-in plan year, shared by both places that create one. */
+export function isPlanYear(value: number): boolean {
+  return Number.isInteger(value) && value >= 2000 && value <= 2100;
+}
+
+/**
+ * Coerces an unvalidated number (a select value, a URL fragment) to one of the
+ * given phases — a tier's own list, so a chain plan can never land on phase 7.
+ */
+export function toPhaseIn<Allowed extends PhaseNumber>(
+  allowed: readonly Allowed[],
+  value: number,
+): Allowed | null {
+  return allowed.find((candidate) => candidate === value) ?? null;
 }

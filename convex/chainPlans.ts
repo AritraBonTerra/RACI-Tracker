@@ -1,14 +1,16 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { phase } from "./schema";
 import {
   CHAIN_PLAN_PHASES,
+  chainPlanPhase,
   deleteTasks,
+  fromUrl,
   mustGet,
   optionalText,
+  patched,
+  patchedText,
   raciDefaults,
   rollup,
-  fromUrl,
   stampTemplates,
 } from "./model";
 
@@ -69,7 +71,7 @@ export const create = mutation({
   args: {
     seasonId: v.id("seasons"),
     chainId: v.id("chains"),
-    currentPhase: v.optional(phase),
+    currentPhase: v.optional(chainPlanPhase),
     jbpDate: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -100,19 +102,20 @@ export const create = mutation({
   },
 });
 
+/** Inline edits; every field keeps its current value unless sent (model.ts: patched). */
 export const update = mutation({
   args: {
     chainPlanId: v.id("chainPlans"),
-    currentPhase: v.optional(phase),
+    currentPhase: v.optional(chainPlanPhase),
     jbpDate: v.optional(v.union(v.string(), v.null())),
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.chainPlanId, "chain plan");
-    await ctx.db.patch(args.chainPlanId, {
-      ...(args.currentPhase === undefined ? {} : { currentPhase: args.currentPhase }),
-      ...(args.jbpDate === undefined ? {} : { jbpDate: optionalText(args.jbpDate) }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+    const plan = await mustGet(ctx, args.chainPlanId, "chain plan");
+    await ctx.db.patch(plan._id, {
+      currentPhase: patched(args.currentPhase, plan.currentPhase),
+      jbpDate: patchedText(args.jbpDate, plan.jbpDate),
+      notes: patchedText(args.notes, plan.notes),
     });
   },
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { selectClass } from "../components/ui";
 
 // Three-way theme: an explicit Light or Dark sticks, System follows the OS and
 // keeps following it live. The resolved theme lands on <html data-theme="...">,
@@ -58,7 +59,7 @@ export function ThemeToggle() {
         const { value } = event.target;
         if (value === "light" || value === "dark" || value === "system") setPreference(value);
       }}
-      className="h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500"
+      className={selectClass}
     >
       {OPTIONS.map((option) => (
         <option key={option.value} value={option.value}>
