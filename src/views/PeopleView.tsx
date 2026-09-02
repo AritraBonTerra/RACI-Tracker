@@ -3,12 +3,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useIsAdministrator } from "../components/AuthGate";
-import {
-  Breadcrumb,
-  HeaderSkeleton,
-  PageHeader,
-  PanelSkeleton,
-} from "../components/page";
+import { Breadcrumb, HeaderSkeleton, PageHeader, PanelSkeleton } from "../components/page";
 import { Button, EmptyState, Panel, Pill, Skeleton } from "../components/ui";
 import { dueLabel, formatDay, isOverdue } from "../lib/dates";
 import { PHASES, STATUSES } from "../lib/domain";
@@ -28,13 +23,7 @@ import { href, navigate, placeRoute } from "../lib/router";
 type Directory = FunctionReturnType<typeof api.people.directory>;
 type Entry = Directory[number]["people"][number];
 
-export function PeopleView({
-  today,
-  personId,
-}: {
-  today: string;
-  personId?: Id<"people">;
-}) {
+export function PeopleView({ today, personId }: { today: string; personId?: Id<"people"> }) {
   const directory = useQuery(api.people.directory, { today });
   const isAdministrator = useIsAdministrator();
 
@@ -79,18 +68,14 @@ export function PeopleView({
             title="The directory is empty"
             action={
               isAdministrator ? (
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={() => navigate({ name: "manage" })}
-                >
+                <Button variant="primary" size="md" onClick={() => navigate({ name: "manage" })}>
                   Add people in Manage
                 </Button>
               ) : undefined
             }
           >
-            Until there are names here, every task on every checklist counts as unassigned
-            — a function is a bucket, not a person who can be asked.
+            Until there are names here, every task on every checklist counts as unassigned — a
+            function is a bucket, not a person who can be asked.
           </EmptyState>
         </Panel>
       ) : (
@@ -100,9 +85,7 @@ export function PeopleView({
               key={group.function._id}
               title={group.function.name}
               subtitle={
-                group.function.kind === "internal"
-                  ? "Internal stakeholder"
-                  : "External stakeholder"
+                group.function.kind === "internal" ? "Internal stakeholder" : "External stakeholder"
               }
               actions={
                 <Pill
@@ -118,8 +101,8 @@ export function PeopleView({
             >
               {group.people.length === 0 ? (
                 <EmptyState title={`No one in ${group.function.name}`}>
-                  Work the slide-16 matrix points at this function has nobody to land on.
-                  Add someone in Manage and they become pickable everywhere.
+                  Work the slide-16 matrix points at this function has nobody to land on. Add
+                  someone in Manage and they become pickable everywhere.
                 </EmptyState>
               ) : (
                 group.people.map((entry) => (
@@ -169,23 +152,13 @@ function PersonRow({ entry, selected }: { entry: Entry; selected: boolean }) {
             {load.overdue} late
           </Pill>
         )}
-        <span className="w-16 text-right text-2xs text-ink-500 tabular-nums">
-          {load.open} open
-        </span>
+        <span className="w-16 text-right text-2xs text-ink-500 tabular-nums">{load.open} open</span>
       </div>
     </a>
   );
 }
 
-function LoadChip({
-  letter,
-  value,
-  title,
-}: {
-  letter: string;
-  value: number;
-  title: string;
-}) {
+function LoadChip({ letter, value, title }: { letter: string; value: number; title: string }) {
   return (
     <span
       title={`${title} ${value} task${value === 1 ? "" : "s"}`}
@@ -215,18 +188,15 @@ function PersonWorkload({ personId, today }: { personId: Id<"people">; today: st
             </Button>
           }
         >
-          The link still works, but whoever it pointed at has been removed from the
-          directory.
+          The link still works, but whoever it pointed at has been removed from the directory.
         </EmptyState>
       </Panel>
     );
   }
 
-  const details = [
-    data.person.title,
-    data.function?.name,
-    data.person.organization,
-  ].filter((part): part is string => part !== undefined);
+  const details = [data.person.title, data.function?.name, data.person.organization].filter(
+    (part): part is string => part !== undefined,
+  );
 
   return (
     <Panel
@@ -240,8 +210,8 @@ function PersonWorkload({ personId, today }: { personId: Id<"people">; today: st
     >
       {data.tasks.length === 0 ? (
         <EmptyState tone="good" title={`${data.person.name} is carrying nothing`}>
-          Not Responsible or Accountable for a single task right now — which makes them
-          the obvious answer next time something on the dashboard needs an owner.
+          Not Responsible or Accountable for a single task right now — which makes them the obvious
+          answer next time something on the dashboard needs an owner.
         </EmptyState>
       ) : (
         <ul>
@@ -269,9 +239,7 @@ function PersonWorkload({ personId, today }: { personId: Id<"people">; today: st
                     {task.name}
                   </a>
                   <p className="truncate text-2xs text-ink-500">
-                    {place.chain !== null &&
-                      place.tier !== "chainPlan" &&
-                      `${place.chain} · `}
+                    {place.chain !== null && place.tier !== "chainPlan" && `${place.chain} · `}
                     {place.label} · phase {task.phase} {PHASES[task.phase].title}
                   </p>
                 </div>

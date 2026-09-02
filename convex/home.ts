@@ -2,16 +2,16 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { authedQuery, visibleSeason } from "./access";
 import {
-  CHAIN_PLAN_PHASES,
-  PROMOTION_PHASES,
-  SEASON_PHASES,
   byEta,
+  CHAIN_PLAN_PHASES,
   chainLabel,
   isOverdue,
+  type PhaseNumber,
+  PROMOTION_PHASES,
   placeResolver,
   responsiblesOf,
   rollup,
-  type PhaseNumber,
+  SEASON_PHASES,
   type TaskPlace,
 } from "./model";
 
@@ -28,11 +28,7 @@ import {
 type Attention = { task: Doc<"tasks">; place: TaskPlace };
 
 /** Delivered-vs-total per phase, so a promotion can be drawn as a progress track. */
-function phaseTrack(
-  tasks: readonly Doc<"tasks">[],
-  phases: readonly PhaseNumber[],
-  today: string,
-) {
+function phaseTrack(tasks: readonly Doc<"tasks">[], phases: readonly PhaseNumber[], today: string) {
   return phases.map((value) => ({
     phase: value,
     ...rollup(
@@ -153,9 +149,7 @@ export const dashboard = authedQuery({
 
     const sorted = [...all].sort(byEta);
     const withPlace = async (tasks: readonly Doc<"tasks">[]): Promise<Attention[]> =>
-      await Promise.all(
-        tasks.map(async (task) => ({ task, place: await placeOf(task) })),
-      );
+      await Promise.all(tasks.map(async (task) => ({ task, place: await placeOf(task) })));
 
     return {
       season: { _id: season._id, year: season.year, label: season.label },
@@ -172,9 +166,7 @@ export const dashboard = authedQuery({
       chains: chainGroups,
       attention: {
         // The red list: no named Responsible, so nobody is doing the work.
-        unassigned: await withPlace(
-          sorted.filter((task) => responsiblesOf(task).length === 0),
-        ),
+        unassigned: await withPlace(sorted.filter((task) => responsiblesOf(task).length === 0)),
         blocked: await withPlace(sorted.filter((task) => task.status === "blocked")),
         overdue: await withPlace(sorted.filter((task) => isOverdue(task, args.today))),
       },

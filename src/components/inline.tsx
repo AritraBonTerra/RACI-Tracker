@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { type KeyboardEvent, type ReactNode, useState } from "react";
 
 // Click-to-edit fields. Every value on a checklist row is editable in place:
 // during a live review the fix has to be one click away, not behind a form.
@@ -6,13 +6,15 @@ import { useState, type KeyboardEvent, type ReactNode } from "react";
 // Shared behaviour: Enter commits, Escape cancels, blur commits. An unchanged
 // value never fires a mutation.
 
-const editorClass =
+// Exported so a detachable editor elsewhere (the KPI grid) looks like these
+// without copying the strings.
+export const editorClass =
   "w-full rounded border border-sand-500/70 bg-ink-950 px-1.5 py-0.5 text-sm text-ink-100 focus:outline-none";
 
-const displayClass =
-  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 text-left hover:bg-ink-800/70 focus-visible:bg-ink-800 focus-visible:outline-none";
+export const displayClass =
+  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 hover:bg-ink-800/70 focus-visible:bg-ink-800 focus-visible:outline-none";
 
-function focusAndSelect(element: HTMLInputElement | HTMLTextAreaElement | null) {
+export function focusAndSelect(element: HTMLInputElement | HTMLTextAreaElement | null) {
   if (element === null) return;
   element.focus();
   element.select();
@@ -76,7 +78,7 @@ export function InlineText({
       type="button"
       title={title ?? "Click to edit"}
       onClick={() => setDraft(value ?? "")}
-      className={`${displayClass} ${empty ? "text-ink-600 italic" : ""} ${className}`}
+      className={`${displayClass} text-left ${empty ? "text-ink-600 italic" : ""} ${className}`}
     >
       {empty ? placeholder : value}
     </button>
@@ -89,12 +91,15 @@ export function InlineNumber({
   placeholder = "—",
   className = "",
   suffix,
+  label,
 }: {
   value: number | undefined;
   onCommit: (next: number | null) => void;
   placeholder?: string;
   className?: string;
   suffix?: ReactNode;
+  /** What the number is ("Quantity"), so an empty cell has a name and not just a dash. */
+  label?: string;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
 
@@ -111,6 +116,7 @@ export function InlineNumber({
       <input
         ref={focusAndSelect}
         inputMode="numeric"
+        aria-label={label}
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
@@ -127,6 +133,7 @@ export function InlineNumber({
     <button
       type="button"
       title="Click to edit"
+      aria-label={label === undefined ? undefined : `${label}: ${value ?? "not set"}`}
       onClick={() => setDraft(value === undefined ? "" : String(value))}
       className={`${displayClass} text-right tabular-nums ${value === undefined ? "text-ink-600 italic" : ""} ${className}`}
     >
@@ -138,7 +145,9 @@ export function InlineNumber({
 
 /**
  * An ETA. The display is formatted ("Oct 31") but the editor is a native date
- * input, so the value written back is always an ISO calendar day.
+ * input, so the value written back is always an ISO calendar day. The draft is
+ * buffered like the text editors: typing a day segment by segment fires one
+ * write on blur/Enter, not one per keystroke, and Escape really cancels.
  */
 export function InlineDate({
   value,
@@ -153,23 +162,27 @@ export function InlineDate({
   placeholder?: string;
   className?: string;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string | null>(null);
 
-  if (editing) {
+  if (draft !== null) {
+    const commit = () => {
+      setDraft(null);
+      const next = draft === "" ? null : draft;
+      if (next !== (value ?? null)) onCommit(next);
+    };
+
     return (
       <input
         type="date"
-        autoFocus
-        defaultValue={value ?? ""}
-        onBlur={() => setEditing(false)}
+        ref={(element) => element?.focus()}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
         onKeyDown={(event) => {
-          if (event.key === "Escape" || event.key === "Enter") setEditing(false);
+          if (event.key === "Escape") setDraft(null);
+          if (event.key === "Enter") commit();
         }}
-        onChange={(event) => {
-          const next = event.target.value;
-          onCommit(next === "" ? null : next);
-        }}
-        className={`${editorClass} [color-scheme:dark] ${className}`}
+        className={`${editorClass} ${className}`}
       />
     );
   }
@@ -178,8 +191,8 @@ export function InlineDate({
     <button
       type="button"
       title="Click to set an ETA"
-      onClick={() => setEditing(true)}
-      className={`${displayClass} ${value === undefined ? "text-ink-600 italic" : ""} ${className}`}
+      onClick={() => setDraft(value ?? "")}
+      className={`${displayClass} text-left ${value === undefined ? "text-ink-600 italic" : ""} ${className}`}
     >
       {value === undefined ? placeholder : (render?.(value) ?? value)}
     </button>

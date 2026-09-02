@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
@@ -39,7 +39,7 @@ const AWAITING_MIGRATION: Record<string, readonly string[]> = {};
 const PUBLIC_FACTORIES = new Set(["query", "mutation", "action", "httpAction"]);
 
 /** How a module names the generated server module, from any depth. */
-const GENERATED_SERVER = String.raw`"[^"]*_generated/server"`;
+const GENERATED_SERVER = '"[^"]*_generated/server"';
 
 /**
  * Which public factories a source file pulls out of the generated server
@@ -57,7 +57,7 @@ const GENERATED_SERVER = String.raw`"[^"]*_generated/server"`;
  * Takes source rather than a path so the check is testable against the ways
  * around it (see the last test).
  */
-export function publicFactoriesIn(source: string): string[] {
+function publicFactoriesIn(source: string): string[] {
   // `import` and `export` share a grammar here; only the keyword differs.
   const statements = (keyword: string, clause: string) =>
     [
@@ -80,7 +80,12 @@ export function publicFactoriesIn(source: string): string[] {
     ...statements("export", String.raw`(?:type\s*)?{([^}]*)}`),
   ]
     .flatMap((names) => names.split(","))
-    .flatMap((clause) => clause.trim().replace(/^type\s+/, "").split(/\s+as\s+/))
+    .flatMap((clause) =>
+      clause
+        .trim()
+        .replace(/^type\s+/, "")
+        .split(/\s+as\s+/),
+    )
     .filter((name) => PUBLIC_FACTORIES.has(name));
 
   return [...namespaced, ...named];
@@ -99,7 +104,7 @@ function factoriesInModule(relPath: string): string[] {
  * Takes a path relative to `convex/`, because subdirectories are function
  * modules too: `convex/reports/leak.ts` deploys as `api.reports.leak`.
  */
-export function isFunctionModule(relPath: string): boolean {
+function isFunctionModule(relPath: string): boolean {
   if (!/\.[jt]sx?$/.test(relPath)) return false;
   if (relPath.startsWith("_generated/")) return false;
   if (relPath.includes(" ")) return false;
@@ -164,17 +169,11 @@ test("the check sees the ways around it", () => {
 
   // A module one directory down imports the generated server from `../`.
   expect(factories(`import { query } from "../_generated/server";`)).toEqual(["query"]);
-  expect(factories(`import { mutation } from "../../_generated/server";`)).toEqual([
-    "mutation",
-  ]);
+  expect(factories(`import { mutation } from "../../_generated/server";`)).toEqual(["mutation"]);
   // A namespace import hides `server.query({...})` from any named-import check.
-  expect(factories(`import * as server from "./_generated/server";`)).toEqual([
-    "* as server",
-  ]);
+  expect(factories(`import * as server from "./_generated/server";`)).toEqual(["* as server"]);
   // An HTTP route is public on the `.convex.site` domain, token or not.
-  expect(factories(`import { httpAction } from "./_generated/server";`)).toEqual([
-    "httpAction",
-  ]);
+  expect(factories(`import { httpAction } from "./_generated/server";`)).toEqual(["httpAction"]);
   // A re-export launders the factory through a module every other one already
   // imports: `import { mutation } from "./model"` would look clean forever.
   expect(factories(`export { mutation, query } from "./_generated/server";`)).toEqual([
@@ -186,14 +185,10 @@ test("the check sees the ways around it", () => {
   expect(factories(`export { mutation as write } from "./_generated/server";`)).toEqual([
     "mutation",
   ]);
-  expect(factories(`import { query as ask } from "./_generated/server";`)).toEqual([
-    "query",
-  ]);
+  expect(factories(`import { query as ask } from "./_generated/server";`)).toEqual(["query"]);
   // A star re-export hands over the whole set, naming none of it.
   expect(factories(`export * from "./_generated/server";`)).toEqual(["export *"]);
-  expect(factories(`export * as server from "../_generated/server";`)).toEqual([
-    "export *",
-  ]);
+  expect(factories(`export * as server from "../_generated/server";`)).toEqual(["export *"]);
 
   // Internal factories are unreachable from `api`, and the wrappers are the
   // point of the boundary, not a breach of it.

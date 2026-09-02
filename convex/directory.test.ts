@@ -4,15 +4,15 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   ADMIN,
+  bytes,
+  type Caller,
   NEWCOMER,
   PLAN_MEMBER,
   PROMO_MEMBER,
   TODAY,
-  YEAR_MEMBER,
-  bytes,
   token,
   world,
-  type Caller,
+  YEAR_MEMBER,
 } from "./world.fixture";
 
 // The Directory (#34), asserted the way every other slice on this branch is:
@@ -39,9 +39,7 @@ async function directoryReads(caller: Caller, userId: Id<"users">) {
     roster: await attempt(() => caller.query(api.directory.roster, {})),
     awaitingCount: await attempt(() => caller.query(api.directory.awaitingCount, {})),
     account: await attempt(() => caller.query(api.directory.account, { userId })),
-    effectiveAccess: await attempt(() =>
-      caller.query(api.directory.effectiveAccess, { userId }),
-    ),
+    effectiveAccess: await attempt(() => caller.query(api.directory.effectiveAccess, { userId })),
     auditFeed: await attempt(() => caller.query(api.directory.auditFeed, {})),
   };
 }
@@ -75,10 +73,7 @@ type Scope =
   | { tier: "promotion"; promotionId: Id<"promotions"> };
 
 /** The roster entry for one email, failing loudly rather than answering undefined. */
-function entryFor(
-  roster: FunctionReturnType<typeof api.directory.roster>,
-  email: string,
-) {
+function entryFor(roster: FunctionReturnType<typeof api.directory.roster>, email: string) {
   const entry = roster.accounts.find((account) => account.email === email);
   if (entry === undefined) throw new Error(`${email} is not on the roster`);
   return entry;
@@ -212,10 +207,7 @@ test("an email match outranks a name match, and a Person is only offered once", 
   const samId = await userIdOf(t, NEWCOMER.email);
 
   const before = await as.query(api.directory.account, { userId: samId });
-  expect(before?.candidates.map((candidate) => candidate.reason)).toEqual([
-    "email",
-    "name",
-  ]);
+  expect(before?.candidates.map((candidate) => candidate.reason)).toEqual(["email", "name"]);
 
   // Linked to somebody else, a Person stops being a candidate for anyone.
   await as.mutation(api.directory.linkPerson, {
@@ -231,17 +223,15 @@ test("linking and unlinking a Person both work and are audited", async () => {
   const as = t.withIdentity(ADMIN);
   const samId = await userIdOf(t, NEWCOMER.email);
 
-  expect(
-    await as.mutation(api.directory.linkPerson, { userId: samId, personId: carol }),
-  ).toBe(true);
+  expect(await as.mutation(api.directory.linkPerson, { userId: samId, personId: carol })).toBe(
+    true,
+  );
   expect(await as.query(api.directory.account, { userId: samId })).toMatchObject({
     person: { personId: carol, name: "Carol Diaz" },
     candidates: [],
   });
 
-  expect(
-    await as.mutation(api.directory.linkPerson, { userId: samId, personId: null }),
-  ).toBe(true);
+  expect(await as.mutation(api.directory.linkPerson, { userId: samId, personId: null })).toBe(true);
   expect((await as.query(api.directory.account, { userId: samId }))?.person).toBeNull();
 
   const feed = await as.query(api.directory.auditFeed, { userId: samId });
@@ -288,14 +278,12 @@ test("a link left pointing at nothing is repairable from the pane", async () => 
 
   const detail = await as.query(api.directory.account, { userId: samId });
   expect(detail?.person).toBeNull();
-  expect(detail?.candidates.map((candidate) => candidate.personId)).toEqual([
-    replacement,
-  ]);
+  expect(detail?.candidates.map((candidate) => candidate.personId)).toEqual([replacement]);
 
   await as.mutation(api.directory.linkPerson, { userId: samId, personId: replacement });
-  expect((await as.query(api.directory.account, { userId: samId }))?.person).toMatchObject(
-    { personId: replacement },
-  );
+  expect((await as.query(api.directory.account, { userId: samId }))?.person).toMatchObject({
+    personId: replacement,
+  });
 });
 
 test("an external Person cannot be linked even when named directly", async () => {
@@ -403,12 +391,8 @@ test("overlapping grants are harmless: revoking the redundant one changes nothin
 
   // The promotion grant is redundant under the year grant, so taking it back
   // takes nothing away.
-  expect(
-    await as.mutation(api.directory.revoke, { userId: samId, scope: promotion }),
-  ).toBe(true);
-  expect(reaches(await as.query(api.directory.effectiveAccess, { userId: samId }))).toEqual(
-    whole,
-  );
+  expect(await as.mutation(api.directory.revoke, { userId: samId, scope: promotion })).toBe(true);
+  expect(reaches(await as.query(api.directory.effectiveAccess, { userId: samId }))).toEqual(whole);
   expect(
     await t
       .withIdentity(NEWCOMER)
@@ -432,9 +416,7 @@ test("re-granting the same scope is a no-op and revoking a scope nobody held is 
 
   expect(await as.mutation(api.directory.grant, { userId: samId, scope })).toBe(true);
   expect(await as.mutation(api.directory.grant, { userId: samId, scope })).toBe(false);
-  expect(
-    (await as.query(api.directory.account, { userId: samId }))?.grants,
-  ).toHaveLength(1);
+  expect((await as.query(api.directory.account, { userId: samId }))?.grants).toHaveLength(1);
 
   expect(await as.mutation(api.directory.revoke, { userId: samId, scope })).toBe(true);
   expect(await as.mutation(api.directory.revoke, { userId: samId, scope })).toBe(false);
@@ -460,9 +442,9 @@ test("a grant carries who made it, and the CLI's grants say so", async () => {
     scope: { tier: "promotion", promotionId: promotions["Gift Sets"] },
   });
 
-  expect((await as.query(api.directory.account, { userId: samId }))?.grants).toMatchObject(
-    [{ label: "Gift Sets · Albertsons", grantedByName: ADMIN.name }],
-  );
+  expect((await as.query(api.directory.account, { userId: samId }))?.grants).toMatchObject([
+    { label: "Gift Sets · Albertsons", grantedByName: ADMIN.name },
+  ]);
   // The fixture's grants were made with deploy credentials: no account to name.
   expect(
     (await as.query(api.directory.account, { userId: await userIdOf(t, PLAN_MEMBER.email) }))
@@ -655,9 +637,7 @@ test("the feed names the operator behind a deploy-credential action", async () =
   expect(bootstrap.map((event) => event.action)).toEqual(
     expect.arrayContaining(["role_changed", "access_granted"]),
   );
-  expect(bootstrap.every((event) => event.detail?.includes("deploy credentials"))).toBe(
-    true,
-  );
+  expect(bootstrap.every((event) => event.detail?.includes("deploy credentials"))).toBe(true);
 });
 
 test("the whole-company feed is newest first and covers every account", async () => {
@@ -840,9 +820,10 @@ test("a grant whose target is deleted stops counting as access", async () => {
   const { t, promotions } = await world();
   const as = t.withIdentity(ADMIN);
   const priyaId = await userIdOf(t, PROMO_MEMBER.email);
-  expect(entryFor(await as.query(api.directory.roster, {}), PROMO_MEMBER.email)).toMatchObject(
-    { grantCount: 1, awaitingAccess: false },
-  );
+  expect(entryFor(await as.query(api.directory.roster, {}), PROMO_MEMBER.email)).toMatchObject({
+    grantCount: 1,
+    awaitingAccess: false,
+  });
 
   await as.mutation(api.promotions.remove, { promotionId: promotions["Gift Sets"] });
 

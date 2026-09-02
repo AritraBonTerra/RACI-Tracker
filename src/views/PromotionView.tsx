@@ -2,9 +2,12 @@ import { useQuery } from "convex/react";
 import { Fragment, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useIsAdministrator } from "../components/AuthGate";
+import { BrandToggles } from "../components/BrandToggles";
+import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { KpiTable, RetroPanel } from "../components/KpiAndRetro";
+import { Pathway } from "../components/Pathway";
 import { PhaseChecklist } from "../components/PhaseChecklist";
-import { RollupTiles } from "../components/Rollup";
 import {
   Breadcrumb,
   LastEdited,
@@ -13,12 +16,10 @@ import {
   PageHeader,
   TierSkeleton,
 } from "../components/page";
-import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
+import { RollupTiles } from "../components/Rollup";
 import { Button, ConfirmButton, Modal, Pill } from "../components/ui";
-import { Pathway } from "../components/Pathway";
-import { useIsAdministrator } from "../components/AuthGate";
 import { formatDay } from "../lib/dates";
-import { PHASES, PROMOTION_PHASES, toPhase } from "../lib/domain";
+import { PHASES, PROMOTION_PHASES, toPhaseIn } from "../lib/domain";
 import { buildPathway, promotionAnchors } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { navigate } from "../lib/router";
@@ -95,8 +96,9 @@ export function PromotionView({
                 const removed = await remove({ promotionId });
                 if (!removed.ok) return;
                 // Only an Administrator gets here, and their reach on the plan
-                // above is always full, so the plan is where to land.
-                navigate({ name: "plan", chainPlanId: data.plan._id });
+                // above is always full, so the plan is where to land. Replace,
+                // so Back does not return to a page that no longer exists.
+                navigate({ name: "plan", chainPlanId: data.plan._id }, { replace: true });
               }}
             />
           ) : undefined
@@ -140,7 +142,7 @@ export function PromotionView({
                   label: `${phase} · ${PHASES[phase].title}`,
                 }))}
                 onChange={(value) => {
-                  const phase = toPhase(Number(value));
+                  const phase = toPhaseIn(PROMOTION_PHASES, Number(value));
                   if (phase !== null) void update({ promotionId, currentPhase: phase });
                 }}
               />
@@ -256,32 +258,20 @@ function BrandPickerModal({
         </>
       }
     >
-      <div className="flex flex-wrap gap-1.5">
-        {(brands ?? []).map((brand) => {
-          const on = draft.includes(brand._id);
-          return (
-            <button
-              key={brand._id}
-              type="button"
-              onClick={() =>
-                setDraft((current) =>
-                  on ? current.filter((id) => id !== brand._id) : [...current, brand._id],
-                )
-              }
-              className={`rounded-full px-2.5 py-1 text-xs transition ${
-                on
-                  ? "bg-sand-400/20 text-sand-100 ring-1 ring-sand-400/60"
-                  : "bg-ink-800 text-ink-400 ring-1 ring-ink-700 hover:text-ink-200"
-              }`}
-            >
-              {brand.name}
-            </button>
-          );
-        })}
-      </div>
+      <BrandToggles
+        brands={brands}
+        selected={draft}
+        onToggle={(brandId) =>
+          setDraft((current) =>
+            current.includes(brandId)
+              ? current.filter((id) => id !== brandId)
+              : [...current, brandId],
+          )
+        }
+      />
       <p className="text-2xs text-ink-500">
-        Brands are maintained in Manage. Placeholder entries stand in until the real
-        portfolio is loaded.
+        Brands are maintained in Manage. Placeholder entries stand in until the real portfolio is
+        loaded.
       </p>
     </Modal>
   );

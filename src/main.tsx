@@ -1,8 +1,8 @@
 import { ClerkProvider, useAuth as useClerkAuth } from "@clerk/clerk-react";
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
 import { ConvexReactClient } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AuthGate } from "./components/AuthGate";
 import { AuthUnconfigured } from "./components/AuthScreens";
@@ -16,7 +16,9 @@ import "./index.css";
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
 
-const root = createRoot(document.getElementById("root")!);
+const container = document.getElementById("root");
+if (container === null) throw new Error("index.html has no #root element");
+const root = createRoot(container);
 
 if (SIGN_IN.kind === "unconfigured") {
   // Without a publishable key `ClerkProvider` throws on mount, which reads as a

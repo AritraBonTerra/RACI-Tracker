@@ -30,10 +30,7 @@ function trackedFiles(): string[] {
     .split("\0")
     .filter((path) => path !== "")
     .filter(
-      (path) =>
-        path !== "bun.lock" &&
-        path !== "checks/secrets.test.ts" &&
-        !path.endsWith(".png"),
+      (path) => path !== "bun.lock" && path !== "checks/secrets.test.ts" && !path.endsWith(".png"),
     );
 }
 
@@ -61,7 +58,10 @@ const FORBIDDEN: ReadonlyArray<{ what: string; pattern: RegExp }> = [
     what: "an Entra tenant id",
     pattern: /(?:login\.microsoftonline\.com|sts\.windows\.net)\/[0-9a-f]{8}-[0-9a-f]{4}/i,
   },
-  { what: "an Entra SAML metadata URL", pattern: /federationmetadata\/2007-06\/federationmetadata\.xml/i },
+  {
+    what: "an Entra SAML metadata URL",
+    pattern: /federationmetadata\/2007-06\/federationmetadata\.xml/i,
+  },
   // A bare GUID is only suspicious next to the word that makes it the tenant's
   // — in any of the shapes that word arrives in. The Entra overview blade
   // labels the value "Directory (tenant) ID", so the gap between the word and
@@ -69,14 +69,13 @@ const FORBIDDEN: ReadonlyArray<{ what: string; pattern: RegExp }> = [
   // check tried to enumerate.
   {
     what: "a tenant identifier",
-    pattern:
-      /tenant[^\n]{0,12}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
+    pattern: /tenant[^\n]{0,12}[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i,
   },
 ];
 
 test("nothing in the repo carries a credential or names the tenant", () => {
   const found = trackedFiles().flatMap((path) => {
-    const source = readFileSync(ROOT + path, "utf8");
+    const source = readFileSync(`${ROOT}${path}`, "utf8");
     return FORBIDDEN.filter(({ pattern }) => pattern.test(source)).map(
       ({ what }) => `${path}: ${what}`,
     );
@@ -98,23 +97,19 @@ test("the scan recognises the things it is looking for", () => {
   expect(hits(`CLERK_SECRET_KEY=sk_${"live"}_9aVQm2Zt7bXpLr4KcW1yTdN6`)).toEqual([
     "a Clerk secret key",
   ]);
-  expect(
-    hits(`CONVEX_DEPLOY_KEY=prod:valuable-ferret-680|${"eyJ2MiI6IjhkNGY2YWIx"}`),
-  ).toEqual(["a Convex deploy key"]);
+  expect(hits(`CONVEX_DEPLOY_KEY=prod:valuable-ferret-680|${"eyJ2MiI6IjhkNGY2YWIx"}`)).toEqual([
+    "a Convex deploy key",
+  ]);
   expect(
     hits("https://login.microsoftonline.com/9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73/saml2"),
   ).toEqual(["an Entra tenant id"]);
   expect(
-    hits(
-      "https://login.microsoftonline.com/x/federationmetadata/2007-06/federationmetadata.xml",
-    ),
+    hits("https://login.microsoftonline.com/x/federationmetadata/2007-06/federationmetadata.xml"),
   ).toEqual(["an Entra SAML metadata URL"]);
   expect(
     hits(`CONVEX_DEPLOY_KEY=preview:acme-team:raci-tracker|${"eyJ2MiI6IjhkNGY2YWIx"}`),
   ).toEqual(["a Convex deploy key"]);
-  expect(hits('tenantId: "9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73"')).toEqual([
-    "a tenant identifier",
-  ]);
+  expect(hits('tenantId: "9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73"')).toEqual(["a tenant identifier"]);
   // The label the Entra overview blade puts on the value, which is the shape a
   // copy-paste actually lands in.
   expect(hits("Directory (tenant) ID: 9f4a2c18-3b7d-4e51-9a0c-2d8e6b1f5a73")).toEqual([
@@ -133,7 +128,7 @@ test("the scan recognises the things it is looking for", () => {
 test("local environment files stay untracked", () => {
   // The other half of the same rule: `.env.local` is where a developer's own
   // keys live, and `.env.example` is the only one of its family in the repo.
-  const gitignore = readFileSync(ROOT + ".gitignore", "utf8");
+  const gitignore = readFileSync(`${ROOT}.gitignore`, "utf8");
   expect(gitignore).toMatch(/^\.env\*$/m);
 
   const envFiles = trackedFiles().filter((path) => path.split("/").pop()?.startsWith(".env"));

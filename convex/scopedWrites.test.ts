@@ -4,14 +4,14 @@ import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   ADMIN,
+  type Caller,
   NEWCOMER,
   PLAN_MEMBER,
   PROMO_MEMBER,
   TODAY,
-  YEAR_MEMBER,
   token,
   world,
-  type Caller,
+  YEAR_MEMBER,
 } from "./world.fixture";
 
 // The authorization matrix for writes (#33), asserted at the same seam the read
@@ -44,9 +44,7 @@ async function outcomes(
   calls: Record<string, () => Promise<unknown>>,
 ): Promise<Record<string, string>> {
   const entries = await Promise.all(
-    Object.entries(calls).map(
-      async ([name, call]) => [name, await outcome(call)] as const,
-    ),
+    Object.entries(calls).map(async ([name, call]) => [name, await outcome(call)] as const),
   );
   return Object.fromEntries(entries);
 }
@@ -144,8 +142,7 @@ function everyWrite(caller: Caller, ids: Handles) {
       }),
     "people.update": () =>
       caller.mutation(api.people.update, { personId: ids.personId, name: "Probe" }),
-    "people.remove": () =>
-      caller.mutation(api.people.remove, { personId: ids.personId }),
+    "people.remove": () => caller.mutation(api.people.remove, { personId: ids.personId }),
     "people.renameFunction": () =>
       caller.mutation(api.people.renameFunction, {
         functionId: ids.functionId,
@@ -168,8 +165,7 @@ function everyWrite(caller: Caller, ids: Handles) {
     "seasons.create": () => caller.mutation(api.seasons.create, { year: 2099 }),
     "seasons.update": () =>
       caller.mutation(api.seasons.update, { seasonId: ids.seasonId, label: "Probe" }),
-    "seasons.remove": () =>
-      caller.mutation(api.seasons.remove, { seasonId: ids.seasonId }),
+    "seasons.remove": () => caller.mutation(api.seasons.remove, { seasonId: ids.seasonId }),
     "taskTemplates.create": () =>
       caller.mutation(api.taskTemplates.create, { phase: 6, name: "Probe" }),
     "taskTemplates.update": () =>
@@ -184,24 +180,21 @@ function everyWrite(caller: Caller, ids: Handles) {
         templateId: ids.templateId,
         direction: "up",
       }),
-    "taskTemplates.loadDefaults": () =>
-      caller.mutation(api.taskTemplates.loadDefaults, {}),
+    "taskTemplates.loadDefaults": () => caller.mutation(api.taskTemplates.loadDefaults, {}),
     "tasks.create": () =>
       caller.mutation(api.tasks.create, {
         owner: { tier: "promotion", promotionId: ids.promotionId },
         phase: 6,
         name: "Probe",
       }),
-    "tasks.update": () =>
-      caller.mutation(api.tasks.update, { taskId: ids.taskId, name: "Probe" }),
+    "tasks.update": () => caller.mutation(api.tasks.update, { taskId: ids.taskId, name: "Probe" }),
     "tasks.setStatus": () =>
       caller.mutation(api.tasks.setStatus, {
         taskId: ids.taskId,
         status: "in_progress",
       }),
     "tasks.remove": () => caller.mutation(api.tasks.remove, { taskId: ids.taskId }),
-    "tasks.move": () =>
-      caller.mutation(api.tasks.move, { taskId: ids.taskId, direction: "down" }),
+    "tasks.move": () => caller.mutation(api.tasks.move, { taskId: ids.taskId, direction: "down" }),
   };
 }
 
@@ -288,8 +281,7 @@ test("a Promotion Member has full task control inside their scope", async () => 
   const { t, promotions, carol } = await stage();
   const priya = t.withIdentity(PROMO_MEMBER);
   const promotionId = promotions["Gift Sets"];
-  const board = async () =>
-    (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!;
+  const board = async () => (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!;
 
   // Create, with a spec, a quantity and an ETA.
   const taskId = await priya.mutation(api.tasks.create, {
@@ -357,8 +349,8 @@ test("a Member assigns RACI from the whole People directory, other functions inc
     "Frank Ng",
   ]);
 
-  const taskId = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!
-    .tasks[0]._id;
+  const taskId = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!.tasks[0]
+    ._id;
   await priya.mutation(api.tasks.update, {
     taskId,
     responsiblePersonIds: [carol, frank],
@@ -367,8 +359,9 @@ test("a Member assigns RACI from the whole People directory, other functions inc
     informedPersonIds: [frank],
   });
 
-  const task = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!
-    .tasks.find((row) => row._id === taskId);
+  const task = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!.tasks.find(
+    (row) => row._id === taskId,
+  );
   expect(task).toMatchObject({
     responsiblePersonIds: [carol, frank],
     accountablePersonId: frank,
@@ -381,14 +374,11 @@ test("a Member blocking a task still has to say what is blocking it", async () =
   const { t, promotions } = await stage();
   const priya = t.withIdentity(PROMO_MEMBER);
   const promotionId = promotions["Gift Sets"];
-  const tasks = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!
-    .tasks;
+  const tasks = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!.tasks;
   const fresh = tasks.find((task) => task.status === "not_started")!._id;
 
   expect(
-    await outcome(() =>
-      priya.mutation(api.tasks.setStatus, { taskId: fresh, status: "blocked" }),
-    ),
+    await outcome(() => priya.mutation(api.tasks.setStatus, { taskId: fresh, status: "blocked" })),
   ).toBe("A blocked task needs a reason — say what is blocking it.");
   expect(
     await outcome(() =>
@@ -405,8 +395,10 @@ test("a Member blocking a task still has to say what is blocking it", async () =
     status: "blocked",
     blockedReason: "No inventory at distributor",
   });
-  const blocked = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!
-    .tasks.find((task) => task._id === fresh);
+  const blocked = (await priya.query(api.promotions.get, {
+    promotionId,
+    today: TODAY,
+  }))!.tasks.find((task) => task._id === fresh);
   expect(blocked).toMatchObject({
     status: "blocked",
     blockedReason: "No inventory at distributor",
@@ -414,8 +406,10 @@ test("a Member blocking a task still has to say what is blocking it", async () =
 
   // Moving off Blocked drops the reason rather than leaving it to mislead.
   await priya.mutation(api.tasks.setStatus, { taskId: fresh, status: "delivered" });
-  const delivered = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!
-    .tasks.find((task) => task._id === fresh);
+  const delivered = (await priya.query(api.promotions.get, {
+    promotionId,
+    today: TODAY,
+  }))!.tasks.find((task) => task._id === fresh);
   expect(delivered?.blockedReason).toBeUndefined();
 });
 
@@ -580,15 +574,13 @@ test("an out-of-scope write fails byte for byte like a write to a deleted record
           phase: 6,
           name: "Sneak",
         }),
-      taskUpdate: () =>
-        priya.mutation(api.tasks.update, { taskId: siblingTask, name: "Renamed" }),
+      taskUpdate: () => priya.mutation(api.tasks.update, { taskId: siblingTask, name: "Renamed" }),
       taskStatus: () =>
         priya.mutation(api.tasks.setStatus, {
           taskId: siblingTask,
           status: "delivered",
         }),
-      taskMove: () =>
-        priya.mutation(api.tasks.move, { taskId: siblingTask, direction: "up" }),
+      taskMove: () => priya.mutation(api.tasks.move, { taskId: siblingTask, direction: "up" }),
       taskRemove: () => priya.mutation(api.tasks.remove, { taskId: siblingTask }),
       kpi: () =>
         priya.mutation(api.kpi.setMetric, {
@@ -596,8 +588,7 @@ test("an out-of-scope write fails byte for byte like a write to a deleted record
           metric: "cwd",
           baseline: 3,
         }),
-      retro: () =>
-        priya.mutation(api.kpi.saveRetro, { promotionId: sibling, worked: "Nothing" }),
+      retro: () => priya.mutation(api.kpi.saveRetro, { promotionId: sibling, worked: "Nothing" }),
       planUpdate: () =>
         priya.mutation(api.chainPlans.update, {
           chainPlanId: plans.Kroger,
@@ -708,15 +699,11 @@ test("hierarchy, reference-data and People writes are refused for every Member",
 
   for (const who of [YEAR_MEMBER, PLAN_MEMBER, PROMO_MEMBER, NEWCOMER]) {
     const results = await outcomes(everyWrite(t.withIdentity(who), handles));
-    const governed = Object.fromEntries(
-      ADMINISTRATOR_ONLY.map((name) => [name, results[name]]),
-    );
+    const governed = Object.fromEntries(ADMINISTRATOR_ONLY.map((name) => [name, results[name]]));
 
     // One sentence for all of them: a Member who probes cannot tell "you are
     // not an Administrator" from any other refusal the app makes.
-    expect(governed).toEqual(
-      Object.fromEntries(ADMINISTRATOR_ONLY.map((name) => [name, DENIED])),
-    );
+    expect(governed).toEqual(Object.fromEntries(ADMINISTRATOR_ONLY.map((name) => [name, DENIED])));
   }
 });
 
@@ -754,8 +741,7 @@ test("the same writes all succeed for an Administrator", async () => {
     "taskTemplates.remove": () =>
       as.mutation(api.taskTemplates.remove, { templateId: handles.templateId }),
     "seasons.create": () => as.mutation(api.seasons.create, { year: 2027 }),
-    "seasons.update": () =>
-      as.mutation(api.seasons.update, { seasonId, notes: "Signed off" }),
+    "seasons.update": () => as.mutation(api.seasons.update, { seasonId, notes: "Signed off" }),
   });
 
   expect(results).toEqual(
@@ -768,9 +754,7 @@ test("the same writes all succeed for an Administrator", async () => {
     name: "Probe Person",
     functionId: handles.functionId,
   });
-  expect(await outcome(() => as.mutation(api.people.remove, { personId: probe }))).toBe(
-    "allowed",
-  );
+  expect(await outcome(() => as.mutation(api.people.remove, { personId: probe }))).toBe("allowed");
   expect((await t.withIdentity(ADMIN).query(api.people.list, {})).length).toBe(1);
 });
 
@@ -807,9 +791,7 @@ test("an edit records who made it, everywhere the record is shown", async () => 
     at: "number",
   });
   // Two editors on one page resolve to two names, and to nobody else's.
-  expect(new Set(Object.values(after.editors))).toEqual(
-    new Set([ADMIN.name, PROMO_MEMBER.name]),
-  );
+  expect(new Set(Object.values(after.editors))).toEqual(new Set([ADMIN.name, PROMO_MEMBER.name]));
 
   // The same stamp on the other two tiers, and on the phase 7-8 rows.
   await t
@@ -858,18 +840,22 @@ test("a Member cannot label their plan or promotion with another tier's phase", 
   // The picker offers only the tier's own phases, but the client is not the
   // boundary: a chain plan on phase 7 or a promotion on phase 0 reads as a
   // phase that tier never runs, in the nav tree and the pathway strip alike.
+  // The argument validator is that boundary (model.ts: chainPlanPhase,
+  // promotionPhase), so the types forbid it too — hence the expect-error.
   await expect(
     t
       .withIdentity(PLAN_MEMBER)
+      // @ts-expect-error a promotion's phase is not a chain plan's
       .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, currentPhase: 7 }),
-  ).rejects.toThrow(/Phase 7 belongs to a promotion/);
+  ).rejects.toThrow(/Validator error/);
 
   await expect(
     t.withIdentity(PROMO_MEMBER).mutation(api.promotions.update, {
       promotionId: promotions["Gift Sets"],
+      // @ts-expect-error the plan year's phase is not a promotion's
       currentPhase: 0,
     }),
-  ).rejects.toThrow(/Phase 0 belongs to the plan year/);
+  ).rejects.toThrow(/Validator error/);
 
   // The tier's own phases still move freely — this is a shape rule, not a lock.
   await t
@@ -1003,9 +989,7 @@ test("the demo arc still runs end to end under an Administrator identity", async
     absolute: 280,
     percent: (280 / 900) * 100,
   });
-  expect(
-    await as.query(api.home.dashboard, { seasonId, today: "2028-06-15" }),
-  ).not.toBeNull();
+  expect(await as.query(api.home.dashboard, { seasonId, today: "2028-06-15" })).not.toBeNull();
 
   // And back down again, in the order the guards demand.
   await as.mutation(api.tasks.remove, { taskId });
@@ -1016,7 +1000,5 @@ test("the demo arc still runs end to end under an Administrator identity", async
   await as.mutation(api.brands.remove, { brandId });
   await as.mutation(api.people.remove, { personId: owner });
 
-  expect(
-    await as.query(api.seasons.overview, { seasonId, today: "2028-06-15" }),
-  ).toBeNull();
+  expect(await as.query(api.seasons.overview, { seasonId, today: "2028-06-15" })).toBeNull();
 });

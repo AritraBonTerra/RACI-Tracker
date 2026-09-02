@@ -2,13 +2,13 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type QueryCtx } from "./_generated/server";
 import {
+  type Actor,
   grantScope,
   revokeScope,
   scopesOf,
   setUserActive,
   setUserRole,
   userByClerkId,
-  type Actor,
 } from "./access";
 import { accessScope } from "./schema";
 
@@ -104,9 +104,7 @@ export const listUsers = internalQuery({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
-    return users
-      .sort((a, b) => (a.email ?? "").localeCompare(b.email ?? ""))
-      .map(summarize);
+    return users.sort((a, b) => (a.email ?? "").localeCompare(b.email ?? "")).map(summarize);
   },
 });
 

@@ -2,20 +2,20 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import {
+  type AccessScope,
   adminMutation,
   adminQuery,
   authedQuery,
   expandScopes,
   grantScope,
   isLastActiveAdministrator,
+  type Reach,
   revokeScope,
   scopeOfAssignment,
   scopesOf,
   setPersonLink,
   setUserActive,
   setUserRole,
-  type AccessScope,
-  type Reach,
 } from "./access";
 import { fromUrl, memo, mustGet } from "./model";
 import { accessScope, userRole } from "./schema";
@@ -179,9 +179,7 @@ export const roster = adminQuery({
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
     const accounts = await Promise.all(users.map((user) => summarize(ctx, user)));
-    accounts.sort(
-      (a, b) => rosterOrder(a) - rosterOrder(b) || a.name.localeCompare(b.name),
-    );
+    accounts.sort((a, b) => rosterOrder(a) - rosterOrder(b) || a.name.localeCompare(b.name));
     return {
       accounts,
       awaitingCount: accounts.filter((entry) => entry.awaitingAccess).length,
@@ -252,8 +250,7 @@ async function candidatesFor(ctx: QueryCtx, user: Doc<"users">) {
       const fn = internal.get(person.functionId);
       if (fn === undefined || linked.has(person._id)) return [];
 
-      const sameEmail =
-        email !== undefined && person.email?.trim().toLowerCase() === email;
+      const sameEmail = email !== undefined && person.email?.trim().toLowerCase() === email;
       const name = person.name.toLowerCase();
       const byName = [...words].some((word) => name.includes(word));
       if (!sameEmail && !byName) return [];
@@ -321,8 +318,7 @@ export const account = adminQuery({
 export const effectiveAccess = adminQuery({
   args: { userId: v.optional(v.string()), adding: v.optional(accessScope) },
   handler: async (ctx, args) => {
-    const user =
-      args.userId === undefined ? null : await fromUrl(ctx, "users", args.userId);
+    const user = args.userId === undefined ? null : await fromUrl(ctx, "users", args.userId);
 
     // An Administrator reaches everything by role, so their tree is not built
     // from assignments. Deactivation is deliberately not folded in: the pane
@@ -336,8 +332,7 @@ export const effectiveAccess = adminQuery({
         ]);
 
     const reachOf = {
-      season: (id: Id<"seasons">): Reach =>
-        everything ? "full" : (scope?.season(id) ?? "none"),
+      season: (id: Id<"seasons">): Reach => (everything ? "full" : (scope?.season(id) ?? "none")),
       plan: (plan: Doc<"chainPlans">): Reach =>
         everything ? "full" : (scope?.chainPlan(plan) ?? "none"),
       promotion: (promotion: Doc<"promotions">): Reach =>
@@ -378,8 +373,7 @@ export const auditFeed = adminQuery({
   args: { userId: v.optional(v.string()), limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? FEED_LIMIT, 1), 200);
-    const subject =
-      args.userId === undefined ? null : await fromUrl(ctx, "users", args.userId);
+    const subject = args.userId === undefined ? null : await fromUrl(ctx, "users", args.userId);
     if (args.userId !== undefined && subject === null) return [];
 
     const events =
@@ -394,8 +388,7 @@ export const auditFeed = adminQuery({
     const userOf = memo<"users">(ctx);
     return await Promise.all(
       events.map(async (event) => {
-        const actor =
-          event.actor.kind === "user" ? await userOf(event.actor.userId) : null;
+        const actor = event.actor.kind === "user" ? await userOf(event.actor.userId) : null;
         const target = await userOf(event.subjectUserId);
         return {
           id: event._id,

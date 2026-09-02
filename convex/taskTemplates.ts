@@ -1,7 +1,17 @@
 import { ConvexError, v } from "convex/values";
 import { adminMutation, adminQuery } from "./access";
+import {
+  moveDirection,
+  mustGet,
+  nextOrder,
+  optionalText,
+  patched,
+  patchedRequiredText,
+  patchedText,
+  requiredText,
+  swapOrder,
+} from "./model";
 import { phase } from "./schema";
-import { mustGet, optionalText, requiredText } from "./model";
 import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
 
 // The Task Template (CONTEXT.md): one global menu of default tasks per phase,
@@ -41,12 +51,13 @@ export const create = adminMutation({
       spec: optionalText(args.spec),
       category: optionalText(args.category),
       quantity: args.quantity ?? undefined,
-      order: siblings.reduce((max, row) => Math.max(max, row.order + 1), 0),
+      order: nextOrder(siblings),
       ...ctx.stamp,
     });
   },
 });
 
+/** Inline edits; every field keeps its current value unless sent (model.ts: patched). */
 export const update = adminMutation({
   args: {
     templateId: v.id("taskTemplates"),
@@ -56,15 +67,13 @@ export const update = adminMutation({
     quantity: v.optional(v.union(v.number(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.templateId, "template task");
-    await ctx.db.patch(args.templateId, {
+    const template = await mustGet(ctx, args.templateId, "template task");
+    await ctx.db.patch(template._id, {
       ...ctx.stamp,
-      ...(args.name === undefined
-        ? {}
-        : { name: requiredText(args.name, "Template task name") }),
-      ...(args.spec === undefined ? {} : { spec: optionalText(args.spec) }),
-      ...(args.category === undefined ? {} : { category: optionalText(args.category) }),
-      ...(args.quantity === undefined ? {} : { quantity: args.quantity ?? undefined }),
+      name: patchedRequiredText(args.name, template.name, "Template task name"),
+      spec: patchedText(args.spec, template.spec),
+      category: patchedText(args.category, template.category),
+      quantity: patched(args.quantity, template.quantity),
     });
   },
 });
@@ -76,27 +85,24 @@ export const remove = adminMutation({
   },
 });
 
-/** Nudges a template up or down its phase section, mirroring tasks.move. */
+/**
+ * Nudges a template up or down its phase section. The whole phase is one list
+ * here — Manage draws templates flat, without the category headings a
+ * checklist gets — so unlike tasks.move the swap ignores `category`.
+ */
 export const move = adminMutation({
   args: {
     templateId: v.id("taskTemplates"),
-    direction: v.union(v.literal("up"), v.literal("down")),
+    direction: moveDirection,
   },
   handler: async (ctx, args) => {
     const template = await mustGet(ctx, args.templateId, "template task");
-    const section = (
-      await ctx.db
-        .query("taskTemplates")
-        .withIndex("by_phase", (q) => q.eq("phase", template.phase))
-        .collect()
-    ).sort((a, b) => a.order - b.order);
-
-    const index = section.findIndex((row) => row._id === template._id);
-    const swapWith = section[args.direction === "up" ? index - 1 : index + 1];
-    if (swapWith === undefined) return;
-
-    await ctx.db.patch(template._id, { ...ctx.stamp, order: swapWith.order });
-    await ctx.db.patch(swapWith._id, { ...ctx.stamp, order: template.order });
+    const section = await ctx.db
+      .query("taskTemplates")
+      .withIndex("by_phase", (q) => q.eq("phase", template.phase))
+      .collect();
+    // Reordering is a change to both rows, so both carry the stamp.
+    await swapOrder(ctx, template, section, args.direction, ctx.stamp);
   },
 });
 

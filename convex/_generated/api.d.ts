@@ -23,6 +23,7 @@ import type * as promotions from "../promotions.js";
 import type * as raci from "../raci.js";
 import type * as seasons from "../seasons.js";
 import type * as seed from "../seed.js";
+import type * as seedData from "../seedData.js";
 import type * as taskTemplates from "../taskTemplates.js";
 import type * as tasks from "../tasks.js";
 import type * as templateDefaults from "../templateDefaults.js";
@@ -49,6 +50,7 @@ declare const fullApi: ApiFromModules<{
   raci: typeof raci;
   seasons: typeof seasons;
   seed: typeof seed;
+  seedData: typeof seedData;
   taskTemplates: typeof taskTemplates;
   tasks: typeof tasks;
   templateDefaults: typeof templateDefaults;

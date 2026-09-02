@@ -17,6 +17,8 @@ export type PeopleGroup = {
 };
 
 export type PeopleDirectory = {
+  /** False until the first result lands, so an empty list is never mistaken for "nobody yet". */
+  loaded: boolean;
   list: readonly Person[];
   byId: ReadonlyMap<Id<"people">, Person>;
   byFunction: readonly PeopleGroup[];
@@ -25,15 +27,15 @@ export type PeopleDirectory = {
 const EMPTY: readonly Person[] = [];
 
 export function usePeople(): PeopleDirectory {
-  const loaded = useQuery(api.people.list);
-  const list = loaded ?? EMPTY;
+  const result = useQuery(api.people.list);
+  const loaded = result !== undefined;
+  const list = result ?? EMPTY;
 
   return useMemo(() => {
     const byId = new Map(list.map((person) => [person._id, person]));
 
     // `list` already arrives ordered by function, so grouping is a single pass.
-    const byFunction: Array<{ functionId: Id<"functions">; name: string; people: Person[] }> =
-      [];
+    const byFunction: Array<{ functionId: Id<"functions">; name: string; people: Person[] }> = [];
     for (const person of list) {
       const group = byFunction.at(-1);
       if (group?.functionId === person.functionId) group.people.push(person);
@@ -46,6 +48,6 @@ export function usePeople(): PeopleDirectory {
       }
     }
 
-    return { list, byId, byFunction };
-  }, [list]);
+    return { loaded, list, byId, byFunction };
+  }, [loaded, list]);
 }

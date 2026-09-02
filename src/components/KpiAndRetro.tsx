@@ -1,12 +1,12 @@
 import { useQuery } from "convex/react";
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import type { FunctionReturnType } from "convex/server";
+import { type KeyboardEvent, type ReactNode, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
-import type { FunctionReturnType } from "convex/server";
-import { InlineText } from "./inline";
-import { LastEdited, editorOf, type Stamped } from "./page";
-import { Panel, Skeleton } from "./ui";
 import { useReportedMutation } from "../lib/toast";
+import { displayClass, editorClass, focusAndSelect, InlineText } from "./inline";
+import { editorOf, LastEdited, type Stamped } from "./page";
+import { Panel, Skeleton } from "./ui";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
 // slide-14 KPI grid and the retro underneath it.
@@ -93,9 +93,7 @@ function signed(value: number, body: string): string {
 function formatUplift(uplift: NonNullable<MetricRow["uplift"]>, unit: Unit): string {
   const magnitude = Math.abs(uplift.absolute);
   const body =
-    unit === "percent"
-      ? `${decimals.format(magnitude)} pts`
-      : formatValue(magnitude, unit);
+    unit === "percent" ? `${decimals.format(magnitude)} pts` : formatValue(magnitude, unit);
   const absolute = signed(uplift.absolute, body);
   if (uplift.percent === null) return absolute;
   return `${absolute} (${signed(uplift.percent, `${oneDecimal.format(Math.abs(uplift.percent))}%`)})`;
@@ -107,8 +105,7 @@ function formatUplift(uplift: NonNullable<MetricRow["uplift"]>, unit: Unit): str
  */
 function lastTyped(metrics: Board["metrics"]): Stamped {
   return metrics.reduce<Stamped>(
-    (latest, row) =>
-      (row.lastModifiedAt ?? 0) > (latest.lastModifiedAt ?? 0) ? row : latest,
+    (latest, row) => ((row.lastModifiedAt ?? 0) > (latest.lastModifiedAt ?? 0) ? row : latest),
     {},
   );
 }
@@ -149,9 +146,9 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
     >
       {filled === 0 && (
         <p className="border-b border-ink-800/70 bg-ink-950/40 px-4 py-2.5 text-xs text-ink-400">
-          <span className="font-medium text-ink-200">No numbers yet.</span> These five
-          rows are the deck's slide-14 grid — click any figure below and type what the
-          report says. Uplift works itself out.
+          <span className="font-medium text-ink-200">No numbers yet.</span> These five rows are the
+          deck's slide-14 grid — click any figure below and type what the report says. Uplift works
+          itself out.
         </p>
       )}
       {/* Five rows against three number columns: on a phone the table keeps its
@@ -195,9 +192,7 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
                     <NumberCell
                       value={row?.baseline}
                       format={format}
-                      onCommit={(baseline) =>
-                        void setMetric({ promotionId, metric, baseline })
-                      }
+                      onCommit={(baseline) => void setMetric({ promotionId, metric, baseline })}
                     />
                   </td>
                   <td className="w-36 px-3 py-2 align-top">
@@ -225,9 +220,8 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
         </table>
       </div>
       <p className="border-t border-ink-800/70 px-4 py-2 text-2xs text-ink-600">
-        Click a figure to type it. Click the uplift column to override the calculation
-        with a sentence — useful on the investment row, where the answer is a return, not
-        a difference.
+        Click a figure to type it. Click the uplift column to override the calculation with a
+        sentence — useful on the investment row, where the answer is a return, not a difference.
       </p>
     </Panel>
   );
@@ -259,9 +253,7 @@ function UpliftCell({
       </span>
     ) : (
       <span className="text-ink-600 italic">
-        {row?.baseline !== undefined || row?.promotional !== undefined
-          ? "Needs both columns"
-          : "—"}
+        {row?.baseline !== undefined || row?.promotional !== undefined ? "Needs both columns" : "—"}
       </span>
     );
 
@@ -326,9 +318,7 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
         <select
           value={verdict ?? ""}
           onChange={(event) => {
-            const chosen = VERDICT_OPTIONS.find(
-              (option) => option.value === event.target.value,
-            );
+            const chosen = VERDICT_OPTIONS.find((option) => option.value === event.target.value);
             if (chosen === undefined) return;
             void save({
               promotionId,
@@ -352,9 +342,9 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
     >
       {!written && (
         <p className="border-b border-ink-800/70 bg-ink-950/40 px-4 py-2.5 text-xs text-ink-400">
-          <span className="font-medium text-ink-200">No retro written yet.</span> Three
-          boxes, written once the window closes — they are what next season's phase 0 gets
-          to start from. Click a box to type into it.
+          <span className="font-medium text-ink-200">No retro written yet.</span> Three boxes,
+          written once the window closes — they are what next season's phase 0 gets to start from.
+          Click a box to type into it.
         </p>
       )}
       <div className="grid gap-px bg-ink-800 sm:grid-cols-2">
@@ -408,16 +398,9 @@ function RetroField({
 }) {
   return (
     <div className="bg-ink-900/60 px-4 py-3">
-      <p className={`text-3xs font-semibold tracking-wider uppercase ${accent}`}>
-        {label}
-      </p>
+      <p className={`text-3xs font-semibold tracking-wider uppercase ${accent}`}>{label}</p>
       <div className="mt-1 text-sm whitespace-pre-wrap text-ink-300">
-        <InlineText
-          value={value}
-          multiline
-          placeholder={placeholder}
-          onCommit={onCommit}
-        />
+        <InlineText value={value} multiline placeholder={placeholder} onCommit={onCommit} />
       </div>
     </div>
   );
@@ -427,18 +410,7 @@ function RetroField({
 //
 // Both cells edit raw text but read as formatted values, which the shared
 // inline editors deliberately do not do (a task quantity is just a number).
-// Keeping them here is what makes the feature deletable in one file.
-
-const editorClass =
-  "w-full rounded border border-sand-500/70 bg-ink-950 px-1.5 py-0.5 text-sm text-ink-100 focus:outline-none";
-
-const displayClass =
-  "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 hover:bg-ink-800/70 focus-visible:bg-ink-800 focus-visible:outline-none";
-
-function focusAndSelect(element: HTMLInputElement | null) {
-  element?.focus();
-  element?.select();
-}
+// They borrow the shared editors' styling so the two families look identical.
 
 function onEditorKey(
   event: KeyboardEvent<HTMLInputElement>,

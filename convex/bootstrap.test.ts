@@ -82,9 +82,7 @@ describe("promoting the first Administrator", () => {
 
   test("refuses an ambiguous instruction", async () => {
     const t = await afterFirstSignIn();
-    await expect(t.mutation(internal.bootstrap.grantAdmin, {})).rejects.toThrow(
-      /exactly one/,
-    );
+    await expect(t.mutation(internal.bootstrap.grantAdmin, {})).rejects.toThrow(/exactly one/);
     await expect(
       t.mutation(internal.bootstrap.grantAdmin, {
         email: "alice@vctusa.com",

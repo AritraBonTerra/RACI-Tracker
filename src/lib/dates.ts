@@ -1,7 +1,9 @@
+import type { TaskStatus } from "./domain";
+
 // ETAs are ISO calendar days ("2026-10-31") with no timezone attached, so every
 // helper here works on the string parts rather than on a Date's local midnight.
 
-const MONTHS = [
+export const MONTHS = [
   "Jan",
   "Feb",
   "Mar",
@@ -26,10 +28,19 @@ export function todayIso(): string {
   ].join("-");
 }
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The calendar parts of an ISO day, or null for anything that is not one. */
 function parts(iso: string) {
+  if (!ISO_DAY.test(iso)) return null;
   const [year, month, day] = iso.split("-").map(Number);
-  if (!year || !month || !day) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   return { year, month, day };
+}
+
+/** True for a well-formed ISO calendar day; the client-side twin of the server check. */
+export function isIsoDay(value: string): boolean {
+  return parts(value) !== null;
 }
 
 /** "Oct 31", or "Oct 31, 2027" once the year stops being the obvious one. */
@@ -53,17 +64,18 @@ export function formatStamp(at: number, relativeTo = todayIso()): string {
     String(when.getMonth() + 1).padStart(2, "0"),
     String(when.getDate()).padStart(2, "0"),
   ].join("-");
-  const time = `${String(when.getHours()).padStart(2, "0")}:${String(
-    when.getMinutes(),
-  ).padStart(2, "0")}`;
+  const time = `${String(when.getHours()).padStart(2, "0")}:${String(when.getMinutes()).padStart(
+    2,
+    "0",
+  )}`;
   if (day === relativeTo) return `today, ${time}`;
   if (day === addDays(relativeTo, -1)) return `yesterday, ${time}`;
   return formatDay(day, relativeTo);
 }
 
 /** "Oct 5 – Nov 1" for a promotion's date window. */
-export function formatRange(start: string, end: string): string {
-  return `${formatDay(start)} – ${formatDay(end)}`;
+export function formatRange(start: string, end: string, relativeTo = todayIso()): string {
+  return `${formatDay(start, relativeTo)} – ${formatDay(end, relativeTo)}`;
 }
 
 /** The calendar day `days` after `iso` (negative to go back). */
@@ -93,7 +105,7 @@ export function daysBetween(from: string, to: string): number {
  */
 export function isOverdue(
   eta: string | undefined,
-  status: string,
+  status: TaskStatus,
   today: string,
 ): eta is string {
   return eta !== undefined && status !== "delivered" && eta < today;

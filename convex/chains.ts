@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { adminMutation, adminQuery } from "./access";
-import { mustGet, optionalText, requiredText } from "./model";
+import { mustGet, optionalText, patchedRequiredText, patchedText, requiredText } from "./model";
 
 // Retail accounts. A chain is reference data: it owns nothing itself, but a
 // chain plan cannot exist without one, and the name above a plan a Member holds
@@ -46,11 +46,11 @@ export const update = adminMutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.chainId, "chain");
-    await ctx.db.patch(args.chainId, {
+    const chain = await mustGet(ctx, args.chainId, "chain");
+    await ctx.db.patch(chain._id, {
       ...ctx.stamp,
-      ...(args.name === undefined ? {} : { name: requiredText(args.name, "Chain name") }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+      name: patchedRequiredText(args.name, chain.name, "Chain name"),
+      notes: patchedText(args.notes, chain.notes),
     });
   },
 });
@@ -64,7 +64,7 @@ export const remove = adminMutation({
       .collect();
     if (plans.length > 0) {
       throw new ConvexError(
-        `This chain has ${plans.length} plan(s) across seasons. Delete those first.`,
+        `This chain has ${plans.length} plan(s) across plan years. Delete those first.`,
       );
     }
     await ctx.db.delete(args.chainId);

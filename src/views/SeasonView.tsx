@@ -2,21 +2,21 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { InlineText } from "../components/inline";
+import { Pathway } from "../components/Pathway";
 import { PhaseChecklist } from "../components/PhaseChecklist";
-import { RollupChips, RollupTiles } from "../components/Rollup";
 import {
   Breadcrumb,
-  LastEdited,
   cardClass,
   cardGrid,
+  LastEdited,
   MetaItem,
   NotFound,
   PageHeader,
   TierSkeleton,
 } from "../components/page";
-import { InlineText } from "../components/inline";
+import { RollupChips, RollupTiles } from "../components/Rollup";
 import { EmptyState, Panel } from "../components/ui";
-import { Pathway } from "../components/Pathway";
 import { formatDay } from "../lib/dates";
 import { CHAIN_PLAN_PHASES, PHASES, SEASON_PHASES } from "../lib/domain";
 import { buildPathway } from "../lib/pathway";
@@ -90,11 +90,8 @@ export function SeasonView({
         </div>
       </PageHeader>
 
-      <Pathway
-        phases={buildPathway(SEASON_PHASES, data.tasks, {}, 0, today)}
-        today={today}
-      >
-        {planCards.length > 0 && <ChainPositions plans={planCards} />}
+      <Pathway phases={buildPathway(SEASON_PHASES, data.tasks, {}, 0, today)} today={today}>
+        {planCards.length > 0 && <ChainPositions plans={planCards} today={today} />}
       </Pathway>
 
       <RollupTiles rollup={data.rollup} />
@@ -119,9 +116,9 @@ export function SeasonView({
       >
         {planCards.length === 0 ? (
           <EmptyState title="No chain plans for this year yet">
-            One plan per retail account per year. Every chain in Manage is listed in the
-            sidebar with a <span className="text-ink-300">+ Plan</span> button beside it —
-            starting one lays down the phase 1–4 checklist.
+            One plan per retail account per year. Every chain in Manage is listed in the sidebar
+            with a <span className="text-ink-300">+ Plan</span> button beside it — starting one lays
+            down the phase 1–4 checklist.
           </EmptyState>
         ) : (
           <div className={cardGrid(planCards.length)}>
@@ -138,7 +135,7 @@ export function SeasonView({
                 <p className="mt-1 text-xs text-ink-500">
                   Currently phase {node.plan.currentPhase}
                   {node.plan.jbpDate !== undefined &&
-                    ` · JBP ${formatDay(node.plan.jbpDate)}`}
+                    ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
                 </p>
                 <p className="mt-3 text-2xs text-ink-500">
                   {node.promotions.length} promotion
@@ -155,7 +152,7 @@ export function SeasonView({
 
 // Where every chain sits on phases 1-4, so the year view answers "what's
 // where" without a single click (CONTEXT.md: Pathway).
-function ChainPositions({ plans }: { plans: readonly PlanCard[] }) {
+function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: string }) {
   return (
     <div className="mt-3 grid gap-1.5 border-t border-ink-800 pt-3">
       {plans.map(({ chainName, node }) => (
@@ -187,7 +184,7 @@ function ChainPositions({ plans }: { plans: readonly PlanCard[] }) {
           </span>
           <span className="truncate text-2xs text-ink-500">
             phase {node.plan.currentPhase} · {PHASES[node.plan.currentPhase].title}
-            {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate)}`}
+            {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
             {` · ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
           </span>
         </a>

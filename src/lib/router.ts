@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { Id } from "../../convex/_generated/dataModel";
 
 // Hash routing, hand-rolled: a handful of views and no nested layouts do not
@@ -8,15 +8,20 @@ import type { Id } from "../../convex/_generated/dataModel";
 // A tier route may carry a task to focus (`#/promotion/<id>/task/<taskId>`),
 // which is how the dashboard's needs-attention rail lands you on the exact row
 // rather than somewhere on the right page.
+//
+// The dashboard may name its plan year (`#/year/<id>`) so the sidebar's
+// Dashboard link stays on the year you are looking at; bare `#/` means the
+// newest year.
 
 export type Route =
-  | { name: "home" }
+  | { name: "home"; seasonId?: Id<"seasons"> }
   | { name: "season"; seasonId: Id<"seasons">; focusTaskId?: Id<"tasks"> }
   | { name: "plan"; chainPlanId: Id<"chainPlans">; focusTaskId?: Id<"tasks"> }
   | { name: "promotion"; promotionId: Id<"promotions">; focusTaskId?: Id<"tasks"> }
   | { name: "people"; personId?: Id<"people"> }
   | { name: "manage" }
-  | { name: "directory" };
+  | { name: "directory" }
+  | { name: "notFound"; path: string };
 
 function withTask(base: string, focusTaskId: Id<"tasks"> | undefined) {
   return focusTaskId === undefined ? base : `${base}/task/${focusTaskId}`;
@@ -25,7 +30,7 @@ function withTask(base: string, focusTaskId: Id<"tasks"> | undefined) {
 export function href(route: Route): string {
   switch (route.name) {
     case "home":
-      return "#/";
+      return route.seasonId === undefined ? "#/" : `#/year/${route.seasonId}`;
     case "season":
       return withTask(`#/season/${route.seasonId}`, route.focusTaskId);
     case "plan":
@@ -38,10 +43,12 @@ export function href(route: Route): string {
       return "#/manage";
     case "directory":
       return "#/directory";
+    case "notFound":
+      return `#/${route.path}`;
   }
 }
 
-function parse(hash: string): Route {
+export function parse(hash: string): Route {
   const [view, id, sub, subId] = hash.replace(/^#\/?/, "").split("/");
   // Ids only ever arrive as opaque strings from the URL bar; Convex rejects a
   // fabricated one at the query boundary, which surfaces as "no longer exists".
@@ -61,7 +68,10 @@ function parse(hash: string): Route {
   }
   if (view === "manage") return { name: "manage" };
   if (view === "directory") return { name: "directory" };
-  return { name: "home" };
+  if (view === "year" && id) return { name: "home", seasonId: id as Id<"seasons"> };
+  if (view === undefined || view === "") return { name: "home" };
+  // A path nobody links to: say so, rather than quietly showing the dashboard.
+  return { name: "notFound", path: hash.replace(/^#\/?/, "") };
 }
 
 function subscribe(onChange: () => void) {
@@ -75,11 +85,17 @@ export function useRoute(): Route {
     () => window.location.hash,
     () => "",
   );
-  return parse(hash);
+  // Parsed once per hash, so consumers get a stable object across renders.
+  return useMemo(() => parse(hash), [hash]);
 }
 
-export function navigate(route: Route) {
-  window.location.hash = href(route);
+/**
+ * Go somewhere. `replace` swaps the current history entry instead of pushing
+ * one — for leaving a page that no longer exists, so Back does not return to it.
+ */
+export function navigate(route: Route, { replace = false } = {}) {
+  if (replace) window.location.replace(href(route));
+  else window.location.hash = href(route);
 }
 
 /** The page a task is edited on, from the place the backend resolved for it. */

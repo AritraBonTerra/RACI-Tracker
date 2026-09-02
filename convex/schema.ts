@@ -94,15 +94,11 @@ export const kpiMetric = v.union(
 );
 
 // The phase-8 verdict. "Maybe" is a real answer — most retros land there.
-export const repeatVerdict = v.union(
-  v.literal("yes"),
-  v.literal("no"),
-  v.literal("maybe"),
-);
+export const repeatVerdict = v.union(v.literal("yes"), v.literal("no"), v.literal("maybe"));
 
 // Dates are ISO calendar days ("2026-10-31"), not timestamps: an ETA is a day a
 // human agreed to, with no timezone attached. ISO strings also sort
-// chronologically, so range indexes on them work.
+// chronologically as plain strings (model.ts: checkedDay enforces the shape).
 const isoDate = v.string();
 
 export default defineSchema({
@@ -137,7 +133,7 @@ export default defineSchema({
     kind: functionKind,
     order: v.number(),
     ...lastModified,
-  }).index("by_key", ["key"]),
+  }),
 
   // A named human in a Function. Not a login account in v0.
   people: defineTable({
@@ -147,9 +143,7 @@ export default defineSchema({
     email: v.optional(v.string()),
     organization: v.optional(v.string()),
     ...lastModified,
-  })
-    .index("by_function", ["functionId"])
-    .index("by_name", ["name"]),
+  }),
 
   // --- Access control (#30) ---------------------------------------------
   // Additive tables: no table above them loses a column, and the two they gain
@@ -250,9 +244,10 @@ export default defineSchema({
     .index("by_season_and_chain", ["seasonId", "chainId"]),
 
   // An approved program under a Chain Plan. Carries phases 5-8.
-  // `chainId` and `seasonId` are denormalized from the plan so the headline
-  // question — "every Safeway promotion and who is acting on it" — is one index
-  // read rather than a join.
+  // `chainId` and `seasonId` are copied from the plan at creation so a
+  // promotion can name its chain and plan year without loading the plan first
+  // (seasons.contextFor, model.ts: placeResolver). They never change: a
+  // promotion does not move between plans.
   promotions: defineTable({
     chainPlanId: v.id("chainPlans"),
     chainId: v.id("chains"),
@@ -265,11 +260,7 @@ export default defineSchema({
     currentPhase: phase,
     notes: v.optional(v.string()),
     ...lastModified,
-  })
-    .index("by_chain_plan", ["chainPlanId"])
-    .index("by_chain", ["chainId"])
-    .index("by_season", ["seasonId"])
-    .index("by_start_date", ["startDate"]),
+  }).index("by_chain_plan", ["chainPlanId"]),
 
   // A unit of work on a phase checklist.
   //
@@ -285,8 +276,9 @@ export default defineSchema({
   // matrix in `phaseRaciDefaults` says which *function* owns the work, and a
   // function is never a substitute for a named person.
   //
-  // `blockedReason` is required whenever status is "blocked"; the schema cannot
-  // express that without giving up the `by_status` index, so mutations enforce it.
+  // `blockedReason` is required whenever status is "blocked". A validator cannot
+  // make one field depend on another, so mutations enforce it (model.ts:
+  // assertBlockedReason).
   tasks: defineTable({
     seasonId: v.optional(v.id("seasons")),
     chainPlanId: v.optional(v.id("chainPlans")),
@@ -323,11 +315,7 @@ export default defineSchema({
   })
     .index("by_promotion", ["promotionId"])
     .index("by_chain_plan", ["chainPlanId"])
-    .index("by_season", ["seasonId"])
-    .index("by_status", ["status"])
-    .index("by_accountable", ["accountablePersonId"])
-    .index("by_eta", ["eta"])
-    .index("by_promotion_and_phase", ["promotionId", "phase"]),
+    .index("by_season", ["seasonId"]),
 
   // The Task Template (CONTEXT.md): one global default checklist per phase,
   // stamped onto a new plan year / chain plan / promotion at creation. A
@@ -354,10 +342,7 @@ export default defineSchema({
     functionId: v.id("functions"),
     roles: v.array(raciRole),
     note: v.optional(v.string()),
-  })
-    .index("by_phase", ["phase"])
-    .index("by_phase_and_function", ["phase", "functionId"])
-    .index("by_function", ["functionId"]),
+  }).index("by_phase", ["phase"]),
 
   // --- Phase 7-8 measurement (detachable feature, #14) --------------------
 

@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
@@ -95,7 +95,7 @@ test("the checklist and the scan of the suites both still find things", () => {
   // Guards the guards: an empty scan on either side would satisfy every
   // assertion above without meaning anything.
   expect(citedNames().length).toBeGreaterThan(30);
-  expect(testNames().has("the demo arc still runs end to end under an Administrator identity")).toBe(
-    true,
-  );
+  expect(
+    testNames().has("the demo arc still runs end to end under an Administrator identity"),
+  ).toBe(true);
 });

@@ -1,7 +1,7 @@
-import { ConvexError, v, type Infer } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
 import type { Doc, Id, TableNames } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { phase, taskStatus } from "./schema";
+import type { phase, taskStatus } from "./schema";
 
 // Shared domain rules for the three-tier model. Everything here is used by more
 // than one function module; anything used by exactly one lives with it.
@@ -18,6 +18,13 @@ export type TaskStatus = Infer<typeof taskStatus>;
 export type LastModified = { lastModifiedBy: Id<"users">; lastModifiedAt: number };
 
 /**
+ * `currentPhase` on an owner is narrowed to the phases that owner carries. A
+ * task's `phase` keeps the full 0-8 range (schema.ts: phase).
+ */
+export const chainPlanPhase = v.union(v.literal(1), v.literal(2), v.literal(3), v.literal(4));
+export const promotionPhase = v.union(v.literal(5), v.literal(6), v.literal(7), v.literal(8));
+
+/**
  * Where a task hangs. Exactly one of the three ownership columns is set, and
  * the tier is decided by the task's phase (CONTEXT.md: Phase).
  */
@@ -30,11 +37,13 @@ export const taskOwner = v.union(
 export type TaskOwner = Infer<typeof taskOwner>;
 
 export const SEASON_PHASES = [0] as const satisfies readonly PhaseNumber[];
-export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly PhaseNumber[];
-export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
-export const ALL_PHASES = [
-  0, 1, 2, 3, 4, 5, 6, 7, 8,
-] as const satisfies readonly PhaseNumber[];
+export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly Infer<
+  typeof chainPlanPhase
+>[];
+export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly Infer<
+  typeof promotionPhase
+>[];
+export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
 
 /** The tier a phase belongs to: 0 -> season, 1-4 -> chain plan, 5-8 -> promotion. */
 export function tierForPhase(value: PhaseNumber): TaskOwner["tier"] {
@@ -91,6 +100,18 @@ export function ownerFields(owner: TaskOwner) {
   };
 }
 
+/** The inverse of `ownerFields`: a task's owner, read back from its columns. */
+export function ownerOf(task: Doc<"tasks">): TaskOwner {
+  if (task.seasonId !== undefined) return { tier: "season", seasonId: task.seasonId };
+  if (task.chainPlanId !== undefined) {
+    return { tier: "chainPlan", chainPlanId: task.chainPlanId };
+  }
+  if (task.promotionId !== undefined) {
+    return { tier: "promotion", promotionId: task.promotionId };
+  }
+  throw new ConvexError("Task is not attached to a plan year, chain plan or promotion.");
+}
+
 /**
  * The one rule the schema cannot express: "no inventory at distributor" has to
  * be written down, because a blocked task without a reason hides the problem.
@@ -119,6 +140,51 @@ export function requiredText(value: string, field: string): string {
   const trimmed = value.trim();
   if (trimmed === "") throw new ConvexError(`${field} cannot be empty.`);
   return trimmed;
+}
+
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A date is a calendar day a human agreed to ("2026-10-31"), so the string
+ * shape is the contract (schema.ts: isoDate).
+ */
+export function checkedDay(value: string, field: string): string {
+  const day = requiredText(value, field);
+  if (!ISO_DAY.test(day)) {
+    throw new ConvexError(`${field} must be a calendar day (expected 2026-10-31).`);
+  }
+  return day;
+}
+
+// Patch semantics shared by every inline-edit mutation: an argument left off
+// means "leave this alone", and an explicit null means "clear it". Clicking
+// into a cell, deleting the contents and tabbing away has to remove the value,
+// not leave the last one sitting there.
+
+export function patched<Value>(arg: Value | null | undefined, current: Value | undefined) {
+  return arg === undefined ? current : (arg ?? undefined);
+}
+
+/** As `patched`, but whitespace-only text counts as clearing the field. */
+export function patchedText(arg: string | null | undefined, current: string | undefined) {
+  return arg === undefined ? current : optionalText(arg);
+}
+
+/** As `patched` for text that cannot be cleared — a name — so blank input is rejected. */
+export function patchedRequiredText(arg: string | undefined, current: string, field: string) {
+  return arg === undefined ? current : requiredText(arg, field);
+}
+
+/** A typed figure has to be a real number — "1,240" and "n/a" belong in a note. */
+export function patchedNumber(
+  arg: number | null | undefined,
+  current: number | undefined,
+  field: string,
+) {
+  if (arg === undefined) return current;
+  if (arg === null) return undefined;
+  if (!Number.isFinite(arg)) throw new ConvexError(`${field} must be a number.`);
+  return arg;
 }
 
 /**
@@ -360,36 +426,38 @@ export function placeResolver(ctx: QueryCtx) {
   const chainOf = memo<"chains">(ctx);
 
   return async function placeOf(task: Doc<"tasks">): Promise<TaskPlace> {
-    if (task.promotionId !== undefined) {
-      const promotion = await promotionOf(task.promotionId);
-      const chain = promotion === null ? null : await chainOf(promotion.chainId);
-      return {
-        tier: "promotion",
-        promotionId: task.promotionId,
-        label: promotion?.name ?? "Deleted promotion",
-        chain: chain?.name ?? null,
-      };
+    const owner = ownerOf(task);
+    switch (owner.tier) {
+      case "promotion": {
+        const promotion = await promotionOf(owner.promotionId);
+        const chain = promotion === null ? null : await chainOf(promotion.chainId);
+        return {
+          tier: "promotion",
+          promotionId: owner.promotionId,
+          label: promotion?.name ?? "Deleted promotion",
+          chain: chain?.name ?? null,
+        };
+      }
+      case "chainPlan": {
+        const plan = await planOf(owner.chainPlanId);
+        const chain = plan === null ? null : await chainOf(plan.chainId);
+        return {
+          tier: "chainPlan",
+          chainPlanId: owner.chainPlanId,
+          label: chain === null ? "Chain plan" : `${chain.name} plan`,
+          chain: chain?.name ?? null,
+        };
+      }
+      case "season": {
+        const season = await seasonOf(owner.seasonId);
+        return {
+          tier: "season",
+          seasonId: owner.seasonId,
+          label: season === null ? "Plan year" : `Year ${season.label}`,
+          chain: null,
+        };
+      }
     }
-    if (task.chainPlanId !== undefined) {
-      const plan = await planOf(task.chainPlanId);
-      const chain = plan === null ? null : await chainOf(plan.chainId);
-      return {
-        tier: "chainPlan",
-        chainPlanId: task.chainPlanId,
-        label: chain === null ? "Chain plan" : `${chain.name} plan`,
-        chain: chain?.name ?? null,
-      };
-    }
-    if (task.seasonId !== undefined) {
-      const season = await seasonOf(task.seasonId);
-      return {
-        tier: "season",
-        seasonId: task.seasonId,
-        label: season === null ? "Plan year" : `Year ${season.label}`,
-        chain: null,
-      };
-    }
-    throw new ConvexError("Task is not attached to a plan year, chain plan or promotion.");
   };
 }
 
@@ -404,9 +472,38 @@ export function byEta(a: Doc<"tasks">, b: Doc<"tasks">) {
   return a.eta.localeCompare(b.eta);
 }
 
-/** Appends to a checklist: one past the current highest `order`. */
-export function nextOrder(tasks: readonly Doc<"tasks">[]) {
-  return tasks.reduce((max, task) => Math.max(max, task.order + 1), 0);
+/** Appends to a list: one past the current highest `order`. */
+export function nextOrder(rows: readonly { order: number }[]) {
+  return rows.reduce((max, row) => Math.max(max, row.order + 1), 0);
+}
+
+/** The two nudges a list row can take. */
+export const moveDirection = v.union(v.literal("up"), v.literal("down"));
+export type MoveDirection = Infer<typeof moveDirection>;
+
+type Ordered = Doc<"tasks"> | Doc<"taskTemplates">;
+
+/**
+ * Nudges a row up or down by swapping `order` with its neighbour. `siblings`
+ * are the rows the UI draws as one list — the caller decides that grouping and
+ * may pass them in any order. A no-op at either end of the list.
+ */
+export async function swapOrder(
+  ctx: MutationCtx,
+  row: Ordered,
+  siblings: readonly Ordered[],
+  direction: MoveDirection,
+  // Reordering is a change to both rows, so both carry the stamp.
+  stamp: LastModified,
+) {
+  const sorted = [...siblings].sort((a, b) => a.order - b.order);
+  const index = sorted.findIndex((candidate) => candidate._id === row._id);
+  if (index === -1) return;
+  const swapWith = sorted[direction === "up" ? index - 1 : index + 1];
+  if (swapWith === undefined) return;
+
+  await ctx.db.patch(row._id, { ...stamp, order: swapWith.order });
+  await ctx.db.patch(swapWith._id, { ...stamp, order: row.order });
 }
 
 /** Deletes a checklist wholesale — used when its owner is removed. */

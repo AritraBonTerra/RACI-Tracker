@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { daysBetween, formatDay } from "../lib/dates";
+import { daysBetween, formatDay, MONTHS } from "../lib/dates";
 import type { PathwayHeadline, PathwayPhase } from "../lib/pathway";
 import { pathwayHeadline } from "../lib/pathway";
 
@@ -57,20 +57,11 @@ function Headline({ headline }: { headline: PathwayHeadline }) {
 
 function chipBadge(phase: PathwayPhase, today: string): ReactNode {
   const { counts, window, state } = phase;
-  if (counts.total === 0)
-    return <span className="text-3xs text-ink-500">no tasks</span>;
+  if (counts.total === 0) return <span className="text-3xs text-ink-500">no tasks</span>;
   if (counts.overdue > 0)
-    return (
-      <span className="text-3xs font-semibold text-rose-300">
-        ⚠ {counts.overdue} overdue
-      </span>
-    );
+    return <span className="text-3xs font-semibold text-rose-300">⚠ {counts.overdue} overdue</span>;
   if (counts.blocked > 0)
-    return (
-      <span className="text-3xs font-semibold text-rose-300">
-        ⚠ {counts.blocked} blocked
-      </span>
-    );
+    return <span className="text-3xs font-semibold text-rose-300">⚠ {counts.blocked} blocked</span>;
   if (state === "red")
     return <span className="text-3xs font-semibold text-rose-300">⚠ past due</span>;
   if (state === "amber" && window !== null)
@@ -137,7 +128,6 @@ function PhaseChip({ phase, today }: { phase: PathwayPhase; today: string }) {
 
 /** First-of-month gridlines between two ISO days, as rail percentages. */
 function monthTicks(domainStart: string, domainEnd: string, x: (iso: string) => number) {
-  const MONTHS = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
   const ticks: Array<{ left: number; label: string }> = [];
   let year = Number(domainStart.slice(0, 4));
   let month = Number(domainStart.slice(5, 7)) + 1;

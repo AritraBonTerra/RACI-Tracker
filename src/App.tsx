@@ -4,15 +4,15 @@ import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { useAccount, useIsAdministrator, useLanding } from "./components/AuthGate";
 import { AccountMenu } from "./components/AuthScreens";
-import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
 import { NotFound, TierSkeleton, ViewBoundary } from "./components/page";
-import { Button, Field, Modal, inputClass } from "./components/ui";
+import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
+import { Button, Field, inputClass, Modal, selectClass } from "./components/ui";
 import { formatDay, todayIso } from "./lib/dates";
-import { CONTEXT_HINT } from "./lib/domain";
+import { CONTEXT_HINT, isPlanYear } from "./lib/domain";
 import { usePeople } from "./lib/people";
 import { href, navigate, useRoute } from "./lib/router";
-import { useReportedMutation } from "./lib/toast";
 import { ThemeToggle } from "./lib/theme";
+import { useReportedMutation } from "./lib/toast";
 import { ChainPlanView } from "./views/ChainPlanView";
 import { DirectoryView } from "./views/DirectoryView";
 import { DashboardSkeleton, HomeView } from "./views/HomeView";
@@ -47,8 +47,7 @@ export default function App() {
   // A Member whose whole world is one Promotion never sees the dashboard: it
   // would restate the single card underneath it (#24). The redirect replaces
   // the history entry so the back button leaves the app rather than bouncing.
-  const landingPromotionId =
-    landing.kind === "promotion" ? landing.promotionId : undefined;
+  const landingPromotionId = landing.kind === "promotion" ? landing.promotionId : undefined;
   useEffect(() => {
     if (landingPromotionId === undefined || route.name !== "home") return;
     window.location.replace(href({ name: "promotion", promotionId: landingPromotionId }));
@@ -67,6 +66,7 @@ export default function App() {
 
   // Following a link on a phone should leave the drawer behind.
   const hash = href(route);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the hash is the trigger, not an input.
   useEffect(() => setDrawerOpen(false), [hash]);
 
   useEffect(() => {
@@ -78,8 +78,12 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
 
+  // The year in play: named by the route, resolved from a plan or promotion,
+  // or the newest one when the URL says nothing.
   const seasonId: Id<"seasons"> | undefined =
-    route.name === "season" ? route.seasonId : (context?.seasonId ?? seasons?.[0]?._id);
+    route.name === "season" || (route.name === "home" && route.seasonId !== undefined)
+      ? route.seasonId
+      : (context?.seasonId ?? seasons?.[0]?._id);
 
   // Three states, in order: still asking, nothing to hang a tree off (the flat
   // nav still reaches the views that work against an empty database), the tree.
@@ -94,6 +98,7 @@ export default function App() {
         today={today}
         isAdministrator={isAdministrator}
         showDashboard={landing.kind === "dashboard"}
+        activePlanId={route.name === "plan" ? route.chainPlanId : context?.chainPlanId}
       />
     );
 
@@ -113,10 +118,7 @@ export default function App() {
               ☰
             </span>
           </Button>
-          <a
-            href={href({ name: "home" })}
-            className="flex min-w-0 items-baseline gap-2.5"
-          >
+          <a href={href({ name: "home" })} className="flex min-w-0 items-baseline gap-2.5">
             <span className="text-sm font-semibold tracking-tight whitespace-nowrap text-ink-50">
               RACI Tracker
             </span>
@@ -127,9 +129,7 @@ export default function App() {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <span className="hidden text-2xs text-ink-500 md:inline">
-            Today {formatDay(today)}
-          </span>
+          <span className="hidden text-2xs text-ink-500 md:inline">Today {formatDay(today)}</span>
           <ThemeToggle />
           {seasons !== undefined && seasons.length > 0 && seasonId !== undefined && (
             <select
@@ -149,7 +149,7 @@ export default function App() {
                 if (next === undefined || next.reach !== "full") return;
                 navigate({ name: "season", seasonId: next._id });
               }}
-              className="h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500"
+              className={selectClass}
             >
               {seasons.map((season) => (
                 <option
@@ -219,7 +219,9 @@ export default function App() {
             {/* Manage, the Directory and the People directory do not hang off a
                 season, so they never wait for one. Everything else shows the
                 placeholder shaped like the page it is about to become. */}
-            {route.name === "manage" ? (
+            {route.name === "notFound" ? (
+              <NotFound />
+            ) : route.name === "manage" ? (
               // Manage governs the hierarchy, so a Member typing the URL gets
               // the same nothing the sidebar showed them.
               isAdministrator ? (
@@ -283,11 +285,13 @@ function SeasonTree({
   today,
   isAdministrator,
   showDashboard,
+  activePlanId,
 }: {
   seasonId: Id<"seasons">;
   today: string;
   isAdministrator: boolean;
   showDashboard: boolean;
+  activePlanId?: Id<"chainPlans">;
 }) {
   const tree = useQuery(api.seasons.tree, { seasonId, today });
   const route = useRoute();
@@ -300,8 +304,10 @@ function SeasonTree({
     <Sidebar
       tree={tree}
       route={route}
+      today={today}
       isAdministrator={isAdministrator}
       showDashboard={showDashboard}
+      activePlanId={activePlanId}
     />
   );
 }
@@ -350,7 +356,7 @@ function NewYearModal({
   );
 
   const year = Number(draft.trim());
-  const ready = Number.isInteger(year) && year >= 2000 && year <= 2100;
+  const ready = isPlanYear(year);
 
   const submit = async () => {
     if (!ready) return;
@@ -388,8 +394,8 @@ function NewYearModal({
         />
       </Field>
       <p className="text-2xs text-ink-500">
-        One plan year per calendar year. It starts with the phase-0 template
-        checklist; chain plans and promotions hang off it from there.
+        One plan year per calendar year. It starts with the phase-0 template checklist; chain plans
+        and promotions hang off it from there.
       </p>
     </Modal>
   );
@@ -401,8 +407,8 @@ function NoSeasons() {
       <div className="max-w-md rounded-xl border border-ink-800 bg-ink-900/60 p-6 text-center">
         <h1 className="text-lg font-semibold text-ink-100">No plan years yet</h1>
         <p className="mt-1.5 text-sm text-ink-400">
-          A plan year is what everything else hangs off — phase 0, then a chain
-          plan per account, then the promotions under it. Create one to start.
+          A plan year is what everything else hangs off — phase 0, then a chain plan per account,
+          then the promotions under it. Create one to start.
         </p>
         <Button
           variant="primary"

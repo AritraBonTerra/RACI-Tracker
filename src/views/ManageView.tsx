@@ -1,5 +1,5 @@
 import { useQuery } from "convex/react";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { InlineNumber, InlineText } from "../components/inline";
@@ -8,12 +8,13 @@ import {
   Button,
   ConfirmButton,
   EmptyState,
+  inputClass,
   Panel,
   Pill,
   Skeleton,
-  inputClass,
+  selectClass,
 } from "../components/ui";
-import { ALL_PHASES, PHASES, type PhaseNumber } from "../lib/domain";
+import { ALL_PHASES, isPlanYear, PHASES, type PhaseNumber } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 
@@ -29,8 +30,7 @@ export function ManageView({ people }: { people: PeopleDirectory }) {
         title="Reference data"
         meta={
           <span className="text-ink-500">
-            Chains, brands and people feed every plan and promotion. Edit any value in
-            place.
+            Chains, brands and people feed every plan and promotion. Edit any value in place.
           </span>
         }
       />
@@ -117,8 +117,8 @@ function ChainsPanel() {
         <RowsSkeleton />
       ) : chains.length === 0 ? (
         <EmptyState title="No chains yet">
-          A chain is a retail account — Safeway, Kroger, Ralphs. Add one and it becomes
-          available to plan against in every season.
+          A chain is a retail account — Safeway, Kroger, Ralphs. Add one and it becomes available to
+          plan against in every season.
         </EmptyState>
       ) : (
         chains.map((chain) => (
@@ -164,8 +164,8 @@ function BrandsPanel() {
         <RowsSkeleton />
       ) : brands.length === 0 ? (
         <EmptyState title="No brands yet">
-          Brands are what a promotion is for. Add the ones you know and mark them
-          confirmed once the real portfolio lands.
+          Brands are what a promotion is for. Add the ones you know and mark them confirmed once the
+          real portfolio lands.
         </EmptyState>
       ) : (
         brands.map((brand) => (
@@ -213,9 +213,6 @@ function BrandsPanel() {
   );
 }
 
-const selectClass =
-  "h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500 focus:border-sand-500 focus:outline-none";
-
 function PeoplePanel({ people }: { people: PeopleDirectory }) {
   const functions = useQuery(api.people.listFunctions);
   const create = useReportedMutation(api.people.create);
@@ -232,12 +229,12 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
         title="People"
         subtitle="Named humans. Only a named person makes a task assigned — a function never does."
       >
-        {functions === undefined ? (
+        {functions === undefined || !people.loaded ? (
           <RowsSkeleton rows={4} />
         ) : people.list.length === 0 ? (
           <EmptyState title="Nobody in the directory yet">
-            Add the humans behind the functions. Until you do, every task on every
-            checklist counts as unassigned.
+            Add the humans behind the functions. Until you do, every task on every checklist counts
+            as unassigned.
           </EmptyState>
         ) : (
           people.list.map((person) => (
@@ -276,9 +273,7 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
                 <InlineText
                   value={person.organization}
                   placeholder="Organization…"
-                  onCommit={(organization) =>
-                    void update({ personId: person._id, organization })
-                  }
+                  onCommit={(organization) => void update({ personId: person._id, organization })}
                 />
               </div>
               <ConfirmButton onConfirm={() => void remove({ personId: person._id })} />
@@ -330,16 +325,13 @@ function PeoplePanel({ people }: { people: PeopleDirectory }) {
               </div>
               <Pill
                 className={
-                  fn.kind === "internal"
-                    ? "bg-ink-800 text-ink-300"
-                    : "bg-sky-500/15 text-sky-300"
+                  fn.kind === "internal" ? "bg-ink-800 text-ink-300" : "bg-sky-500/15 text-sky-300"
                 }
               >
                 {fn.kind}
               </Pill>
               <span className="flex-1 text-xs text-ink-600">
-                {people.list.filter((person) => person.functionId === fn._id).length}{" "}
-                people
+                {people.list.filter((person) => person.functionId === fn._id).length} people
               </span>
             </Row>
           ))
@@ -361,15 +353,13 @@ function SeasonsPanel() {
         <RowsSkeleton rows={2} />
       ) : seasons.length === 0 ? (
         <EmptyState title="No plan years yet">
-          A plan year is what every plan and promotion hangs off. Add the year below and
-          the phase-0 template checklist comes with it.
+          A plan year is what every plan and promotion hangs off. Add the year below and the phase-0
+          template checklist comes with it.
         </EmptyState>
       ) : (
         seasons.map((season) => (
           <Row key={season._id}>
-            <span className="w-16 shrink-0 font-mono text-xs text-ink-500">
-              {season.year}
-            </span>
+            <span className="w-16 shrink-0 font-mono text-xs text-ink-500">{season.year}</span>
             <div className="w-40 shrink-0 text-sm font-medium text-ink-100">
               <InlineText
                 value={season.label}
@@ -392,7 +382,7 @@ function SeasonsPanel() {
         label="Add year"
         onAdd={async (value) => {
           const year = Number(value.trim());
-          if (!Number.isInteger(year)) return false;
+          if (!isPlanYear(year)) return false;
           return (await create({ year })).ok;
         }}
       />
@@ -430,18 +420,13 @@ function TaskTemplatesPanel() {
         <EmptyState
           title="No template yet"
           action={
-            <Button
-              variant="primary"
-              size="md"
-              onClick={() => void loadDefaults({})}
-            >
+            <Button variant="primary" size="md" onClick={() => void loadDefaults({})}>
               Load the deck's default menu
             </Button>
           }
         >
-          Without a template, every new plan year, chain plan and promotion starts with a
-          blank checklist. The default menu is the deck's slide-11 list plus the phase 0–4
-          items.
+          Without a template, every new plan year, chain plan and promotion starts with a blank
+          checklist. The default menu is the deck's slide-11 list plus the phase 0–4 items.
         </EmptyState>
       ) : (
         ALL_PHASES.map((phase) => {
@@ -521,6 +506,7 @@ function TemplateRow({
       <div className="w-12 shrink-0 text-xs text-ink-400">
         <InlineNumber
           value={row.quantity}
+          label="Quantity"
           onCommit={(quantity) => void onUpdate({ templateId: row._id, quantity })}
         />
       </div>

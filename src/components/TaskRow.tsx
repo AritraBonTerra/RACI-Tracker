@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { dueLabel, formatDay, isOverdue } from "../lib/dates";
-import { STATUSES, STATUS_ORDER, type TaskStatus } from "../lib/domain";
+import { STATUS_ORDER, STATUSES, type TaskStatus } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 import { InlineDate, InlineNumber, InlineText } from "./inline";
-import { LastEdited, type Editors } from "./page";
+import { type Editors, LastEdited } from "./page";
 import { AssignButton, RaciEditor } from "./RaciEditor";
 import { Button, ConfirmButton } from "./ui";
 
@@ -141,6 +141,7 @@ export function TaskRow({
           <div className="w-12 shrink-0 pt-0.5 text-sm text-ink-300 sm:w-14">
             <InlineNumber
               value={task.quantity}
+              label="Quantity"
               onCommit={(quantity) => void update({ taskId: task._id, quantity })}
             />
           </div>
@@ -150,9 +151,7 @@ export function TaskRow({
               value={task.eta}
               onCommit={(eta) => void update({ taskId: task._id, eta })}
               render={(eta) => (
-                <span
-                  className={overdue ? "font-semibold text-amber-300" : "text-ink-300"}
-                >
+                <span className={overdue ? "font-semibold text-amber-300" : "text-ink-300"}>
                   {formatDay(eta, today)}
                   {/* Once delivered the countdown is noise — the date is the record. */}
                   {task.status !== "delivered" && (
@@ -251,9 +250,7 @@ export function TaskRow({
               <InlineText
                 value={task.proofOfExecution}
                 placeholder="Photo audit, receipt, deck…"
-                onCommit={(proofOfExecution) =>
-                  void update({ taskId: task._id, proofOfExecution })
-                }
+                onCommit={(proofOfExecution) => void update({ taskId: task._id, proofOfExecution })}
                 className="text-xs text-ink-300"
               />
             </Detail>
@@ -288,9 +285,7 @@ function Detail({
 }) {
   return (
     <div className={className}>
-      <p className="mb-1 text-3xs font-semibold tracking-wider text-ink-500 uppercase">
-        {label}
-      </p>
+      <p className="mb-1 text-3xs font-semibold tracking-wider text-ink-500 uppercase">{label}</p>
       {children}
     </div>
   );
@@ -325,12 +320,7 @@ function BlockReasonPrompt({
           }}
           className="flex-1 rounded border border-rose-500/50 bg-ink-950 px-2 py-1 text-xs text-rose-100 placeholder:text-rose-300/40 focus:border-rose-400 focus:outline-none"
         />
-        <Button
-          variant="danger"
-          size="xs"
-          onClick={onSave}
-          disabled={draft.trim() === ""}
-        >
+        <Button variant="danger" size="xs" onClick={onSave} disabled={draft.trim() === ""}>
           Block
         </Button>
         <Button variant="ghost" size="xs" onClick={onCancel}>

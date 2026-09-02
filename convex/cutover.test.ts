@@ -1,14 +1,14 @@
-import { convexTest } from "convex-test";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { convexTest } from "convex-test";
 import { expect, test } from "vitest";
 import { api, internal } from "./_generated/api";
 import {
   ADMIN,
-  NEWCOMER,
-  PROMO_MEMBER,
   harness as freshDeployment,
   modules,
+  NEWCOMER,
+  PROMO_MEMBER,
   token,
   world,
 } from "./world.fixture";
@@ -181,12 +181,9 @@ test("the access tables are additive: the plan data never points at them", async
   const t = freshDeployment();
 
   const seasonId = await t.run(
-    async (ctx) =>
-      await ctx.db.insert("seasons", { year: 2027, label: "2027" }),
+    async (ctx) => await ctx.db.insert("seasons", { year: 2027, label: "2027" }),
   );
-  const chainId = await t.run(
-    async (ctx) => await ctx.db.insert("chains", { name: "Safeway" }),
-  );
+  const chainId = await t.run(async (ctx) => await ctx.db.insert("chains", { name: "Safeway" }));
   const chainPlanId = await t.run(
     async (ctx) => await ctx.db.insert("chainPlans", { seasonId, chainId, currentPhase: 1 }),
   );
@@ -226,9 +223,7 @@ test("the access tables are additive: the plan data never points at them", async
     .query(api.promotions.get, { promotionId, today: "2027-11-15" });
 
   expect(page?.promotion.name).toBe("Pre-auth promotion");
-  expect(page?.tasks.map((task) => task.name)).toEqual([
-    "Written before sign-in existed",
-  ]);
+  expect(page?.tasks.map((task) => task.name)).toEqual(["Written before sign-in existed"]);
 });
 
 test("the pre-auth schema rejects a stamped row, which is why rollback keeps this one", async () => {
@@ -363,9 +358,7 @@ test("the lockout drill: deploy credentials restore an Administrator with the UI
     state: "active",
     account: { role: "administrator" },
   });
-  expect(
-    (await t.withIdentity(second).query(api.directory.roster, {})).accounts.length,
-  ).toBe(2);
+  expect((await t.withIdentity(second).query(api.directory.roster, {})).accounts.length).toBe(2);
 });
 
 test("break-glass reaches an account that has never signed in only after it does", async () => {

@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { Breadcrumb, PageHeader, PanelSkeleton } from "../components/page";
@@ -9,11 +9,11 @@ import {
   ConfirmButton,
   EmptyState,
   Field,
+  inputClass,
   Modal,
   Panel,
   Pill,
   Skeleton,
-  inputClass,
 } from "../components/ui";
 import { formatStamp } from "../lib/dates";
 import { useReportedMutation } from "../lib/toast";
@@ -46,8 +46,7 @@ export function DirectoryView() {
   // done on it (a grant empties the queue, a deactivation sinks a row), and a
   // pane that kept following row one would walk away mid-task.
   const selected =
-    roster?.accounts.find((account) => account.userId === selectedId) ??
-    roster?.accounts[0];
+    roster?.accounts.find((account) => account.userId === selectedId) ?? roster?.accounts[0];
   useEffect(() => {
     if (selectedId === null && selected !== undefined) setSelectedId(selected.userId);
   }, [selectedId, selected]);
@@ -69,8 +68,7 @@ export function DirectoryView() {
             )}
             {roster !== undefined && roster.activeAdministrators === 1 && (
               <span className="text-amber-300">
-                One active Administrator — promote a second before anyone goes on
-                leave.
+                One active Administrator — promote a second before anyone goes on leave.
               </span>
             )}
           </>
@@ -89,9 +87,7 @@ export function DirectoryView() {
                     type="button"
                     onClick={() => setSelectedId(account.userId)}
                     className={`flex w-full flex-col gap-1 px-4 py-2.5 text-left transition ${
-                      account.userId === selected?.userId
-                        ? "bg-ink-800/70"
-                        : "hover:bg-ink-800/40"
+                      account.userId === selected?.userId ? "bg-ink-800/70" : "hover:bg-ink-800/40"
                     }`}
                   >
                     <span
@@ -114,23 +110,18 @@ export function DirectoryView() {
         {selected === undefined ? (
           <Panel title="Account">
             <EmptyState title="Nobody has signed in yet">
-              A User is created the first time someone signs in with their work
-              address — they are never pre-provisioned.
+              A User is created the first time someone signs in with their work address — they are
+              never pre-provisioned.
             </EmptyState>
           </Panel>
         ) : (
-          <AccountPane
-            userId={selected.userId}
-            onGrant={() => setGranting(selected.userId)}
-          />
+          <AccountPane userId={selected.userId} onGrant={() => setGranting(selected.userId)} />
         )}
       </div>
 
       <ActivityPanel />
 
-      {granting !== null && (
-        <GrantModal userId={granting} onClose={() => setGranting(null)} />
-      )}
+      {granting !== null && <GrantModal userId={granting} onClose={() => setGranting(null)} />}
     </div>
   );
 }
@@ -143,9 +134,7 @@ export function DirectoryView() {
 function SignalPills({ account }: { account: Account }) {
   if (!account.isActive) {
     return (
-      <Pill className="bg-ink-800 text-ink-500 ring-1 ring-ink-700 ring-inset">
-        Deactivated
-      </Pill>
+      <Pill className="bg-ink-800 text-ink-500 ring-1 ring-ink-700 ring-inset">Deactivated</Pill>
     );
   }
   return (
@@ -170,21 +159,11 @@ function SignalPills({ account }: { account: Account }) {
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="text-2xs font-semibold tracking-wide text-ink-400 uppercase">
-      {children}
-    </p>
-  );
+  return <p className="text-2xs font-semibold tracking-wide text-ink-400 uppercase">{children}</p>;
 }
 
 /** Everything an Administrator does to one account, in the order they do it. */
-function AccountPane({
-  userId,
-  onGrant,
-}: {
-  userId: Id<"users">;
-  onGrant: () => void;
-}) {
+function AccountPane({ userId, onGrant }: { userId: Id<"users">; onGrant: () => void }) {
   const detail = useQuery(api.directory.account, { userId });
 
   if (detail === undefined) {
@@ -297,9 +276,7 @@ function PersonLink({ detail }: { detail: Detail }) {
           <Button
             size="xs"
             variant="ghost"
-            onClick={() =>
-              void link({ userId: detail.userId, personId: null })
-            }
+            onClick={() => void link({ userId: detail.userId, personId: null })}
           >
             Unlink
           </Button>
@@ -307,8 +284,8 @@ function PersonLink({ detail }: { detail: Detail }) {
       ) : (
         <>
           <p className="text-xs text-ink-500">
-            Not linked. Linking connects this sign-in to the Person carrying RACI
-            history — it grants nothing.
+            Not linked. Linking connects this sign-in to the Person carrying RACI history — it
+            grants nothing.
           </p>
           {detail.candidates.map((candidate) => (
             <div
@@ -326,9 +303,7 @@ function PersonLink({ detail }: { detail: Detail }) {
               </span>
               <Button
                 size="xs"
-                onClick={() =>
-                  void link({ userId: detail.userId, personId: candidate.personId })
-                }
+                onClick={() => void link({ userId: detail.userId, personId: candidate.personId })}
               >
                 Link
               </Button>
@@ -363,9 +338,7 @@ function RoleSection({ detail }: { detail: Detail }) {
           <Button
             size="xs"
             disabled={locked}
-            title={
-              locked ? "The last active Administrator can't be demoted" : undefined
-            }
+            title={locked ? "The last active Administrator can't be demoted" : undefined}
             onClick={() => void setRole({ userId: detail.userId, role: next })}
           >
             {next === "member" ? "Make Member" : "Make Administrator"}
@@ -374,8 +347,8 @@ function RoleSection({ detail }: { detail: Detail }) {
       </div>
       {locked && (
         <p className="text-3xs text-rose-300">
-          This is the last active Administrator — promote someone else before demoting
-          or deactivating this account. The server refuses either way.
+          This is the last active Administrator — promote someone else before demoting or
+          deactivating this account. The server refuses either way.
         </p>
       )}
     </div>
@@ -390,8 +363,8 @@ function GrantsSection({ detail, onGrant }: { detail: Detail; onGrant: () => voi
       <SectionLabel>Access grants</SectionLabel>
       {detail.role === "administrator" && (
         <p className="text-3xs text-ink-600">
-          Dormant behind the Administrator role. Demoting this account hands them
-          back exactly as they are.
+          Dormant behind the Administrator role. Demoting this account hands them back exactly as
+          they are.
         </p>
       )}
       {detail.grants.length === 0 ? (
@@ -407,16 +380,13 @@ function GrantsSection({ detail, onGrant }: { detail: Detail; onGrant: () => voi
             <span className="min-w-0">
               <span className="block truncate text-xs text-ink-200">{grant.label}</span>
               <span className="block text-3xs text-ink-500">
-                by {grant.grantedByName ?? "deploy credentials"} ·{" "}
-                {formatStamp(grant.grantedAt)}
+                by {grant.grantedByName ?? "deploy credentials"} · {formatStamp(grant.grantedAt)}
               </span>
             </span>
             <ConfirmButton
               label="Revoke"
               confirmLabel="Revoke now"
-              onConfirm={() =>
-                void revoke({ userId: detail.userId, scope: grant.scope })
-              }
+              onConfirm={() => void revoke({ userId: detail.userId, scope: grant.scope })}
             />
           </div>
         ))
@@ -457,13 +427,11 @@ function Offboarding({ detail }: { detail: Detail }) {
                 ? "The last active Administrator can't be deactivated"
                 : undefined
             }
-            onConfirm={() =>
-              void setActive({ userId: detail.userId, isActive: false })
-            }
+            onConfirm={() => void setActive({ userId: detail.userId, isActive: false })}
           />
           <p className="text-3xs text-ink-600">
-            Denies everything immediately, server-side. Pair it with deleting the
-            account in Clerk; RACI history stays on the linked Person.
+            Denies everything immediately, server-side. Pair it with deleting the account in Clerk;
+            RACI history stays on the linked Person.
           </p>
         </>
       ) : (
@@ -475,9 +443,7 @@ function Offboarding({ detail }: { detail: Detail }) {
           >
             Reactivate account
           </Button>
-          <p className="text-3xs text-ink-600">
-            Restores exactly the role and grants above.
-          </p>
+          <p className="text-3xs text-ink-600">Restores exactly the role and grants above.</p>
         </>
       )}
     </div>
@@ -714,8 +680,8 @@ function ActivityPanel() {
         <PanelSkeleton rows={4} />
       ) : feed.length === 0 ? (
         <EmptyState title="Nothing yet">
-          Role changes, grants, revocations, offboarding and Person links land here
-          with who did them and when.
+          Role changes, grants, revocations, offboarding and Person links land here with who did
+          them and when.
         </EmptyState>
       ) : (
         <ul className="divide-y divide-ink-800/70">

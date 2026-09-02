@@ -11,13 +11,14 @@ import {
   writableSeason,
 } from "./access";
 import {
-  SEASON_PHASES,
   chainLabel,
   deleteTasks,
   optionalText,
+  patchedRequiredText,
+  patchedText,
   raciDefaults,
-  requiredText,
   rollup,
+  SEASON_PHASES,
   stampTemplates,
 } from "./model";
 
@@ -142,9 +143,7 @@ export const tree = authedQuery({
                         rollup: rollup(
                           await ctx.db
                             .query("tasks")
-                            .withIndex("by_promotion", (q) =>
-                              q.eq("promotionId", promotion._id),
-                            )
+                            .withIndex("by_promotion", (q) => q.eq("promotionId", promotion._id))
                             .collect(),
                           args.today,
                         ),
@@ -189,9 +188,7 @@ export const tree = authedQuery({
       season: { _id: season._id, year: season.year, label: season.label },
       reach,
       seasonRollup: reach === "full" ? rollup(seasonTasks, args.today) : null,
-      chains: chainNodes.filter(
-        (node) => node.plans.length > 0 || ctx.scope.isAdministrator,
-      ),
+      chains: chainNodes.filter((node) => node.plans.length > 0 || ctx.scope.isAdministrator),
     };
   },
 });
@@ -208,13 +205,17 @@ export const contextFor = authedQuery({
     promotionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // The plan comes back too, so the sidebar can hold the right branch open
+    // without walking the tree to find which plan a promotion sits under.
     if (args.promotionId !== undefined) {
       const promotion = await readablePromotion(ctx, ctx.scope, args.promotionId);
-      return promotion === null ? null : { seasonId: promotion.seasonId };
+      return promotion === null
+        ? null
+        : { seasonId: promotion.seasonId, chainPlanId: promotion.chainPlanId };
     }
     if (args.chainPlanId !== undefined) {
       const plan = await readableChainPlan(ctx, ctx.scope, args.chainPlanId);
-      return plan === null ? null : { seasonId: plan.seasonId };
+      return plan === null ? null : { seasonId: plan.seasonId, chainPlanId: plan._id };
     }
     return null;
   },
@@ -261,10 +262,8 @@ export const update = authedMutation({
     const season = await writableSeason(ctx, ctx.scope, args.seasonId);
     await ctx.db.patch(season._id, {
       ...ctx.stamp,
-      ...(args.label === undefined
-        ? {}
-        : { label: requiredText(args.label, "Year label") }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+      label: patchedRequiredText(args.label, season.label, "Year label"),
+      notes: patchedText(args.notes, season.notes),
     });
   },
 });

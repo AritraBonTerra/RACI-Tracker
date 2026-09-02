@@ -3,15 +3,15 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import {
   ADMIN,
+  bytes,
+  type Caller,
   NEWCOMER,
   PLAN_MEMBER,
   PROMO_MEMBER,
   TODAY,
-  YEAR_MEMBER,
-  bytes,
   token,
   world,
-  type Caller,
+  YEAR_MEMBER,
 } from "./world.fixture";
 
 // The authorization matrix for reads (#32), asserted the only way it is worth
@@ -68,9 +68,7 @@ async function reads(
     dashboard: await attempt(() =>
       caller.query(api.home.dashboard, { seasonId: ids.seasonId, today: TODAY }),
     ),
-    kpi: await attempt(() =>
-      caller.query(api.kpi.board, { promotionId: ids.promotionId }),
-    ),
+    kpi: await attempt(() => caller.query(api.kpi.board, { promotionId: ids.promotionId })),
     people: await attempt(() => caller.query(api.people.list, {})),
     functions: await attempt(() => caller.query(api.people.listFunctions, {})),
     directory: await attempt(() => caller.query(api.people.directory, { today: TODAY })),
@@ -233,9 +231,7 @@ test("a Promotion-only Member sees their promotion and no sibling, plan or year"
       today: TODAY,
     }),
   ).toBeNull();
-  expect(
-    await priya.query(api.seasons.overview, { seasonId, today: TODAY }),
-  ).toBeNull();
+  expect(await priya.query(api.seasons.overview, { seasonId, today: TODAY })).toBeNull();
 
   // The whole world they can navigate: one year label, one chain label, one
   // promotion. Nothing else is named anywhere in the response.
@@ -279,9 +275,7 @@ test("a Chain Plan Member sees the plan and every promotion under it", async () 
   expect(plan?.chain.name).toBe("Kroger");
   expect(plan?.tasks).toHaveLength(3);
   expect(plan?.season.reach).toBe("context");
-  expect(plan?.promotions.map((node) => node.promotion.name)).toEqual([
-    "Holiday Endcap",
-  ]);
+  expect(plan?.promotions.map((node) => node.promotion.name)).toEqual(["Holiday Endcap"]);
 
   expect(
     await marcus.query(api.promotions.get, {
@@ -312,17 +306,11 @@ test("a Plan Year Member sees phase 0 and everything under the year", async () =
 
   const tree = await yolanda.query(api.seasons.tree, { seasonId, today: TODAY });
   expect(tree?.reach).toBe("full");
-  expect(tree?.chains.map((node) => node.chain.name)).toEqual([
-    "Albertsons",
-    "Kroger",
-    "Ralphs",
-  ]);
+  expect(tree?.chains.map((node) => node.chain.name)).toEqual(["Albertsons", "Kroger", "Ralphs"]);
   expect(tree?.chains.every((node) => node.plans[0].reach === "full")).toBe(true);
 
   for (const promotionId of Object.values(promotions)) {
-    expect(
-      await yolanda.query(api.promotions.get, { promotionId, today: TODAY }),
-    ).not.toBeNull();
+    expect(await yolanda.query(api.promotions.get, { promotionId, today: TODAY })).not.toBeNull();
   }
   expect(
     await yolanda.query(api.chainPlans.get, {
@@ -375,8 +363,7 @@ test("records created after a grant are inside it", async () => {
 test("an overlapping grant changes nothing, and revoking it changes nothing back", async () => {
   const { t, seasonId, plans, promotions } = await world();
   const marcus = t.withIdentity(PLAN_MEMBER);
-  const view = async () =>
-    bytes(await marcus.query(api.seasons.tree, { seasonId, today: TODAY }));
+  const view = async () => bytes(await marcus.query(api.seasons.tree, { seasonId, today: TODAY }));
 
   const before = await view();
 
@@ -444,9 +431,7 @@ test("an out-of-scope record and a deleted one produce identical responses", asy
 
   const sibling = promotions["Spring Rosé"];
   const outOfScope = {
-    promotion: bytes(
-      await priya.query(api.promotions.get, { promotionId: sibling, today: TODAY }),
-    ),
+    promotion: bytes(await priya.query(api.promotions.get, { promotionId: sibling, today: TODAY })),
     kpi: bytes(await priya.query(api.kpi.board, { promotionId: sibling })),
     context: bytes(await priya.query(api.seasons.contextFor, { promotionId: sibling })),
     plan: bytes(
@@ -466,9 +451,7 @@ test("an out-of-scope record and a deleted one produce identical responses", asy
   await as.mutation(api.chainPlans.remove, { chainPlanId: plans.Kroger });
 
   const deleted = {
-    promotion: bytes(
-      await priya.query(api.promotions.get, { promotionId: sibling, today: TODAY }),
-    ),
+    promotion: bytes(await priya.query(api.promotions.get, { promotionId: sibling, today: TODAY })),
     kpi: bytes(await priya.query(api.kpi.board, { promotionId: sibling })),
     context: bytes(await priya.query(api.seasons.contextFor, { promotionId: sibling })),
     plan: bytes(
@@ -490,9 +473,8 @@ test("a forged identifier reads exactly like an out-of-scope one", async () => {
   // A hand-edited hash, an id for the wrong table, and a real id they may not
   // have: three ways to probe, one answer.
   const answers = await Promise.all(
-    [promotions["Spring Rosé"], "not-an-id-at-all", seasonId].map(
-      async (promotionId) =>
-        bytes(await priya.query(api.promotions.get, { promotionId, today: TODAY })),
+    [promotions["Spring Rosé"], "not-an-id-at-all", seasonId].map(async (promotionId) =>
+      bytes(await priya.query(api.promotions.get, { promotionId, today: TODAY })),
     ),
   );
 
@@ -509,14 +491,13 @@ test("an Administrator's own dead link answers the same null", async () => {
 
   await as.mutation(api.promotions.remove, { promotionId: doomed });
 
-  expect(bytes(await as.query(api.promotions.get, { promotionId: doomed, today: TODAY })))
-    .toBe(
-      bytes(
-        await t
-          .withIdentity(PROMO_MEMBER)
-          .query(api.promotions.get, { promotionId: doomed, today: TODAY }),
-      ),
-    );
+  expect(bytes(await as.query(api.promotions.get, { promotionId: doomed, today: TODAY }))).toBe(
+    bytes(
+      await t
+        .withIdentity(PROMO_MEMBER)
+        .query(api.promotions.get, { promotionId: doomed, today: TODAY }),
+    ),
+  );
 });
 
 // --- Aggregates -----------------------------------------------------------
@@ -524,16 +505,12 @@ test("an Administrator's own dead link answers the same null", async () => {
 test("a Member's dashboard equals an Administrator's restricted to their scopes", async () => {
   const { t, seasonId, plans, promotions } = await world();
 
-  const admin = await t
-    .withIdentity(ADMIN)
-    .query(api.home.dashboard, { seasonId, today: TODAY });
+  const admin = await t.withIdentity(ADMIN).query(api.home.dashboard, { seasonId, today: TODAY });
   const member = await t
     .withIdentity(PLAN_MEMBER)
     .query(api.home.dashboard, { seasonId, today: TODAY });
 
-  const krogerGroup = admin?.chains.find(
-    (group) => group.chainPlanId === plans.Kroger,
-  );
+  const krogerGroup = admin?.chains.find((group) => group.chainPlanId === plans.Kroger);
   if (krogerGroup === undefined || krogerGroup.reach !== "full") {
     throw new Error("The Administrator should see the Kroger plan in full.");
   }
@@ -565,8 +542,7 @@ test("a Member's dashboard equals an Administrator's restricted to their scopes"
     list
       .filter(
         (entry) =>
-          (entry.place.tier === "chainPlan" &&
-            entry.place.chainPlanId === plans.Kroger) ||
+          (entry.place.tier === "chainPlan" && entry.place.chainPlanId === plans.Kroger) ||
           (entry.place.tier === "promotion" &&
             entry.place.promotionId === promotions["Holiday Endcap"]),
       )
@@ -622,9 +598,7 @@ test("a person's workload counts only the tasks the viewer can see", async () =>
   expect(JSON.stringify(forMarcus)).not.toContain("Gift Sets");
 
   const load = async (who: typeof ADMIN) => {
-    const directory = await t
-      .withIdentity(who)
-      .query(api.people.directory, { today: TODAY });
+    const directory = await t.withIdentity(who).query(api.people.directory, { today: TODAY });
     return directory[0].people[0].load;
   };
   expect(await load(ADMIN)).toMatchObject({ responsible: 14, blocked: 7, overdue: 7 });

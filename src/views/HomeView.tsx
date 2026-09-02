@@ -1,19 +1,14 @@
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import {
-  cardClass,
-  cardGrid,
-  HeaderSkeleton,
-  NotFound,
-  PageHeader,
-} from "../components/page";
+import { cardClass, cardGrid, HeaderSkeleton, NotFound, PageHeader } from "../components/page";
 import { AssignButton } from "../components/RaciEditor";
-import { EmptyState, Pill, Skeleton } from "../components/ui";
+import { type Rollup, RollupChips } from "../components/Rollup";
+import { EmptyState, Skeleton } from "../components/ui";
 import { dueLabel, formatDay, formatRange, isOverdue } from "../lib/dates";
-import { CONTEXT_HINT, PHASES, STATUSES, responsiblesOf } from "../lib/domain";
+import { CONTEXT_HINT, PHASES, responsiblesOf, STATUSES } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { href, placeRoute } from "../lib/router";
 
@@ -42,10 +37,7 @@ export function HomeView({
   if (data === undefined) return <DashboardSkeleton />;
   if (data === null) return <NotFound />;
 
-  const promotionCount = data.chains.reduce(
-    (count, group) => count + group.promotions.length,
-    0,
-  );
+  const promotionCount = data.chains.reduce((count, group) => count + group.promotions.length, 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -81,18 +73,15 @@ export function HomeView({
         <NeedsAttention attention={data.attention} today={today} people={people} />
 
         <div className="flex flex-col gap-5 xl:-order-1">
-          {data.phaseZero !== null && (
-            <SeasonCard data={data} phaseZero={data.phaseZero} />
-          )}
+          {data.phaseZero !== null && <SeasonCard data={data} phaseZero={data.phaseZero} />}
           {data.chains.map((group) => (
             <ChainSection key={group.chainPlanId} group={group} today={today} />
           ))}
           {data.chains.length === 0 && (
             <section className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40">
               <EmptyState title="No chain plans in this year yet">
-                A chain plan is one account for one year — Safeway 2026, Kroger 2026.
-                Start one from the chain list in the sidebar and phases 1–4 appear
-                underneath it.
+                A chain plan is one account for one year — Safeway 2026, Kroger 2026. Start one from
+                the chain list in the sidebar and phases 1–4 appear underneath it.
               </EmptyState>
             </section>
           )}
@@ -111,9 +100,8 @@ function Dot() {
 }
 
 /** The numbers that decide whether anyone needs to do something today. */
-function Headline({ rollup }: { rollup: Dashboard["rollup"] }) {
-  const progress =
-    rollup.total === 0 ? 0 : Math.round((rollup.delivered / rollup.total) * 100);
+function Headline({ rollup }: { rollup: Rollup }) {
+  const progress = rollup.total === 0 ? 0 : Math.round((rollup.delivered / rollup.total) * 100);
   const attention = rollup.unassigned + rollup.blocked + rollup.overdue;
 
   return (
@@ -176,9 +164,7 @@ function Headline({ rollup }: { rollup: Dashboard["rollup"] }) {
           <span className="text-3xl leading-none font-semibold text-emerald-300 tabular-nums">
             {rollup.delivered}
           </span>
-          <span className="text-sm text-ink-500 tabular-nums">
-            / {rollup.total} delivered
-          </span>
+          <span className="text-sm text-ink-500 tabular-nums">/ {rollup.total} delivered</span>
         </p>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-ink-800">
           <div
@@ -254,11 +240,9 @@ function SeasonCard({
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h2 className="text-sm font-semibold text-ink-100">
           Year {data.season.label}
-          <span className="ml-2 text-xs font-normal text-ink-500">
-            Phase 0 · {PHASES[0].title}
-          </span>
+          <span className="ml-2 text-xs font-normal text-ink-500">Phase 0 · {PHASES[0].title}</span>
         </h2>
-        <AttentionChips rollup={phaseZero.rollup} />
+        <RollupChips verbose rollup={phaseZero.rollup} />
       </div>
       {/* One phase, so the track is held to a width that still reads as a bar. */}
       <div className="mt-2.5 max-w-xs">
@@ -292,8 +276,7 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
                   {chainName}
                 </a>
                 <span className="text-2xs text-ink-500">
-                  phase {group.plan.currentPhase} ·{" "}
-                  {PHASES[group.plan.currentPhase].title}
+                  phase {group.plan.currentPhase} · {PHASES[group.plan.currentPhase].title}
                   {group.plan.jbpDate !== undefined &&
                     ` · JBP ${formatDay(group.plan.jbpDate, today)}`}
                 </span>
@@ -307,7 +290,7 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
               </span>
             )}
           </h2>
-          {group.reach === "full" && <AttentionChips rollup={group.rollup} />}
+          {group.reach === "full" && <RollupChips verbose rollup={group.rollup} />}
         </div>
         {group.reach === "full" && (
           <div className="mt-2.5">
@@ -318,8 +301,8 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
 
       {group.promotions.length === 0 ? (
         <EmptyState title="No promotions yet">
-          Phases 5–8 belong to a promotion, and this plan does not have one — it is still
-          working towards an agreement. Open the plan to add the first program.
+          Phases 5–8 belong to a promotion, and this plan does not have one — it is still working
+          towards an agreement. Open the plan to add the first program.
         </EmptyState>
       ) : (
         <div className={cardGrid(group.promotions.length)}>
@@ -329,17 +312,15 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
               href={href({ name: "promotion", promotionId: node.promotion._id })}
               className={cardClass}
             >
-              <h3 className="text-sm font-semibold text-ink-100">
-                {node.promotion.name}
-              </h3>
+              <h3 className="text-sm font-semibold text-ink-100">{node.promotion.name}</h3>
               <p className="mt-0.5 text-2xs text-ink-500">
-                {formatRange(node.promotion.startDate, node.promotion.endDate)}
+                {formatRange(node.promotion.startDate, node.promotion.endDate, today)}
                 {node.promotion.storeCount !== undefined &&
                   ` · ${node.promotion.storeCount} stores`}
                 {` · phase ${node.promotion.currentPhase} ${PHASES[node.promotion.currentPhase].title}`}
               </p>
               <div className="mt-1.5">
-                <AttentionChips rollup={node.rollup} />
+                <RollupChips verbose rollup={node.rollup} />
               </div>
               <div className="mt-2.5">
                 <PhaseTrack phases={node.phases} />
@@ -360,8 +341,7 @@ function PhaseTrack({ phases }: { phases: readonly PhaseStat[] }) {
   return (
     <div className="flex items-end gap-1.5">
       {phases.map((stat) => {
-        const done =
-          stat.total === 0 ? 0 : Math.round((stat.delivered / stat.total) * 100);
+        const done = stat.total === 0 ? 0 : Math.round((stat.delivered / stat.total) * 100);
         const tone =
           stat.total === 0
             ? "text-ink-600"
@@ -374,20 +354,21 @@ function PhaseTrack({ phases }: { phases: readonly PhaseStat[] }) {
                   : "text-ink-400";
 
         return (
-          <div key={stat.phase} className="min-w-0 flex-1" title={phaseTitle(stat)}>
+          <div
+            key={stat.phase}
+            role="img"
+            aria-label={phaseTitle(stat)}
+            title={phaseTitle(stat)}
+            className="min-w-0 flex-1"
+          >
             <div className="flex items-baseline justify-between gap-1">
-              <span className={`font-mono text-3xs font-semibold ${tone}`}>
-                {stat.phase}
-              </span>
+              <span className={`font-mono text-3xs font-semibold ${tone}`}>{stat.phase}</span>
               <span className="text-3xs text-ink-600 tabular-nums">
                 {stat.total === 0 ? "—" : `${stat.delivered}/${stat.total}`}
               </span>
             </div>
             <div className="mt-1 h-1.5 overflow-hidden rounded-sm bg-ink-800">
-              <div
-                className={`h-full ${stat.blocked > 0 ? "bg-emerald-600" : "bg-emerald-500"}`}
-                style={{ width: `${done}%` }}
-              />
+              <div className="h-full bg-emerald-500" style={{ width: `${done}%` }} />
             </div>
             {/* A phase with unowned work gets a red underline, so a wall of
                 promotions still reads at a glance. */}
@@ -411,29 +392,6 @@ function phaseTitle(stat: PhaseStat): string {
   if (stat.blocked > 0) parts.push(`${stat.blocked} blocked`);
   if (stat.overdue > 0) parts.push(`${stat.overdue} overdue`);
   return parts.join(" — ");
-}
-
-function AttentionChips({ rollup }: { rollup: Dashboard["rollup"] }) {
-  return (
-    <span className="flex shrink-0 flex-wrap items-center gap-1 text-3xs font-semibold tabular-nums">
-      {rollup.unassigned > 0 && (
-        <Pill className="bg-rose-500 text-rose-50">{rollup.unassigned} unassigned</Pill>
-      )}
-      {rollup.blocked > 0 && (
-        <Pill className="bg-rose-500/20 text-rose-200 ring-1 ring-rose-500/60 ring-inset">
-          {rollup.blocked} blocked
-        </Pill>
-      )}
-      {rollup.overdue > 0 && (
-        <Pill className="bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40 ring-inset">
-          {rollup.overdue} late
-        </Pill>
-      )}
-      <span className="pl-0.5 text-3xs font-normal text-ink-500">
-        {rollup.delivered}/{rollup.total}
-      </span>
-    </span>
-  );
 }
 
 // --- The rail -------------------------------------------------------------
@@ -483,18 +441,13 @@ function NeedsAttention({
   today: string;
   people: PeopleDirectory;
 }) {
-  const total = RAIL_SECTIONS.reduce(
-    (count, section) => count + attention[section.key].length,
-    0,
-  );
+  const total = RAIL_SECTIONS.reduce((count, section) => count + attention[section.key].length, 0);
   const cleared = RAIL_SECTIONS.filter((section) => attention[section.key].length === 0);
 
   return (
     <aside className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/60">
       <header className="flex items-baseline justify-between gap-3 border-b border-ink-800 px-4 py-3">
-        <h2 className="text-sm font-semibold tracking-tight text-ink-100">
-          Needs attention
-        </h2>
+        <h2 className="text-sm font-semibold tracking-tight text-ink-100">Needs attention</h2>
         <span className="text-2xs text-ink-500 tabular-nums">
           {total === 0 ? "all clear" : `${total} item${total === 1 ? "" : "s"}`}
         </span>
@@ -502,8 +455,8 @@ function NeedsAttention({
 
       {total === 0 ? (
         <EmptyState tone="good" title="Nothing needs attention">
-          Every task has a named Responsible, nothing is blocked, and nothing is past its
-          ETA. This is what the year is supposed to look like.
+          Every task has a named Responsible, nothing is blocked, and nothing is past its ETA. This
+          is what the year is supposed to look like.
         </EmptyState>
       ) : (
         <>
@@ -608,9 +561,7 @@ function Section({
           onClick={() => setShowAll((current) => !current)}
           className="flex w-full items-center justify-between gap-2 border-t border-ink-800/60 px-4 py-2 text-2xs font-medium text-ink-400 transition hover:bg-ink-800/60 hover:text-ink-100"
         >
-          {showAll
-            ? `Show the first ${PREVIEW}`
-            : `Show the other ${items.length - PREVIEW}`}
+          {showAll ? `Show the first ${PREVIEW}` : `Show the other ${items.length - PREVIEW}`}
           <span aria-hidden className="text-3xs">
             {showAll ? "▲" : "▼"}
           </span>

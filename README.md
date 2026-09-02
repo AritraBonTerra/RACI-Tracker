@@ -28,17 +28,18 @@ Sign-in needs a Clerk development instance and one Convex environment variable.
 
 `bun run build` type-checks and builds the frontend into `dist/`.
 
-## Tests
-
 ```sh
-bun run test        # once
-bun run test:watch
-bun run typecheck
+bun run check    # biome lint + format check, tsc, and the tests — run before pushing
+bun run format   # apply biome's fixes
+bun run test     # the tests alone; `bun run test:watch` re-runs them on save
 ```
+
+## Tests
 
 Tests call the public Convex function surface through `convex-test`, injecting
 a signed-in identity per scenario with `withIdentity` — the same functions the
-browser calls, with no deployment involved.
+browser calls, with no deployment involved. `tests/` holds the unit tests for
+the pure modules in `src/lib`.
 
 `checks/` holds the ones that read the repo instead of calling it: no credential
 or tenant identifier is committed, and the acceptance checklist cites tests that

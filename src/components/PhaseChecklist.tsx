@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from "react";
+import type { FunctionReturnType } from "convex/server";
+import { type FormEvent, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
-import type { FunctionReturnType } from "convex/server";
 import type { TaskOwner } from "../../convex/model";
-import { PHASES, roleLetters, type PhaseNumber } from "../lib/domain";
+import { isOverdue } from "../lib/dates";
+import { PHASES, type PhaseNumber, roleLetters } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 import type { Editors } from "./page";
@@ -44,9 +45,7 @@ export function PhaseChecklist({
 
   const delivered = rows.filter((task) => task.status === "delivered").length;
   const blocked = rows.filter((task) => task.status === "blocked").length;
-  const overdue = rows.filter(
-    (task) => task.status !== "delivered" && task.eta !== undefined && task.eta < today,
-  ).length;
+  const overdue = rows.filter((task) => isOverdue(task.eta, task.status, today)).length;
   const progress = rows.length === 0 ? 0 : Math.round((delivered / rows.length) * 100);
 
   const groups = groupByCategory(rows);
@@ -65,12 +64,8 @@ export function PhaseChecklist({
             {meta.title}
           </h3>
           <div className="flex items-center gap-3 text-2xs">
-            {blocked > 0 && (
-              <span className="font-semibold text-rose-300">{blocked} blocked</span>
-            )}
-            {overdue > 0 && (
-              <span className="font-semibold text-amber-300">{overdue} overdue</span>
-            )}
+            {blocked > 0 && <span className="font-semibold text-rose-300">{blocked} blocked</span>}
+            {overdue > 0 && <span className="font-semibold text-amber-300">{overdue} overdue</span>}
             <span className="text-ink-500">
               {delivered}/{rows.length} delivered
             </span>
@@ -88,9 +83,7 @@ export function PhaseChecklist({
             <span className="font-semibold tracking-wider uppercase">Default RACI</span>
             {raciDefault.cells.map((cell) => (
               <span key={cell.functionName} title={cell.note}>
-                <span className="font-mono text-ink-400">
-                  {roleLetters(cell.roles) || "—"}
-                </span>{" "}
+                <span className="font-mono text-ink-400">{roleLetters(cell.roles) || "—"}</span>{" "}
                 {cell.functionName}
                 {cell.note !== undefined && <span className="text-ink-500"> *</span>}
               </span>
@@ -110,8 +103,8 @@ export function PhaseChecklist({
             )
           }
         >
-          One line per thing that has to be true before this phase is done — a name, a
-          spec, a quantity, an ETA — and a named person on each of them.
+          One line per thing that has to be true before this phase is done — a name, a spec, a
+          quantity, an ETA — and a named person on each of them.
         </EmptyState>
       ) : (
         groups.map((group) => (
@@ -129,8 +122,10 @@ export function PhaseChecklist({
                   today={today}
                   people={people}
                   editors={editors}
-                  isFirst={index === 0 && group === groups[0]}
-                  isLast={index === group.tasks.length - 1 && group === groups.at(-1)}
+                  // Moves stay inside the category group (the server swaps
+                  // within it too), so the ends are the group's ends.
+                  isFirst={index === 0}
+                  isLast={index === group.tasks.length - 1}
                   focused={task._id === focusTaskId}
                 />
               ))}
@@ -243,7 +238,7 @@ function AddTaskForm({
           type="date"
           value={eta}
           onChange={(event) => setEta(event.target.value)}
-          className={`${inputClass} [color-scheme:dark]`}
+          className={inputClass}
         />
       </label>
       <Button type="submit" variant="primary" size="md" disabled={name.trim() === ""}>

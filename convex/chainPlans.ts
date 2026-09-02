@@ -8,14 +8,15 @@ import {
   writableChainPlan,
   writableSeason,
 } from "./access";
-import { phase } from "./schema";
 import {
   CHAIN_PLAN_PHASES,
-  assertPhaseInTier,
   chainLabel,
+  chainPlanPhase,
   deleteTasks,
   mustGet,
   optionalText,
+  patched,
+  patchedText,
   raciDefaults,
   rollup,
   stampTemplates,
@@ -95,7 +96,7 @@ export const create = adminMutation({
   args: {
     seasonId: v.id("seasons"),
     chainId: v.id("chains"),
-    currentPhase: v.optional(phase),
+    currentPhase: v.optional(chainPlanPhase),
     jbpDate: v.optional(v.string()),
     notes: v.optional(v.string()),
   },
@@ -123,34 +124,29 @@ export const create = adminMutation({
       notes: optionalText(args.notes),
       ...ctx.stamp,
     });
-    await stampTemplates(
-      ctx,
-      { tier: "chainPlan", chainPlanId },
-      CHAIN_PLAN_PHASES,
-      ctx.stamp,
-    );
+    await stampTemplates(ctx, { tier: "chainPlan", chainPlanId }, CHAIN_PLAN_PHASES, ctx.stamp);
     return chainPlanId;
   },
 });
 
-/** Keeping the plan's own fields current, for anyone whose scope covers it. */
+/**
+ * Keeping the plan's own fields current, for anyone whose scope covers it.
+ * Every field keeps its current value unless sent (model.ts: patched).
+ */
 export const update = authedMutation({
   args: {
     chainPlanId: v.id("chainPlans"),
-    currentPhase: v.optional(phase),
+    currentPhase: v.optional(chainPlanPhase),
     jbpDate: v.optional(v.union(v.string(), v.null())),
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const plan = await writableChainPlan(ctx, ctx.scope, args.chainPlanId);
-    // The picker offers only 1-4, but the client is not the boundary: a plan
-    // stamped with a promotion's phase mislabels itself everywhere it appears.
-    if (args.currentPhase !== undefined) assertPhaseInTier(args.currentPhase, "chainPlan");
     await ctx.db.patch(plan._id, {
       ...ctx.stamp,
-      ...(args.currentPhase === undefined ? {} : { currentPhase: args.currentPhase }),
-      ...(args.jbpDate === undefined ? {} : { jbpDate: optionalText(args.jbpDate) }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+      currentPhase: patched(args.currentPhase, plan.currentPhase),
+      jbpDate: patchedText(args.jbpDate, plan.jbpDate),
+      notes: patchedText(args.notes, plan.notes),
     });
   },
 });

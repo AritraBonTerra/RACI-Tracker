@@ -1,27 +1,18 @@
-import {
-  customCtx,
-  customMutation,
-  customQuery,
-} from "convex-helpers/server/customFunctions";
 import type { UserIdentity } from "convex/server";
 import { ConvexError, type Infer } from "convex/values";
+import { customCtx, customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc, Id } from "./_generated/dataModel";
-import {
-  mutation,
-  query,
-  type MutationCtx,
-  type QueryCtx,
-} from "./_generated/server";
+import { type MutationCtx, mutation, type QueryCtx, query } from "./_generated/server";
 import {
   fromUrl,
+  type LastModified,
   memo,
   missing,
   mustGet,
   ownerOfTask,
-  type LastModified,
   type TaskOwner,
 } from "./model";
-import { accessScope } from "./schema";
+import type { accessScope } from "./schema";
 
 // The access module (#30). Everything about "who is calling, and may they?"
 // lives here, and nothing outside this file may build a bare `query` or
@@ -86,10 +77,7 @@ function deny(): never {
  * because the person setting it is copying from a dashboard.
  */
 function allowedEmailDomain(): string {
-  return (process.env.ALLOWED_EMAIL_DOMAIN ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/^@/, "");
+  return (process.env.ALLOWED_EMAIL_DOMAIN ?? "").trim().toLowerCase().replace(/^@/, "");
 }
 
 /**
@@ -202,10 +190,7 @@ const EVERYTHING: Scope = {
  * than to everything: the grant is a pointer, and a dangling pointer is not a
  * key to the tier it used to name.
  */
-export async function expandScopes(
-  ctx: QueryCtx,
-  scopes: readonly AccessScope[],
-): Promise<Scope> {
+export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]): Promise<Scope> {
   const grantedSeasons = new Set<Id<"seasons">>();
   const grantedPlans = new Set<Id<"chainPlans">>();
   const grantedPromotions = new Set<Id<"promotions">>();
@@ -236,11 +221,7 @@ export async function expandScopes(
   return {
     isAdministrator: false,
     season: (seasonId) =>
-      grantedSeasons.has(seasonId)
-        ? "full"
-        : contextSeasons.has(seasonId)
-          ? "context"
-          : "none",
+      grantedSeasons.has(seasonId) ? "full" : contextSeasons.has(seasonId) ? "context" : "none",
     chainPlan: (plan) =>
       grantedSeasons.has(plan.seasonId) || grantedPlans.has(plan._id)
         ? "full"
@@ -471,11 +452,7 @@ export async function writablePromotion(
 }
 
 /** How far a viewer reaches the tier record a checklist hangs on. */
-async function reachOfOwner(
-  ctx: QueryCtx,
-  scope: Scope,
-  owner: TaskOwner,
-): Promise<Reach> {
+async function reachOfOwner(ctx: QueryCtx, scope: Scope, owner: TaskOwner): Promise<Reach> {
   if (owner.tier === "season") {
     const season = await ctx.db.get(owner.seasonId);
     return season === null ? "none" : scope.season(season._id);
@@ -494,11 +471,7 @@ async function reachOfOwner(
  * decides — so a create aimed at an out-of-scope Chain Plan is refused however
  * the argument is dressed up, and refused the way a deleted parent is.
  */
-export async function writableOwner(
-  ctx: QueryCtx,
-  scope: Scope,
-  owner: TaskOwner,
-): Promise<void> {
+export async function writableOwner(ctx: QueryCtx, scope: Scope, owner: TaskOwner): Promise<void> {
   if ((await reachOfOwner(ctx, scope, owner)) !== "full") missing(TIER_LABEL[owner.tier]);
 }
 
@@ -546,9 +519,7 @@ export async function editorsOf(
   const users = await Promise.all(ids.map((id) => ctx.db.get(id)));
   return Object.fromEntries(
     users.flatMap((user) =>
-      user === null
-        ? []
-        : [[user._id, user.displayName ?? "Someone"] as const],
+      user === null ? [] : [[user._id, user.displayName ?? "Someone"] as const],
     ),
   );
 }
@@ -560,9 +531,7 @@ export async function editorsOf(
  * a row with no scope column at all, which grants nothing rather than
  * everything.
  */
-export function scopeOfAssignment(
-  assignment: Doc<"accessAssignments">,
-): AccessScope | null {
+export function scopeOfAssignment(assignment: Doc<"accessAssignments">): AccessScope | null {
   if (assignment.seasonId !== undefined) {
     return { tier: "season", seasonId: assignment.seasonId };
   }
@@ -576,10 +545,7 @@ export function scopeOfAssignment(
 }
 
 /** Every scope a User's assignment rows name, without asking whether they exist. */
-async function assignmentScopes(
-  ctx: QueryCtx,
-  userId: Id<"users">,
-): Promise<AccessScope[]> {
+async function assignmentScopes(ctx: QueryCtx, userId: Id<"users">): Promise<AccessScope[]> {
   const assignments = await ctx.db
     .query("accessAssignments")
     .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -602,10 +568,7 @@ async function targetOf(ctx: QueryCtx, scope: AccessScope) {
  * "has any access at all" is the question the shell asks it, and a grant to a
  * deleted Promotion is not access.
  */
-export async function scopesOf(
-  ctx: QueryCtx,
-  userId: Id<"users">,
-): Promise<AccessScope[]> {
+export async function scopesOf(ctx: QueryCtx, userId: Id<"users">): Promise<AccessScope[]> {
   const scopes = await assignmentScopes(ctx, userId);
   const live = await Promise.all(
     scopes.map(async (scope) => (await targetOf(ctx, scope)) !== null),
@@ -614,9 +577,7 @@ export async function scopesOf(
 }
 
 /** Where the shell opens for a User (#24). */
-type Landing =
-  | { kind: "dashboard" }
-  | { kind: "promotion"; promotionId: Id<"promotions"> };
+type Landing = { kind: "dashboard" } | { kind: "promotion"; promotionId: Id<"promotions"> };
 
 /**
  * A Member whose whole world is one Promotion skips the dashboard and lands on
@@ -714,9 +675,7 @@ export async function grantScope(
   actor: Actor,
 ): Promise<boolean> {
   if (user.role === "administrator") {
-    throw new ConvexError(
-      "Administrators already reach everything — no assignment needed.",
-    );
+    throw new ConvexError("Administrators already reach everything — no assignment needed.");
   }
   await assertScopeExists(ctx, scope);
   if ((await assignmentFor(ctx, user._id, scope)) !== null) return false;
@@ -784,8 +743,7 @@ export async function isLastActiveAdministrator(
   return (await activeAdministrators(ctx)).length <= 1;
 }
 
-const LAST_ADMINISTRATOR =
-  "This is the last active Administrator. Promote someone else first.";
+const LAST_ADMINISTRATOR = "This is the last active Administrator. Promote someone else first.";
 
 /**
  * Promote or demote. The role is the whole of an Administrator's access, so
@@ -904,10 +862,7 @@ export async function userByClerkId(ctx: QueryCtx, clerkUserId: string) {
 }
 
 type TokenClaims = Partial<
-  Pick<
-    Doc<"users">,
-    "email" | "displayName" | "entraOid" | "entraTid" | "entraUserType"
-  >
+  Pick<Doc<"users">, "email" | "displayName" | "entraOid" | "entraTid" | "entraUserType">
 >;
 
 /**

@@ -82,8 +82,7 @@ export function returnToUrl(): string {
 export function useRememberLocation(active: boolean) {
   useEffect(() => {
     if (!active) return;
-    const remember = () =>
-      sessionStorage.setItem(RETURN_TO_KEY, window.location.hash || "#/");
+    const remember = () => sessionStorage.setItem(RETURN_TO_KEY, window.location.hash || "#/");
     remember();
     window.addEventListener("hashchange", remember);
     return () => window.removeEventListener("hashchange", remember);

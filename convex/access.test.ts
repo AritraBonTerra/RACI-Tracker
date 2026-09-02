@@ -327,9 +327,9 @@ describe("the email-domain admission gate", () => {
     vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
     const t = harness();
 
-    await expect(
-      t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {}),
-    ).rejects.toThrow(DENIED);
+    await expect(t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {})).rejects.toThrow(
+      DENIED,
+    );
     expect(await t.withIdentity(OUTSIDER).query(api.access.me, {})).toEqual({
       state: "ineligible",
       email: "nobody@gmail.com",
@@ -345,9 +345,9 @@ describe("the email-domain admission gate", () => {
 
     for (const email of ["mallory@notvctusa.com", "mallory@vctusa.com.attacker.net"]) {
       const impostor = token(`user_${email}`, { email, emailVerified: true });
-      await expect(
-        t.withIdentity(impostor).mutation(api.access.ensureUser, {}),
-      ).rejects.toThrow(DENIED);
+      await expect(t.withIdentity(impostor).mutation(api.access.ensureUser, {})).rejects.toThrow(
+        DENIED,
+      );
       expect(await t.withIdentity(impostor).query(api.access.me, {})).toMatchObject({
         state: "ineligible",
       });
@@ -361,9 +361,9 @@ describe("the email-domain admission gate", () => {
     const t = harness();
     const unverified = token("user_2unv", { email: "dana@vctusa.com" });
 
-    await expect(
-      t.withIdentity(unverified).mutation(api.access.ensureUser, {}),
-    ).rejects.toThrow(DENIED);
+    await expect(t.withIdentity(unverified).mutation(api.access.ensureUser, {})).rejects.toThrow(
+      DENIED,
+    );
     expect(await wrapperResults(t.withIdentity(unverified))).toEqual(REFUSED_EVERYWHERE);
   });
 

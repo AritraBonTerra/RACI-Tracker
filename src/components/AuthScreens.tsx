@@ -1,6 +1,6 @@
 import { AuthenticateWithRedirectCallback, SignIn } from "@clerk/clerk-react";
 import { useQuery } from "convex/react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { returnToUrl, useSignOut } from "../lib/auth";
 import { Button, Pill } from "./ui";
@@ -79,13 +79,11 @@ export function SignInScreen({ signedOut = false }: { signedOut?: boolean }) {
         <Wordmark />
         <span className="text-2xs text-ink-500">Integrated Commercial Cycle</span>
       </div>
-      <p className="text-xs text-ink-400">
-        Viña Concha y Toro USA — internal employees only.
-      </p>
+      <p className="text-xs text-ink-400">Viña Concha y Toro USA — internal employees only.</p>
       <ClerkSignIn />
       <p className="max-w-sm text-center text-2xs leading-relaxed text-ink-500">
-        Use your company work address. Access inside the tracker is granted by an
-        Administrator after you first sign in.
+        Use your company work address. Access inside the tracker is granted by an Administrator
+        after you first sign in.
       </p>
     </CenterScreen>
   );
@@ -106,9 +104,8 @@ export function NoAccessScreen({ email }: { email?: string }) {
             "An Administrator has to grant you a Plan Year, Chain Plan, or Promotion before anything shows here."
           ) : (
             <>
-              Signed in as <span className="text-ink-200">{email}</span>. An
-              Administrator has to grant you a Plan Year, Chain Plan, or
-              Promotion before anything shows here.
+              Signed in as <span className="text-ink-200">{email}</span>. An Administrator has to
+              grant you a Plan Year, Chain Plan, or Promotion before anything shows here.
             </>
           )}{" "}
           Your sign-in is already on their list.
@@ -134,13 +131,11 @@ export function IneligibleScreen({ email }: { email?: string }) {
     <CenterScreen>
       <Card>
         <Wordmark />
-        <p className="mt-3 text-sm font-medium text-ink-100">
-          This account can't be used here.
-        </p>
+        <p className="mt-3 text-sm font-medium text-ink-100">This account can't be used here.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
           {email === undefined ? "That account" : <span className="text-ink-200">{email}</span>}{" "}
-          isn't a Viña Concha y Toro USA work account. Sign out and sign back in
-          with your company address.
+          isn't a Viña Concha y Toro USA work account. Sign out and sign back in with your company
+          address.
         </p>
         <Button size="md" className="mt-4" onClick={() => void signOut()}>
           Back to sign-in
@@ -157,13 +152,10 @@ export function DeactivatedScreen({ email }: { email?: string }) {
     <CenterScreen>
       <Card>
         <Wordmark />
-        <p className="mt-3 text-sm font-medium text-ink-100">
-          This account is deactivated.
-        </p>
+        <p className="mt-3 text-sm font-medium text-ink-100">This account is deactivated.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-          {email === undefined ? "This account" : <span className="text-ink-200">{email}</span>}{" "}
-          no longer has access to RACI Tracker. If that's unexpected, contact an
-          Administrator.
+          {email === undefined ? "This account" : <span className="text-ink-200">{email}</span>} no
+          longer has access to RACI Tracker. If that's unexpected, contact an Administrator.
         </p>
         <Button size="md" className="mt-4" onClick={() => void signOut()}>
           Back to sign-in
@@ -264,8 +256,8 @@ export function AuthUnconfigured({ missing }: { missing: string }) {
         <Wordmark />
         <p className="mt-3 text-sm font-medium text-ink-100">Sign-in isn't configured.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
-          This build has no <code className="text-ink-200">{missing}</code>. Set it
-          for this environment and redeploy.
+          This build has no <code className="text-ink-200">{missing}</code>. Set it for this
+          environment and redeploy.
         </p>
       </Card>
     </CenterScreen>
@@ -330,9 +322,7 @@ export function AccountMenu({
       {open && (
         <div className="absolute right-0 z-40 mt-2 w-64 rounded-xl border border-ink-700 bg-ink-900 p-3 text-left shadow-2xl shadow-black/50">
           <p className="truncate text-sm font-semibold text-ink-100">{label}</p>
-          {email !== undefined && (
-            <p className="truncate text-2xs text-ink-500">{email}</p>
-          )}
+          {email !== undefined && <p className="truncate text-2xs text-ink-500">{email}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Pill className="bg-ink-800 text-ink-300 ring-1 ring-ink-700 ring-inset">
               {role === "administrator" ? "Administrator" : "Member"}
@@ -357,18 +347,10 @@ export function AccountMenu({
  * Asked only while the menu is open: a scope list nobody is looking at is a
  * subscription on every page for a line of text behind a click.
  */
-function MyScopes({
-  open,
-  role,
-}: {
-  open: boolean;
-  role: "administrator" | "member";
-}) {
+function MyScopes({ open, role }: { open: boolean; role: "administrator" | "member" }) {
   const mine = useQuery(api.directory.myAccess, open ? {} : "skip");
   if (role === "administrator") {
-    return (
-      <p className="mt-2 text-2xs text-ink-500">Reaches every plan year in full.</p>
-    );
+    return <p className="mt-2 text-2xs text-ink-500">Reaches every plan year in full.</p>;
   }
   if (mine === undefined) return null;
   if (mine.scopes.length === 0) {
@@ -380,9 +362,7 @@ function MyScopes({
   }
   return (
     <div className="mt-2 flex flex-col gap-0.5">
-      <p className="text-3xs font-semibold tracking-wide text-ink-600 uppercase">
-        Your access
-      </p>
+      <p className="text-3xs font-semibold tracking-wide text-ink-600 uppercase">Your access</p>
       {mine.scopes.map((scope) => (
         <p key={scope.label} className="truncate text-2xs text-ink-400">
           {scope.label}

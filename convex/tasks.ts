@@ -1,18 +1,23 @@
+import type { WithoutSystemFields } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
 import { authedMutation, writableOwner, writableTask } from "./access";
-import { phase, taskStatus } from "./schema";
 import {
   assertBlockedReason,
   assertPhaseInTier,
+  checkedDay,
+  moveDirection,
   nextOrder,
   optionalText,
   ownerFields,
+  patchedText,
   requiredText,
-  taskOwner,
+  swapOrder,
   type TaskOwner,
+  taskOwner,
 } from "./model";
+import { phase, taskStatus } from "./schema";
 
 // Every write to a phase checklist. Reads live with the tier that owns the
 // checklist (seasons / chainPlans / promotions), because a task is never
@@ -23,15 +28,10 @@ import {
 // one of these functions refuses the identical way for a task or an owner their
 // Access Assignments do not reach.
 
-const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** An ETA is a calendar day a human agreed to, so the string shape is the contract. */
+/** An ETA is optional, but once given it has to be a calendar day (model.ts: checkedDay). */
 function checkedEta(eta: string | null | undefined): string | undefined {
   const value = optionalText(eta);
-  if (value !== undefined && !ISO_DAY.test(value)) {
-    throw new ConvexError(`"${value}" is not a calendar day (expected 2026-10-31).`);
-  }
-  return value;
+  return value === undefined ? undefined : checkedDay(value, "ETA");
 }
 
 function checkedQuantity(quantity: number | null | undefined): number | undefined {
@@ -115,7 +115,7 @@ export const update = authedMutation({
   },
   handler: async (ctx, args) => {
     const { task } = await writableTask(ctx, ctx.scope, args.taskId);
-    const patch: Partial<Doc<"tasks">> = { ...ctx.stamp };
+    const patch: Partial<WithoutSystemFields<Doc<"tasks">>> = { ...ctx.stamp };
 
     if (args.name !== undefined) patch.name = requiredText(args.name, "Task name");
     if (args.spec !== undefined) patch.spec = optionalText(args.spec);
@@ -166,8 +166,7 @@ export const setStatus = authedMutation({
       ...ctx.stamp,
       status: args.status,
       blockedReason: assertBlockedReason(args.status, proposed),
-      deliveredTo:
-        args.deliveredTo === undefined ? task.deliveredTo : optionalText(args.deliveredTo),
+      deliveredTo: patchedText(args.deliveredTo, task.deliveredTo),
     });
   },
 });
@@ -180,25 +179,23 @@ export const remove = authedMutation({
   },
 });
 
-/** Nudges a task up or down its phase section by swapping `order` with its neighbour. */
+/**
+ * Nudges a task up or down within its category group — the rows the checklist
+ * draws under one heading (PhaseChecklist: groupByCategory) — so a move never
+ * jumps a task into another group.
+ */
 export const move = authedMutation({
   args: {
     taskId: v.id("tasks"),
-    direction: v.union(v.literal("up"), v.literal("down")),
+    direction: moveDirection,
   },
   handler: async (ctx, args) => {
     const { task, owner } = await writableTask(ctx, ctx.scope, args.taskId);
-    const section = (await siblingsOf(ctx, owner))
-      .filter((candidate) => candidate.phase === task.phase)
-      .sort((a, b) => a.order - b.order);
-
-    const index = section.findIndex((candidate) => candidate._id === task._id);
-    const swapWith = section[args.direction === "up" ? index - 1 : index + 1];
-    if (swapWith === undefined) return;
-
+    const group = (await siblingsOf(ctx, owner)).filter(
+      (candidate) => candidate.phase === task.phase && candidate.category === task.category,
+    );
     // Reordering is a change to both rows, so both carry the stamp.
-    await ctx.db.patch(task._id, { ...ctx.stamp, order: swapWith.order });
-    await ctx.db.patch(swapWith._id, { ...ctx.stamp, order: task.order });
+    await swapOrder(ctx, task, group, args.direction, ctx.stamp);
   },
 });
 

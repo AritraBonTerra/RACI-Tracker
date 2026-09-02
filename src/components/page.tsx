@@ -98,10 +98,7 @@ export type Stamped = { lastModifiedBy?: string; lastModifiedAt?: number };
  * strip, a divider — can ask whether the strip has anything to hold, instead of
  * restating this condition and drifting from it.
  */
-export function editorOf(
-  record: Stamped,
-  editors: Editors,
-): { name: string; at: number } | null {
+export function editorOf(record: Stamped, editors: Editors): { name: string; at: number } | null {
   const name = record.lastModifiedBy === undefined ? undefined : editors[record.lastModifiedBy];
   if (name === undefined || record.lastModifiedAt === undefined) return null;
   return { name, at: record.lastModifiedAt };
@@ -127,8 +124,7 @@ export function LastEdited({
   if (editor === null) return null;
   return (
     <span className={`text-2xs text-ink-600 ${className}`}>
-      Last edited by <span className="text-ink-500">{editor.name}</span> ·{" "}
-      {formatStamp(editor.at)}
+      Last edited by <span className="text-ink-500">{editor.name}</span> · {formatStamp(editor.at)}
     </span>
   );
 }
@@ -137,9 +133,7 @@ export function LastEdited({
 export function MetaItem({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className="text-3xs font-semibold tracking-wider text-ink-600 uppercase">
-        {label}
-      </span>
+      <span className="text-3xs font-semibold tracking-wider text-ink-600 uppercase">{label}</span>
       <span className="text-ink-300">{children}</span>
     </span>
   );
@@ -169,8 +163,8 @@ export function NotFound() {
           This page doesn't exist, or you don't have access to it
         </p>
         <p className="mx-auto mt-1 max-w-sm text-xs text-ink-500">
-          The link still works, but there is nothing here for you. If you expected
-          something, ask an administrator for access.
+          The link still works, but there is nothing here for you. If you expected something, ask an
+          administrator for access.
         </p>
       </div>
       <a href={href({ name: "home" })}>
@@ -188,10 +182,7 @@ export function NotFound() {
  * with it — a blank screen with the navigation gone. Reset by keying this on the
  * route, so the next link works.
  */
-export class ViewBoundary extends Component<
-  { children: ReactNode },
-  { message: string | null }
-> {
+export class ViewBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
   state: { message: string | null } = { message: null };
 
   static getDerivedStateFromError(error: unknown) {
@@ -214,10 +205,7 @@ export class ViewBoundary extends Component<
         </span>
         <div>
           <p className="text-sm font-medium text-ink-200">This view could not load</p>
-          <p
-            className="mx-auto mt-1 max-w-sm text-xs text-ink-500"
-            title={this.state.message}
-          >
+          <p className="mx-auto mt-1 max-w-sm text-xs text-ink-500" title={this.state.message}>
             Nothing was lost. Try the dashboard, or reload the page.
           </p>
         </div>

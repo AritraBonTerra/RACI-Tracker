@@ -1,4 +1,11 @@
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import {
+  type ComponentProps,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 // Hand-rolled primitives. Small enough to read in one sitting, and they keep the
 // ops-tool look (dense rows, quiet chrome, loud problems) consistent everywhere.
@@ -82,11 +89,7 @@ export function ConfirmButton({
       // revokes and deactivations, and "Delete" describes neither.
       title={
         disabledReason ??
-        (armed
-          ? "Click again to confirm"
-          : typeof label === "string"
-            ? label
-            : undefined)
+        (armed ? "Click again to confirm" : typeof label === "string" ? label : undefined)
       }
       onClick={() => {
         if (armed) {
@@ -123,9 +126,7 @@ export function Panel({
         <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-ink-800 bg-ink-900/60 px-4 py-3">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold tracking-tight text-ink-100">{title}</h2>
-            {subtitle !== undefined && (
-              <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>
-            )}
+            {subtitle !== undefined && <p className="mt-0.5 text-xs text-ink-500">{subtitle}</p>}
           </div>
           {actions !== undefined && (
             <div className="flex shrink-0 items-center gap-2">{actions}</div>
@@ -169,10 +170,9 @@ export function Field({
   className?: string;
 }) {
   return (
+    // biome-ignore lint/a11y/noLabelWithoutControl: the control is `children`, wrapped by the label.
     <label className={`flex flex-col gap-1 ${className}`}>
-      <span className="text-2xs font-semibold tracking-wide text-ink-400 uppercase">
-        {label}
-      </span>
+      <span className="text-2xs font-semibold tracking-wide text-ink-400 uppercase">{label}</span>
       {children}
       {hint !== undefined && <span className="text-2xs text-ink-500">{hint}</span>}
     </label>
@@ -181,6 +181,10 @@ export function Field({
 
 export const inputClass =
   "w-full rounded-md border border-ink-700 bg-ink-950 px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 focus:border-sand-500 focus:ring-0 focus:outline-none";
+
+/** The compact chrome-bar select (year, theme); form selects use `inputClass`. */
+export const selectClass =
+  "h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500 focus:border-sand-500 focus:outline-none";
 
 export function Modal({
   title,
@@ -193,6 +197,8 @@ export function Modal({
   children: ReactNode;
   footer?: ReactNode;
 }) {
+  const dialog = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -201,12 +207,45 @@ export function Modal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  // Focus moves into the dialog on open (unless a field claimed it) and back to
+  // the opener on close, so a keyboard user is never left on a hidden button.
+  useEffect(() => {
+    const opener = document.activeElement;
+    const box = dialog.current;
+    if (box !== null && !box.contains(document.activeElement)) box.focus();
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, []);
+
+  // Tab stays inside the dialog: the page behind it is inert for the duration.
+  const trapTab = (event: ReactKeyboardEvent) => {
+    if (event.key !== "Tab" || dialog.current === null) return;
+    const focusable = dialog.current.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (first === undefined || last === undefined) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-6">
       <div
+        ref={dialog}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
-        className="mt-6 w-full max-w-lg rounded-xl border border-ink-700 bg-ink-900 shadow-2xl shadow-black/50 sm:mt-12"
+        tabIndex={-1}
+        onKeyDown={trapTab}
+        className="mt-6 w-full max-w-lg rounded-xl border border-ink-700 bg-ink-900 shadow-2xl shadow-black/50 focus:outline-none sm:mt-12"
       >
         <header className="flex items-center justify-between border-b border-ink-800 px-5 py-3">
           <h2 className="text-sm font-semibold text-ink-100">{title}</h2>
@@ -256,11 +295,7 @@ export function EmptyState({
       >
         {tone === "good" ? "✓" : "○"}
       </span>
-      <p
-        className={`text-sm font-medium ${
-          tone === "good" ? "text-emerald-200" : "text-ink-300"
-        }`}
-      >
+      <p className={`text-sm font-medium ${tone === "good" ? "text-emerald-200" : "text-ink-300"}`}>
         {title}
       </p>
       {children !== undefined && (
@@ -278,9 +313,6 @@ export function EmptyState({
  */
 export function Skeleton({ className = "" }: { className?: string }) {
   return (
-    <span
-      aria-hidden
-      className={`animate-settle block rounded-md bg-ink-800/70 ${className}`}
-    />
+    <span aria-hidden className={`animate-settle block rounded-md bg-ink-800/70 ${className}`} />
   );
 }

@@ -1,6 +1,13 @@
 import { ConvexError, v } from "convex/values";
 import { adminMutation, authedQuery } from "./access";
-import { mustGet, optionalText, requiredText } from "./model";
+import {
+  mustGet,
+  optionalText,
+  patched,
+  patchedRequiredText,
+  patchedText,
+  requiredText,
+} from "./model";
 
 // The portfolio list. Entries are flagged as placeholders until the real brand
 // data is loaded, and promotions point at them by id.
@@ -50,12 +57,12 @@ export const update = adminMutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.brandId, "brand");
-    await ctx.db.patch(args.brandId, {
+    const brand = await mustGet(ctx, args.brandId, "brand");
+    await ctx.db.patch(brand._id, {
       ...ctx.stamp,
-      ...(args.name === undefined ? {} : { name: requiredText(args.name, "Brand name") }),
-      ...(args.isPlaceholder === undefined ? {} : { isPlaceholder: args.isPlaceholder }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+      name: patchedRequiredText(args.name, brand.name, "Brand name"),
+      isPlaceholder: patched(args.isPlaceholder, brand.isPlaceholder),
+      notes: patchedText(args.notes, brand.notes),
     });
   },
 });
