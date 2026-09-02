@@ -7,6 +7,7 @@ import { isOverdue } from "../lib/dates";
 import { PHASES, type PhaseNumber, roleLetters } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
+import type { Editors } from "./page";
 import { TaskRow } from "./TaskRow";
 import { Button, EmptyState, inputClass } from "./ui";
 
@@ -24,6 +25,7 @@ export function PhaseChecklist({
   tasks,
   today,
   people,
+  editors,
   raciDefault,
   focusTaskId,
 }: {
@@ -32,6 +34,8 @@ export function PhaseChecklist({
   tasks: readonly Doc<"tasks">[];
   today: string;
   people: PeopleDirectory;
+  /** Names for the last-modified stamps on these rows (convex/access.ts). */
+  editors: Editors;
   raciDefault?: RaciDefault;
   /** The row a needs-attention link pointed at, if it lives in this phase. */
   focusTaskId?: Id<"tasks">;
@@ -117,6 +121,7 @@ export function PhaseChecklist({
                   task={task}
                   today={today}
                   people={people}
+                  editors={editors}
                   // Moves stay inside the category group (the server swaps
                   // within it too), so the ends are the group's ends.
                   isFirst={index === 0}

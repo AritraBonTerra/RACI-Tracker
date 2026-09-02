@@ -6,6 +6,7 @@ import { STATUS_ORDER, STATUSES, type TaskStatus } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 import { InlineDate, InlineNumber, InlineText } from "./inline";
+import { type Editors, LastEdited } from "./page";
 import { AssignButton, RaciEditor } from "./RaciEditor";
 import { Button, ConfirmButton } from "./ui";
 
@@ -18,6 +19,7 @@ export function TaskRow({
   task,
   today,
   people,
+  editors,
   isFirst,
   isLast,
   focused = false,
@@ -25,6 +27,8 @@ export function TaskRow({
   task: Doc<"tasks">;
   today: string;
   people: PeopleDirectory;
+  /** Names for the last-modified stamps on this checklist (convex/access.ts). */
+  editors: Editors;
   isFirst: boolean;
   isLast: boolean;
   /** Arrived here from a needs-attention link: open the row and scroll to it. */
@@ -260,6 +264,10 @@ export function TaskRow({
               />
             </Detail>
           </div>
+
+          {/* The first answer to "who changed this?", where the change was
+              made (#22, story 28). */}
+          <LastEdited record={task} editors={editors} className="mt-3 block" />
         </div>
       )}
     </li>

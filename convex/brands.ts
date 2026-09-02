@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { adminMutation, authedQuery } from "./access";
 import {
   mustGet,
   optionalText,
@@ -11,8 +11,12 @@ import {
 
 // The portfolio list. Entries are flagged as placeholders until the real brand
 // data is loaded, and promotions point at them by id.
+//
+// Reference data: readable by every signed-in User and unfiltered by scope
+// (#22). A brand name is not somebody's plan, and a promotion's brand chips
+// have to resolve for whoever can see the promotion.
 
-export const list = query({
+export const list = authedQuery({
   args: {},
   handler: async (ctx) => {
     const brands = await ctx.db.query("brands").collect();
@@ -20,7 +24,9 @@ export const list = query({
   },
 });
 
-export const create = mutation({
+// Reference data: readable by everyone signed in, writable by an Administrator
+// alone (#22, story 29).
+export const create = adminMutation({
   args: {
     name: v.string(),
     isPlaceholder: v.optional(v.boolean()),
@@ -38,11 +44,12 @@ export const create = mutation({
       name,
       isPlaceholder: args.isPlaceholder ?? true,
       notes: optionalText(args.notes),
+      ...ctx.stamp,
     });
   },
 });
 
-export const update = mutation({
+export const update = adminMutation({
   args: {
     brandId: v.id("brands"),
     name: v.optional(v.string()),
@@ -52,6 +59,7 @@ export const update = mutation({
   handler: async (ctx, args) => {
     const brand = await mustGet(ctx, args.brandId, "brand");
     await ctx.db.patch(brand._id, {
+      ...ctx.stamp,
       name: patchedRequiredText(args.name, brand.name, "Brand name"),
       isPlaceholder: patched(args.isPlaceholder, brand.isPlaceholder),
       notes: patchedText(args.notes, brand.notes),
@@ -59,7 +67,7 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = adminMutation({
   args: { brandId: v.id("brands") },
   handler: async (ctx, args) => {
     const promotions = await ctx.db.query("promotions").collect();

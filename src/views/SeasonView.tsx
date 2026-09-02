@@ -9,6 +9,7 @@ import {
   Breadcrumb,
   cardClass,
   cardGrid,
+  LastEdited,
   MetaItem,
   NotFound,
   PageHeader,
@@ -28,6 +29,9 @@ import { useReportedMutation } from "../lib/toast";
 // listed and started.
 
 type Tree = NonNullable<FunctionReturnType<typeof api.seasons.tree>>;
+type PlanNode = Tree["chains"][number]["plans"][number];
+/** A chain plan this viewer can open, with the chain name to title it. */
+type PlanCard = { chainName: string; node: Extract<PlanNode, { reach: "full" }> };
 
 export function SeasonView({
   seasonId,
@@ -46,9 +50,15 @@ export function SeasonView({
   const update = useReportedMutation(api.seasons.update);
 
   if (data === undefined) return <TierSkeleton panels={2} />;
-  if (data === null) return <NotFound what="plan year" />;
+  if (data === null) return <NotFound />;
 
-  const planCount = tree.chains.reduce((count, chain) => count + chain.plans.length, 0);
+  // Only plans the viewer can open are cards on this page. A chain plan reached
+  // as context has no phases to show and no page to link to, so it is not one.
+  const planCards = tree.chains.flatMap((chain) =>
+    chain.plans.flatMap((node) =>
+      node.reach === "full" ? [{ chainName: chain.chain.name, node }] : [],
+    ),
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,8 +74,9 @@ export function SeasonView({
         meta={
           <>
             <MetaItem label="Year">{data.season.year}</MetaItem>
-            <MetaItem label="Chain plans">{planCount}</MetaItem>
+            <MetaItem label="Chain plans">{planCards.length}</MetaItem>
             <MetaItem label="Today">{formatDay(today)}</MetaItem>
+            <LastEdited record={data.season} editors={data.editors} />
           </>
         }
       >
@@ -80,7 +91,7 @@ export function SeasonView({
       </PageHeader>
 
       <Pathway phases={buildPathway(SEASON_PHASES, data.tasks, {}, 0, today)} today={today}>
-        {planCount > 0 && <ChainPositions tree={tree} today={today} />}
+        {planCards.length > 0 && <ChainPositions plans={planCards} today={today} />}
       </Pathway>
 
       <RollupTiles rollup={data.rollup} />
@@ -93,6 +104,7 @@ export function SeasonView({
           tasks={data.tasks}
           today={today}
           people={people}
+          editors={data.editors}
           raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
           focusTaskId={focusTaskId}
         />
@@ -102,37 +114,35 @@ export function SeasonView({
         title="Chain plans"
         subtitle="Phases 1–4 live here. Start one from the sidebar for any chain without a plan."
       >
-        {planCount === 0 ? (
+        {planCards.length === 0 ? (
           <EmptyState title="No chain plans for this year yet">
             One plan per retail account per year. Every chain in Manage is listed in the sidebar
             with a <span className="text-ink-300">+ Plan</span> button beside it — starting one lays
             down the phase 1–4 checklist.
           </EmptyState>
         ) : (
-          <div className={cardGrid(planCount)}>
-            {tree.chains.flatMap((chain) =>
-              chain.plans.map((node) => (
-                <a
-                  key={node.plan._id}
-                  href={href({ name: "plan", chainPlanId: node.plan._id })}
-                  className={cardClass}
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-ink-100">{chain.chain.name}</h3>
-                    <RollupChips rollup={node.rollup} />
-                  </div>
-                  <p className="mt-1 text-xs text-ink-500">
-                    Currently phase {node.plan.currentPhase}
-                    {node.plan.jbpDate !== undefined &&
-                      ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
-                  </p>
-                  <p className="mt-3 text-2xs text-ink-500">
-                    {node.promotions.length} promotion
-                    {node.promotions.length === 1 ? "" : "s"}
-                  </p>
-                </a>
-              )),
-            )}
+          <div className={cardGrid(planCards.length)}>
+            {planCards.map(({ chainName, node }) => (
+              <a
+                key={node.chainPlanId}
+                href={href({ name: "plan", chainPlanId: node.chainPlanId })}
+                className={cardClass}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-ink-100">{chainName}</h3>
+                  <RollupChips rollup={node.rollup} />
+                </div>
+                <p className="mt-1 text-xs text-ink-500">
+                  Currently phase {node.plan.currentPhase}
+                  {node.plan.jbpDate !== undefined &&
+                    ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
+                </p>
+                <p className="mt-3 text-2xs text-ink-500">
+                  {node.promotions.length} promotion
+                  {node.promotions.length === 1 ? "" : "s"}
+                </p>
+              </a>
+            ))}
           </div>
         )}
       </Panel>
@@ -142,45 +152,43 @@ export function SeasonView({
 
 // Where every chain sits on phases 1-4, so the year view answers "what's
 // where" without a single click (CONTEXT.md: Pathway).
-function ChainPositions({ tree, today }: { tree: Tree; today: string }) {
+function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: string }) {
   return (
     <div className="mt-3 grid gap-1.5 border-t border-ink-800 pt-3">
-      {tree.chains.flatMap((chain) =>
-        chain.plans.map((node) => (
-          <a
-            key={node.plan._id}
-            href={href({ name: "plan", chainPlanId: node.plan._id })}
-            className="flex items-center gap-3 rounded-md px-1 py-0.5 text-xs hover:bg-ink-800/60"
-          >
-            <span className="w-24 shrink-0 truncate text-ink-200">{chain.chain.name}</span>
-            <span className="flex items-center gap-1">
-              {CHAIN_PLAN_PHASES.map((phase) => {
-                const done = phase < node.plan.currentPhase;
-                const current = phase === node.plan.currentPhase;
-                return (
-                  <span
-                    key={phase}
-                    className={`flex size-4 items-center justify-center rounded text-3xs ${
-                      done
-                        ? "bg-emerald-500 font-bold text-ink-fixed"
-                        : current
-                          ? "bg-ink-800 text-ink-100 ring-1 ring-sand-500"
-                          : "bg-ink-800 text-ink-500"
-                    }`}
-                  >
-                    {done ? "✓" : phase}
-                  </span>
-                );
-              })}
-            </span>
-            <span className="truncate text-2xs text-ink-500">
-              phase {node.plan.currentPhase} · {PHASES[node.plan.currentPhase].title}
-              {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
-              {` · ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
-            </span>
-          </a>
-        )),
-      )}
+      {plans.map(({ chainName, node }) => (
+        <a
+          key={node.chainPlanId}
+          href={href({ name: "plan", chainPlanId: node.chainPlanId })}
+          className="flex items-center gap-3 rounded-md px-1 py-0.5 text-xs hover:bg-ink-800/60"
+        >
+          <span className="w-24 shrink-0 truncate text-ink-200">{chainName}</span>
+          <span className="flex items-center gap-1">
+            {CHAIN_PLAN_PHASES.map((phase) => {
+              const done = phase < node.plan.currentPhase;
+              const current = phase === node.plan.currentPhase;
+              return (
+                <span
+                  key={phase}
+                  className={`flex size-4 items-center justify-center rounded text-3xs ${
+                    done
+                      ? "bg-emerald-500 font-bold text-ink-fixed"
+                      : current
+                        ? "bg-ink-800 text-ink-100 ring-1 ring-sand-500"
+                        : "bg-ink-800 text-ink-500"
+                  }`}
+                >
+                  {done ? "✓" : phase}
+                </span>
+              );
+            })}
+          </span>
+          <span className="truncate text-2xs text-ink-500">
+            phase {node.plan.currentPhase} · {PHASES[node.plan.currentPhase].title}
+            {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
+            {` · ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
+          </span>
+        </a>
+      ))}
     </div>
   );
 }

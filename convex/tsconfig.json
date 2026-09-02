@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ESNext",
-    "lib": ["ES2021", "DOM"],
+    "lib": ["ES2022", "DOM"],
+    "types": ["vite/client", "node"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",

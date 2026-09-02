@@ -10,6 +10,14 @@ export type PhaseNumber = Infer<typeof phase>;
 export type TaskStatus = Infer<typeof taskStatus>;
 
 /**
+ * What every ordinary record edit records: who touched it last, and when
+ * (schema.ts: lastModified). Built once per mutation by the wrappers in
+ * `access.ts` and spread into the write, so a handler cannot stamp the wrong
+ * User and cannot quietly forget the timestamp.
+ */
+export type LastModified = { lastModifiedBy: Id<"users">; lastModifiedAt: number };
+
+/**
  * `currentPhase` on an owner is narrowed to the phases that owner carries. A
  * task's `phase` keeps the full 0-8 range (schema.ts: phase).
  */
@@ -51,16 +59,36 @@ const TIER_LABEL = {
 } as const satisfies Record<TaskOwner["tier"], string>;
 
 /**
- * Rejects a task whose phase does not match the tier it is being attached to —
- * a phase-6 task on a chain plan would be invisible everywhere in the UI.
+ * Rejects a phase that does not belong to the tier it is being written on — a
+ * chain plan whose `currentPhase` is 7 labels itself with a phase that tier
+ * never runs, in the nav tree and the pathway strip alike. Applies to a
+ * record's own phase and to the phase of a task hung beneath it.
  */
-export function assertPhaseMatchesOwner(value: PhaseNumber, owner: TaskOwner) {
+export function assertPhaseInTier(value: PhaseNumber, tier: TaskOwner["tier"]) {
   const expected = tierForPhase(value);
-  if (expected !== owner.tier) {
+  if (expected !== tier) {
     throw new ConvexError(
-      `Phase ${value} belongs to ${TIER_LABEL[expected]}, not ${TIER_LABEL[owner.tier]}.`,
+      `Phase ${value} belongs to ${TIER_LABEL[expected]}, not ${TIER_LABEL[tier]}.`,
     );
   }
+}
+
+/**
+ * Which of the three tiers a task hangs on, read back off its own columns.
+ * Null for a task attached to nothing: that document is unreachable by every
+ * navigation surface, so it belongs to nobody's scope rather than everybody's.
+ */
+export function ownerOfTask(task: Doc<"tasks">): TaskOwner | null {
+  if (task.seasonId !== undefined) {
+    return { tier: "season", seasonId: task.seasonId };
+  }
+  if (task.chainPlanId !== undefined) {
+    return { tier: "chainPlan", chainPlanId: task.chainPlanId };
+  }
+  if (task.promotionId !== undefined) {
+    return { tier: "promotion", promotionId: task.promotionId };
+  }
+  return null;
 }
 
 /** The ownership columns for a task, with the two unused ones left unset. */
@@ -178,6 +206,18 @@ export async function fromUrl<Table extends TableNames>(
   return normalized === null ? null : await ctx.db.get(normalized);
 }
 
+/**
+ * The one sentence a write hears about a record it cannot have.
+ *
+ * Exported because the scope checks in `access.ts` raise it too: a mutation
+ * aimed at an out-of-scope id has to fail *identically* to one aimed at a
+ * deleted id, or the difference between the two errors is a probe (#27,
+ * scenario 15). One function, so the two can never drift apart.
+ */
+export function missing(label: string): never {
+  throw new ConvexError(`That ${label} no longer exists.`);
+}
+
 /** Loads a document or fails loudly rather than returning a silent null. */
 export async function mustGet<Table extends TableNames>(
   ctx: QueryCtx,
@@ -185,8 +225,23 @@ export async function mustGet<Table extends TableNames>(
   label: string,
 ): Promise<Doc<Table>> {
   const doc = await ctx.db.get(id);
-  if (doc === null) throw new ConvexError(`That ${label} no longer exists.`);
+  if (doc === null) missing(label);
   return doc;
+}
+
+/**
+ * A chain as a Member is allowed to see it: the name that labels their plan or
+ * promotion, and nothing else.
+ *
+ * `chains.list` is Administrator-only because the account list is
+ * company-sensitive, and `chains.notes` is the negotiation context an
+ * Administrator types in Manage. Every scoped read that has to name a chain
+ * goes through here rather than returning the document, so the ancestor rule —
+ * ancestors are names, not content — holds at the function surface and not just
+ * in the views (#30, story 24).
+ */
+export function chainLabel(chain: Doc<"chains">) {
+  return { _id: chain._id, name: chain.name };
 }
 
 /**
@@ -249,6 +304,9 @@ export async function stampTemplates(
   ctx: MutationCtx,
   owner: TaskOwner,
   phases: readonly PhaseNumber[],
+  // The rows land under whoever created the owner, so a checklist nobody has
+  // touched yet still answers "where did this come from?".
+  stamp: LastModified,
 ) {
   const wanted = new Set<PhaseNumber>(phases);
   const templates = (await ctx.db.query("taskTemplates").collect())
@@ -269,6 +327,7 @@ export async function stampTemplates(
       consultedPersonIds: [],
       informedPersonIds: [],
       order: index,
+      ...stamp,
     });
   }
   return templates.length;
@@ -337,15 +396,21 @@ export type TaskPlace =
       chain: string | null;
     };
 
-/** A read-through cache for one query's worth of lookups in a single table. */
-function memo<Table extends TableNames>(ctx: QueryCtx) {
-  const seen = new Map<Id<Table>, Doc<Table> | null>();
-  return async (id: Id<Table>): Promise<Doc<Table> | null> => {
+/**
+ * A read-through cache for one query's worth of lookups in a single table.
+ *
+ * Caches the in-flight read rather than its result, because every caller here
+ * fans out over `Promise.all`: the second lookup of an id arrives long before
+ * the first one resolves, and a cache of resolved docs would miss every time.
+ */
+export function memo<Table extends TableNames>(ctx: QueryCtx) {
+  const seen = new Map<Id<Table>, Promise<Doc<Table> | null>>();
+  return (id: Id<Table>): Promise<Doc<Table> | null> => {
     const hit = seen.get(id);
     if (hit !== undefined) return hit;
-    const doc = await ctx.db.get(id);
-    seen.set(id, doc);
-    return doc;
+    const reading = ctx.db.get(id);
+    seen.set(id, reading);
+    return reading;
   };
 }
 
@@ -428,6 +493,8 @@ export async function swapOrder(
   row: Ordered,
   siblings: readonly Ordered[],
   direction: MoveDirection,
+  // Reordering is a change to both rows, so both carry the stamp.
+  stamp: LastModified,
 ) {
   const sorted = [...siblings].sort((a, b) => a.order - b.order);
   const index = sorted.findIndex((candidate) => candidate._id === row._id);
@@ -435,8 +502,8 @@ export async function swapOrder(
   const swapWith = sorted[direction === "up" ? index - 1 : index + 1];
   if (swapWith === undefined) return;
 
-  await ctx.db.patch(row._id, { order: swapWith.order });
-  await ctx.db.patch(swapWith._id, { order: row.order });
+  await ctx.db.patch(row._id, { ...stamp, order: swapWith.order });
+  await ctx.db.patch(swapWith._id, { ...stamp, order: row.order });
 }
 
 /** Deletes a checklist wholesale — used when its owner is removed. */

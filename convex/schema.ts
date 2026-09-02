@@ -36,6 +36,47 @@ export const raciRole = v.union(
 // Functions split into the deck's internal/external stakeholder groups.
 export const functionKind = v.union(v.literal("internal"), v.literal("external"));
 
+// --- Access control (#30) -------------------------------------------------
+
+// The two roles, and the only two there will be (#30: no read-only reviewer).
+// An Administrator can reach and manage everything; a Member sees exactly the
+// union of their Access Assignments and nothing else.
+export const userRole = v.union(v.literal("administrator"), v.literal("member"));
+
+// The tier an Access Assignment is pinned to. Access flows *down* from here:
+// a Plan Year grant reaches its Chain Plans and their Promotions.
+export const accessScope = v.union(
+  v.object({ tier: v.literal("season"), seasonId: v.id("seasons") }),
+  v.object({ tier: v.literal("chainPlan"), chainPlanId: v.id("chainPlans") }),
+  v.object({ tier: v.literal("promotion"), promotionId: v.id("promotions") }),
+);
+
+// Every access-management action worth answering "who did that, and when?" for.
+// Ordinary record edits are not audited — they carry a last-modified stamp
+// instead (#30). The union is closed so a new action has to be named here.
+export const auditAction = v.union(
+  v.literal("user_created"),
+  v.literal("role_changed"),
+  v.literal("user_activated"),
+  v.literal("user_deactivated"),
+  v.literal("person_linked"),
+  v.literal("access_granted"),
+  v.literal("access_revoked"),
+);
+
+// Who last edited an ordinary record, and when (#30, story 28). Spread into
+// every table a signed-in User can write, so "who changed this?" has a first
+// answer without opening the audit feed — access management is *audited*,
+// ordinary edits are *stamped*, and the two never mix.
+//
+// Both fields are optional because every row written before the stamp existed
+// genuinely has no answer, and back-filling one would be inventing history.
+// They travel together: a write sets both or neither.
+export const lastModified = {
+  lastModifiedBy: v.optional(v.id("users")),
+  lastModifiedAt: v.optional(v.number()),
+};
+
 // --- Phase 7-8 measurement (detachable feature, #14) ----------------------
 // The two validators and the two tables at the bottom of the schema are the
 // whole storage footprint of the KPI table and the retro. Removing the feature
@@ -66,12 +107,14 @@ export default defineSchema({
     year: v.number(),
     label: v.string(),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_year", ["year"]),
 
   // A retail account (Safeway, Kroger, ...).
   chains: defineTable({
     name: v.string(),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_name", ["name"]),
 
   // What is being promoted. Placeholder entries until real portfolio data lands.
@@ -79,6 +122,7 @@ export default defineSchema({
     name: v.string(),
     isPlaceholder: v.boolean(),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_name", ["name"]),
 
   // The six stakeholder buckets. `key` is the stable identifier used by code and
@@ -88,6 +132,7 @@ export default defineSchema({
     name: v.string(),
     kind: functionKind,
     order: v.number(),
+    ...lastModified,
   }),
 
   // A named human in a Function. Not a login account in v0.
@@ -97,7 +142,97 @@ export default defineSchema({
     title: v.optional(v.string()),
     email: v.optional(v.string()),
     organization: v.optional(v.string()),
+    ...lastModified,
   }),
+
+  // --- Access control (#30) ---------------------------------------------
+  // Additive tables: no table above them loses a column, and the two they gain
+  // (`lastModified`) are optional, so the prior commit's functions run against
+  // this data unchanged.
+  //
+  // *This file* is the exception, and the rollback runbook says so: Convex
+  // rejects stored documents carrying fields their table does not declare, so
+  // pushing the pre-auth schema over data that has been edited under this
+  // release fails validation. Roll the code back and keep this schema.
+
+  // One row per signed-in identity (CONTEXT.md: User). Created by `ensureUser`
+  // on first sign-in as an active Member with zero Access Assignments — active
+  // because the account is real and `isActive: false` means "offboarded", and
+  // zero-assignment because access is an Administrator's decision. Users are
+  // never pre-provisioned: only the identity provider can mint a Clerk user id.
+  //
+  // `clerkUserId` is `identity.subject`: the primary key of the account as far
+  // as this app is concerned, and the only identifier any authorization
+  // decision reads. `email` is display material plus the optional admission
+  // filter in `convex/access.ts`; it is never a permission.
+  //
+  // `entraOid` / `entraTid` / `entraUserType` are the durable Microsoft
+  // identity, carried through a SAML attribute mapping. Nothing populates them
+  // today — sign-in is an email code or Google on Clerk's free plan
+  // (`docs/adr/0003-…`) — and they are kept optional against the day a Pro
+  // instance and an enterprise connection make them arrive.
+  //
+  // Everything else is display material read off the token. `personId` is the
+  // optional one-to-one link to an *internal* Person; RACI names People and
+  // never grants access, so this link is orientation, not authorization.
+  users: defineTable({
+    clerkUserId: v.string(),
+    role: userRole,
+    isActive: v.boolean(),
+    personId: v.optional(v.id("people")),
+
+    email: v.optional(v.string()),
+    // Whether the identity provider had verified `email` on the last token this
+    // row saw. Read by the sign-in guard (access.ts: canSignIn) when the
+    // email-domain gate is on; absent on rows written before it was recorded.
+    emailVerified: v.optional(v.boolean()),
+    displayName: v.optional(v.string()),
+
+    entraOid: v.optional(v.string()),
+    entraTid: v.optional(v.string()),
+    entraUserType: v.optional(v.string()),
+
+    lastSignInAt: v.number(),
+  })
+    .index("by_clerk_user_id", ["clerkUserId"])
+    .index("by_role", ["role"])
+    .index("by_person", ["personId"]),
+
+  // One Member at one Plan Year, Chain Plan, or Promotion (CONTEXT.md: Access
+  // Assignment). A Member's access is the *union* of their rows, expanded
+  // downward at read time rather than stored, so a promotion created tomorrow
+  // under a granted Chain Plan is reachable without touching this table.
+  //
+  // Exactly one of the three scope columns is set, flat rather than a union
+  // object so "who can reach this promotion?" is an index read (same shape as
+  // `tasks`). Overlapping rows are harmless by construction.
+  accessAssignments: defineTable({
+    userId: v.id("users"),
+    seasonId: v.optional(v.id("seasons")),
+    chainPlanId: v.optional(v.id("chainPlans")),
+    promotionId: v.optional(v.id("promotions")),
+    grantedBy: v.optional(v.id("users")),
+  })
+    .index("by_user", ["userId"])
+    .index("by_season", ["seasonId"])
+    .index("by_chain_plan", ["chainPlanId"])
+    .index("by_promotion", ["promotionId"]),
+
+  // The access history, kept indefinitely (CONTEXT.md: Audit event). Ordinary
+  // record edits are not in here. The actor is a User, or the operator holding
+  // deploy credentials — bootstrap and break-glass are actions too, and an
+  // audit trail with a hole where the first Administrator came from is worse
+  // than none. Ordered by `_creationTime`; no separate timestamp column.
+  auditEvents: defineTable({
+    action: auditAction,
+    actor: v.union(
+      v.object({ kind: v.literal("user"), userId: v.id("users") }),
+      v.object({ kind: v.literal("operator") }),
+    ),
+    subjectUserId: v.id("users"),
+    // One short phrase naming what changed ("member -> administrator").
+    detail: v.optional(v.string()),
+  }).index("by_subject", ["subjectUserId"]),
 
   // One Chain x one Season. Carries phases 1-4.
   chainPlans: defineTable({
@@ -106,6 +241,7 @@ export default defineSchema({
     currentPhase: phase,
     jbpDate: v.optional(isoDate),
     notes: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_season", ["seasonId"])
     .index("by_chain", ["chainId"])
@@ -127,6 +263,7 @@ export default defineSchema({
     storeCount: v.optional(v.number()),
     currentPhase: phase,
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_chain_plan", ["chainPlanId"]),
 
   // A unit of work on a phase checklist.
@@ -178,6 +315,7 @@ export default defineSchema({
 
     order: v.number(),
     notes: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_promotion", ["promotionId"])
     .index("by_chain_plan", ["chainPlanId"])
@@ -196,6 +334,7 @@ export default defineSchema({
     category: v.optional(v.string()),
     quantity: v.optional(v.number()),
     order: v.number(),
+    ...lastModified,
   }).index("by_phase", ["phase"]),
 
   // The slide-16 matrix: for each phase, which role(s) each function plays by
@@ -227,6 +366,7 @@ export default defineSchema({
     promotional: v.optional(v.number()),
     upliftOverride: v.optional(v.string()),
     note: v.optional(v.string()),
+    ...lastModified,
   })
     .index("by_promotion", ["promotionId"])
     .index("by_promotion_and_metric", ["promotionId", "metric"]),
@@ -239,5 +379,6 @@ export default defineSchema({
     didntWork: v.optional(v.string()),
     repeatNextYear: v.optional(repeatVerdict),
     notes: v.optional(v.string()),
+    ...lastModified,
   }).index("by_promotion", ["promotionId"]),
 });

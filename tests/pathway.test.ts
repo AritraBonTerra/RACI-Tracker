@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, test } from "vitest";
 import type { Doc, Id } from "../convex/_generated/dataModel";
 import { PROMOTION_PHASES } from "../src/lib/domain";
 import { buildPathway, pathwayHeadline, promotionAnchors } from "../src/lib/pathway";

@@ -2,7 +2,15 @@
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
   "files": {
-    "includes": ["src/**", "convex/**", "tests/**", "*.ts", "*.json", "!convex/_generated"]
+    "includes": [
+      "src/**",
+      "convex/**",
+      "tests/**",
+      "checks/**",
+      "*.ts",
+      "*.json",
+      "!convex/_generated"
+    ]
   },
   "css": { "parser": { "tailwindDirectives": true } },
   "formatter": {

@@ -1,10 +1,18 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import {
+  adminMutation,
+  authedMutation,
+  authedQuery,
+  editorsOf,
+  readableChainPlan,
+  writableChainPlan,
+  writableSeason,
+} from "./access";
 import {
   CHAIN_PLAN_PHASES,
+  chainLabel,
   chainPlanPhase,
   deleteTasks,
-  fromUrl,
   mustGet,
   optionalText,
   patched,
@@ -19,13 +27,18 @@ import {
 
 /**
  * The chain plan page: its 1-4 checklist plus the promotions hanging off it.
- * Null when the id no longer resolves — a deleted plan is a message, not a crash.
+ * Null when the id no longer resolves, and null in exactly the same way when
+ * the viewer's scope does not reach it — a denied link never confirms that
+ * something is there to be denied.
+ *
+ * The plan year comes back as a name and a reach, never as content: a Member
+ * granted this plan gets "2026" for orientation and no way into phase 0.
  */
-export const get = query({
+export const get = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { chainPlanId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
-    const plan = await fromUrl(ctx, "chainPlans", args.chainPlanId);
+    const plan = await readableChainPlan(ctx, ctx.scope, args.chainPlanId);
     if (plan === null) return null;
     const chain = await mustGet(ctx, plan.chainId, "chain");
     const season = await mustGet(ctx, plan.seasonId, "season");
@@ -42,6 +55,10 @@ export const get = query({
 
     const promotionCards = await Promise.all(
       promotions
+        // A Promotion under a granted Chain Plan is always in scope; the filter
+        // matters when the plan itself was reached through a Season grant that
+        // someone later narrowed.
+        .filter((promotion) => ctx.scope.promotion(promotion) === "full")
         .sort((a, b) => a.startDate.localeCompare(b.startDate))
         .map(async (promotion) => ({
           promotion,
@@ -57,17 +74,25 @@ export const get = query({
 
     return {
       plan,
-      chain,
-      season,
+      // A name, not the record: the chain's notes are Administrator material.
+      chain: chainLabel(chain),
+      season: {
+        _id: season._id,
+        year: season.year,
+        label: season.label,
+        reach: ctx.scope.season(season._id),
+      },
       tasks: tasks.sort((a, b) => a.order - b.order),
       rollup: rollup(tasks, args.today),
       promotions: promotionCards,
       raciDefaults: await raciDefaults(ctx, CHAIN_PLAN_PHASES),
+      editors: await editorsOf(ctx, [plan, ...tasks]),
     };
   },
 });
 
-export const create = mutation({
+/** Starting a plan under a year is an Administrator's alone (#22, story 29). */
+export const create = adminMutation({
   args: {
     seasonId: v.id("seasons"),
     chainId: v.id("chains"),
@@ -76,7 +101,8 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.seasonId, "season");
+    // The parent is loaded and asked, the same way a Member's task create is.
+    await writableSeason(ctx, ctx.scope, args.seasonId);
     const chain = await mustGet(ctx, args.chainId, "chain");
 
     // A chain plan is one chain x one season by definition.
@@ -96,14 +122,18 @@ export const create = mutation({
       currentPhase: args.currentPhase ?? 1,
       jbpDate: optionalText(args.jbpDate),
       notes: optionalText(args.notes),
+      ...ctx.stamp,
     });
-    await stampTemplates(ctx, { tier: "chainPlan", chainPlanId }, CHAIN_PLAN_PHASES);
+    await stampTemplates(ctx, { tier: "chainPlan", chainPlanId }, CHAIN_PLAN_PHASES, ctx.stamp);
     return chainPlanId;
   },
 });
 
-/** Inline edits; every field keeps its current value unless sent (model.ts: patched). */
-export const update = mutation({
+/**
+ * Keeping the plan's own fields current, for anyone whose scope covers it.
+ * Every field keeps its current value unless sent (model.ts: patched).
+ */
+export const update = authedMutation({
   args: {
     chainPlanId: v.id("chainPlans"),
     currentPhase: v.optional(chainPlanPhase),
@@ -111,8 +141,9 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const plan = await mustGet(ctx, args.chainPlanId, "chain plan");
+    const plan = await writableChainPlan(ctx, ctx.scope, args.chainPlanId);
     await ctx.db.patch(plan._id, {
+      ...ctx.stamp,
       currentPhase: patched(args.currentPhase, plan.currentPhase),
       jbpDate: patchedText(args.jbpDate, plan.jbpDate),
       notes: patchedText(args.notes, plan.notes),
@@ -121,7 +152,7 @@ export const update = mutation({
 });
 
 /** Takes the plan's own checklist with it, but refuses while promotions exist. */
-export const remove = mutation({
+export const remove = adminMutation({
   args: { chainPlanId: v.id("chainPlans") },
   handler: async (ctx, args) => {
     const promotions = await ctx.db

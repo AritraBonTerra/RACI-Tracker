@@ -1,14 +1,15 @@
+import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { formatRange } from "../lib/dates";
-import { PHASES } from "../lib/domain";
+import { CONTEXT_HINT, PHASES } from "../lib/domain";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 import { NewChainPlanModal } from "./NewChainPlanModal";
 import { mergeRollups, type Rollup, RollupChips } from "./Rollup";
-import { Button, Skeleton } from "./ui";
+import { Button, Pill, Skeleton } from "./ui";
 
 // The navigation: the dashboard at the root, then the three tiers —
 // Plan Year -> Chain Plans -> Promotions — with each node carrying its own
@@ -20,6 +21,14 @@ import { Button, Skeleton } from "./ui";
 //
 // The reference-data views hang off the bottom, which makes this the one
 // complete map of the app: the mobile drawer renders exactly this.
+//
+// It is also where scoped navigation shows up (#24). The backend has already
+// decided what belongs in the tree, so a node here is a link when its reach is
+// "full" and a plain grey label when it is "context" — the year above someone's
+// chain plan, the chain above someone's promotion. Nothing else is in the tree
+// at all: no locked rows, no counts of work behind a wall. The label is
+// deliberately unclickable rather than disabled, because there is nothing on
+// the other side of it to fail at.
 
 type Tree = NonNullable<FunctionReturnType<typeof api.seasons.tree>>;
 type ChainNode = Tree["chains"][number];
@@ -40,11 +49,17 @@ export function Sidebar({
   tree,
   route,
   today,
+  isAdministrator,
+  showDashboard,
   activePlanId,
 }: {
   tree: Tree;
   route: Route;
   today: string;
+  /** Starting a chain plan is an Administrator's move (#22), so is its button. */
+  isAdministrator: boolean;
+  /** False for a Member whose whole world is one Promotion (#24). */
+  showDashboard: boolean;
   /** The plan the current page lives under, resolved by the shell from the route. */
   activePlanId?: Id<"chainPlans">;
 }) {
@@ -70,12 +85,14 @@ export function Sidebar({
   const yearOpen =
     !collapsed.has(tree.season._id) || route.name === "season" || activePlanId !== undefined;
 
-  // The root node speaks for the whole year, so it adds up every node below it.
+  // The root node speaks for the whole year, so it adds up every node below it —
+  // every node *the viewer has*, which is what makes the dashboard's headline
+  // and this chip agree.
   const everything = mergeRollups([
-    tree.seasonRollup,
+    ...(tree.seasonRollup === null ? [] : [tree.seasonRollup]),
     ...tree.chains.flatMap((chain) =>
       chain.plans.flatMap((plan) => [
-        plan.rollup,
+        ...(plan.reach === "full" ? [plan.rollup] : []),
         ...plan.promotions.map((promotion) => promotion.rollup),
       ]),
     ),
@@ -85,16 +102,18 @@ export function Sidebar({
 
   return (
     <nav className="flex flex-col gap-1 px-3 py-4">
-      <TreeRow>
-        <NodeLink
-          // Named year, so Dashboard stays on the year you are looking at.
-          to={{ name: "home", seasonId: tree.season._id }}
-          active={route.name === "home"}
-          label="Dashboard"
-          meta="Everything that needs attention"
-          rollup={everything}
-        />
-      </TreeRow>
+      {showDashboard && (
+        <TreeRow>
+          <NodeLink
+            // Named year, so Dashboard stays on the year you are looking at.
+            to={{ name: "home", seasonId: tree.season._id }}
+            active={route.name === "home"}
+            label="Dashboard"
+            meta="Everything that needs attention"
+            rollup={everything}
+          />
+        </TreeRow>
+      )}
 
       <GroupLabel>Plan year</GroupLabel>
 
@@ -105,28 +124,36 @@ export function Sidebar({
           onToggle: () => toggle(tree.season._id),
         }}
       >
-        <NodeLink
-          to={{ name: "season", seasonId: tree.season._id }}
-          active={route.name === "season"}
-          label={`Year ${tree.season.label}`}
-          meta={`Phase 0 · ${PHASES[0].title}`}
-          // Folded, the year answers for everything inside it.
-          rollup={yearOpen ? tree.seasonRollup : everything}
-        />
+        {tree.reach === "full" ? (
+          <NodeLink
+            to={{ name: "season", seasonId: tree.season._id }}
+            active={route.name === "season"}
+            label={`Year ${tree.season.label}`}
+            meta={`Phase 0 · ${PHASES[0].title}`}
+            // Folded, the year answers for everything inside it.
+            rollup={yearOpen ? (tree.seasonRollup ?? everything) : everything}
+          />
+        ) : (
+          // The year above someone's chain plan or promotion: a name, so they
+          // know which year they are in, and no phase 0 behind it.
+          <ContextNode label={`Year ${tree.season.label}`} />
+        )}
       </TreeRow>
 
       {yearOpen && (
         <>
           <GroupLabel
             action={
-              <button
-                type="button"
-                onClick={() => setCreating(true)}
-                title="New chain plan"
-                className="rounded px-1 text-2xs font-semibold text-ink-500 transition hover:bg-ink-800 hover:text-ink-200"
-              >
-                + New
-              </button>
+              isAdministrator && (
+                <button
+                  type="button"
+                  onClick={() => setCreating(true)}
+                  title="New chain plan"
+                  className="rounded px-1 text-2xs font-semibold text-ink-500 transition hover:bg-ink-800 hover:text-ink-200"
+                >
+                  + New
+                </button>
+              )
             }
           >
             Chain plans
@@ -158,13 +185,13 @@ export function Sidebar({
               ) : (
                 plans.map((node) => (
                   <PlanBranch
-                    key={node.plan._id}
+                    key={node.chainPlanId}
                     chainName={chain.name}
                     node={node}
                     route={route}
                     today={today}
-                    open={!collapsed.has(node.plan._id) || node.plan._id === activePlanId}
-                    onToggle={() => toggle(node.plan._id)}
+                    open={!collapsed.has(node.chainPlanId) || node.chainPlanId === activePlanId}
+                    onToggle={() => toggle(node.chainPlanId)}
                   />
                 ))
               )}
@@ -174,7 +201,7 @@ export function Sidebar({
       )}
 
       <GroupLabel>Reference</GroupLabel>
-      <ReferenceLinks route={route} />
+      <ReferenceLinks route={route} isAdministrator={isAdministrator} />
 
       {creating && (
         <NewChainPlanModal
@@ -209,17 +236,26 @@ function PlanBranch({
   return (
     <div>
       <TreeRow chevron={hasPromotions ? { open, label: chainName, onToggle } : undefined}>
-        <NodeLink
-          to={{ name: "plan", chainPlanId: node.plan._id }}
-          active={route.name === "plan" && route.chainPlanId === node.plan._id}
-          label={chainName}
-          meta={`Phase ${node.plan.currentPhase} · ${PHASES[node.plan.currentPhase].title}`}
-          rollup={
-            open || !hasPromotions
-              ? node.rollup
-              : mergeRollups([node.rollup, ...node.promotions.map((promotion) => promotion.rollup)])
-          }
-        />
+        {node.reach === "full" ? (
+          <NodeLink
+            to={{ name: "plan", chainPlanId: node.chainPlanId }}
+            active={route.name === "plan" && route.chainPlanId === node.chainPlanId}
+            label={chainName}
+            meta={`Phase ${node.plan.currentPhase} · ${PHASES[node.plan.currentPhase].title}`}
+            rollup={
+              open || !hasPromotions
+                ? node.rollup
+                : mergeRollups([
+                    node.rollup,
+                    ...node.promotions.map((promotion) => promotion.rollup),
+                  ])
+            }
+          />
+        ) : (
+          // The chain above someone's promotion. No phase, no counts: phases
+          // 1-4 are the plan's content and the grant did not include them.
+          <ContextNode label={chainName} />
+        )}
       </TreeRow>
       {open &&
         node.promotions.map((promotion) => (
@@ -243,7 +279,7 @@ function PlanBranch({
  * outlived its year. Still every route that works without one, so an early
  * visit or a stale link is never a dead end.
  */
-export function StaticNav({ route }: { route: Route }) {
+export function StaticNav({ route, isAdministrator }: { route: Route; isAdministrator: boolean }) {
   return (
     <nav className="flex flex-col gap-1 px-3 py-4">
       <PlainLink
@@ -253,7 +289,7 @@ export function StaticNav({ route }: { route: Route }) {
         meta="Everything that needs attention"
       />
       <GroupLabel>Reference</GroupLabel>
-      <ReferenceLinks route={route} />
+      <ReferenceLinks route={route} isAdministrator={isAdministrator} />
     </nav>
   );
 }
@@ -276,7 +312,13 @@ export function SidebarSkeleton() {
   );
 }
 
-function ReferenceLinks({ route }: { route: Route }) {
+/**
+ * People is readable by every signed-in account — pickers and task rows have to
+ * resolve to real names (#22). Manage governs the hierarchy and the Directory
+ * governs access, so both are Administrator surfaces and are absent rather than
+ * greyed out for a Member.
+ */
+function ReferenceLinks({ route, isAdministrator }: { route: Route; isAdministrator: boolean }) {
   return (
     <>
       <PlainLink
@@ -285,13 +327,47 @@ function ReferenceLinks({ route }: { route: Route }) {
         label="People"
         meta="Who is loaded, and how much"
       />
-      <PlainLink
-        to={{ name: "manage" }}
-        active={route.name === "manage"}
-        label="Manage"
-        meta="Chains, brands, people, years, templates"
-      />
+      {isAdministrator && (
+        <>
+          <PlainLink
+            to={{ name: "manage" }}
+            active={route.name === "manage"}
+            label="Manage"
+            meta="Chains, brands, people, years, templates"
+          />
+          <DirectoryLink route={route} />
+        </>
+      )}
     </>
+  );
+}
+
+/**
+ * The Directory, with the awaiting-access queue on its badge (#30, story 20):
+ * nobody should sit at the "access comes next" screen unnoticed, and this is
+ * the only place in the shell that would notice.
+ *
+ * Its own component so the count query is skipped entirely for a Member —
+ * the query would refuse them anyway, and a refused query on every page is a
+ * console full of noise.
+ */
+function DirectoryLink({ route }: { route: Route }) {
+  const awaiting = useQuery(api.directory.awaitingCount, {});
+
+  return (
+    <PlainLink
+      to={{ name: "directory" }}
+      active={route.name === "directory"}
+      label="Directory"
+      meta="Accounts, roles, grants, audit"
+      badge={
+        awaiting !== undefined && awaiting > 0 ? (
+          <Pill className="bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/40 ring-inset">
+            {awaiting}
+          </Pill>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -376,16 +452,35 @@ function NodeLink({
   );
 }
 
+/**
+ * A tree node that is only a name: the year above a granted chain plan, the
+ * chain above a granted promotion. Not a disabled link — there is nothing
+ * behind it to be denied at — and no chips, because its counts are content.
+ */
+function ContextNode({ label }: { label: string }) {
+  return (
+    <span
+      title={CONTEXT_HINT}
+      className="flex cursor-default items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink-500"
+    >
+      <span className="min-w-0 truncate">{label}</span>
+    </span>
+  );
+}
+
 function PlainLink({
   to,
   active,
   label,
   meta,
+  badge,
 }: {
   to: Route;
   active: boolean;
   label: string;
   meta: string;
+  /** A count worth interrupting for, where a tier node would carry chips. */
+  badge?: ReactNode;
 }) {
   return (
     <a href={href(to)} className={`${nodeClass(active)} px-2`}>
@@ -393,6 +488,7 @@ function PlainLink({
         <span className="block truncate text-sm font-medium">{label}</span>
         <span className="block truncate text-2xs text-ink-500">{meta}</span>
       </span>
+      {badge}
     </a>
   );
 }

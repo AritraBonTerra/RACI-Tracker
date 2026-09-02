@@ -2,6 +2,7 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useIsAdministrator } from "../components/AuthGate";
 import { BrandToggles } from "../components/BrandToggles";
 import { InlineDate, InlineSelect, InlineText } from "../components/inline";
 import { Pathway } from "../components/Pathway";
@@ -10,6 +11,7 @@ import {
   Breadcrumb,
   cardClass,
   cardGrid,
+  LastEdited,
   MetaItem,
   NotFound,
   PageHeader,
@@ -50,9 +52,12 @@ export function ChainPlanView({
   const update = useReportedMutation(api.chainPlans.update);
   const remove = useReportedMutation(api.chainPlans.remove);
   const [creating, setCreating] = useState(false);
+  // Creating and deleting under a plan is an Administrator's alone (#22); a
+  // Member granted this plan reads and works it, but does not reshape it.
+  const isAdministrator = useIsAdministrator();
 
   if (data === undefined) return <TierSkeleton />;
-  if (data === null) return <NotFound what="chain plan" />;
+  if (data === null) return <NotFound />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,7 +67,12 @@ export function ChainPlanView({
             trail={[
               {
                 label: `Year ${data.season.label}`,
-                to: { name: "season", seasonId: data.season._id },
+                // A Member granted this plan sees the year as a name only.
+                to:
+                  data.season.reach === "full"
+                    ? { name: "season", seasonId: data.season._id }
+                    : undefined,
+                context: data.season.reach !== "full",
               },
               { label: "Chain plan" },
             ]}
@@ -70,20 +80,25 @@ export function ChainPlanView({
         }
         title={data.chain.name}
         actions={
-          <>
-            <Button variant="primary" size="md" onClick={() => setCreating(true)}>
-              + Promotion
-            </Button>
-            <ConfirmButton
-              size="md"
-              label="Delete plan"
-              confirmLabel="Delete this plan?"
-              onConfirm={async () => {
-                const removed = await remove({ chainPlanId });
-                if (removed.ok) navigate({ name: "season", seasonId: data.season._id });
-              }}
-            />
-          </>
+          isAdministrator ? (
+            <>
+              <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+                + Promotion
+              </Button>
+              <ConfirmButton
+                size="md"
+                label="Delete plan"
+                confirmLabel="Delete this plan?"
+                onConfirm={async () => {
+                  const removed = await remove({ chainPlanId });
+                  if (!removed.ok) return;
+                  // Only an Administrator gets here, and their reach on the
+                  // year above is always full, so the year is where to land.
+                  navigate({ name: "season", seasonId: data.season._id });
+                }}
+              />
+            </>
+          ) : undefined
         }
         meta={
           <>
@@ -110,6 +125,7 @@ export function ChainPlanView({
               />
             </MetaItem>
             <MetaItem label="Promotions">{data.promotions.length}</MetaItem>
+            <LastEdited record={data.plan} editors={data.editors} />
           </>
         }
       >
@@ -140,18 +156,22 @@ export function ChainPlanView({
         title="Promotions"
         subtitle="Approved programs under this plan. Each carries its own phases 5–8."
         actions={
-          <Button size="sm" onClick={() => setCreating(true)}>
-            + Promotion
-          </Button>
+          isAdministrator ? (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              + Promotion
+            </Button>
+          ) : undefined
         }
       >
         {data.promotions.length === 0 ? (
           <EmptyState
             title="No promotions under this plan yet"
             action={
-              <Button variant="primary" size="md" onClick={() => setCreating(true)}>
-                + Promotion
-              </Button>
+              isAdministrator ? (
+                <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+                  + Promotion
+                </Button>
+              ) : undefined
             }
           >
             A promotion is one approved program: this chain, a date window, a set of stores. Phases
@@ -191,6 +211,7 @@ export function ChainPlanView({
           tasks={data.tasks}
           today={today}
           people={people}
+          editors={data.editors}
           raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
           focusTaskId={focusTaskId}
         />

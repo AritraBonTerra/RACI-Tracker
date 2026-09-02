@@ -1,4 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { formatStamp } from "../lib/dates";
+import { CONTEXT_HINT } from "../lib/domain";
 import { href, type Route } from "../lib/router";
 import { errorMessage } from "../lib/toast";
 import { Button, Skeleton } from "./ui";
@@ -6,14 +8,30 @@ import { Button, Skeleton } from "./ui";
 // Page furniture shared by the three tier views, plus the placeholders each of
 // them shows while its query resolves.
 
-export function Breadcrumb({ trail }: { trail: ReadonlyArray<{ label: string; to?: Route }> }) {
+/**
+ * The trail above a page title. A crumb is a link when the viewer can open what
+ * it names and a plain label otherwise (#24) — so a promotion-only Member reads
+ * "2026 / Kroger / Promotion" for orientation and can click none of it. Marking
+ * a crumb `context` only changes its tooltip; the absence of `to` is what makes
+ * it inert.
+ */
+export function Breadcrumb({
+  trail,
+}: {
+  trail: ReadonlyArray<{ label: string; to?: Route; context?: boolean }>;
+}) {
   return (
     <nav className="flex flex-wrap items-center gap-1.5 text-2xs text-ink-500">
       {trail.map((crumb, index) => (
         <span key={`${crumb.label}-${index}`} className="flex items-center gap-1.5">
           {index > 0 && <span className="text-ink-700">/</span>}
           {crumb.to === undefined ? (
-            <span>{crumb.label}</span>
+            <span
+              title={crumb.context === true ? CONTEXT_HINT : undefined}
+              className={crumb.context === true ? "cursor-default" : undefined}
+            >
+              {crumb.label}
+            </span>
           ) : (
             <a href={href(crumb.to)} className="transition hover:text-ink-200">
               {crumb.label}
@@ -61,6 +79,56 @@ export function PageHeader({
   );
 }
 
+/**
+ * Names for the last-modified stamps in one payload, keyed by User id. Sent
+ * alongside the records rather than folded into them, because a checklist of
+ * twenty rows edited by two people carries two names (convex/access.ts).
+ */
+export type Editors = Readonly<Record<string, string>>;
+
+/** A record carrying the stamp every ordinary edit writes (#22, story 28). */
+export type Stamped = { lastModifiedBy?: string; lastModifiedAt?: number };
+
+/**
+ * The readable half of a record's stamp, or null when there is nothing honest
+ * to say: rows written before the stamp existed carry none, and a stamp naming
+ * a deleted User resolves to no name.
+ *
+ * Exported so a caller wrapping `LastEdited` in chrome of its own — a bordered
+ * strip, a divider — can ask whether the strip has anything to hold, instead of
+ * restating this condition and drifting from it.
+ */
+export function editorOf(record: Stamped, editors: Editors): { name: string; at: number } | null {
+  const name = record.lastModifiedBy === undefined ? undefined : editors[record.lastModifiedBy];
+  if (name === undefined || record.lastModifiedAt === undefined) return null;
+  return { name, at: record.lastModifiedAt };
+}
+
+/**
+ * Who last touched this record, and when — the first answer to a data question,
+ * short of the audit feed (which is about access, not content).
+ *
+ * Renders nothing at all for an unstamped record: "Last edited by —" is worse
+ * than silence.
+ */
+export function LastEdited({
+  record,
+  editors,
+  className = "",
+}: {
+  record: Stamped;
+  editors: Editors;
+  className?: string;
+}) {
+  const editor = editorOf(record, editors);
+  if (editor === null) return null;
+  return (
+    <span className={`text-2xs text-ink-600 ${className}`}>
+      Last edited by <span className="text-ink-500">{editor.name}</span> · {formatStamp(editor.at)}
+    </span>
+  );
+}
+
 /** A label/value pair on a page header's meta row. */
 export function MetaItem({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -71,8 +139,17 @@ export function MetaItem({ label, children }: { label: string; children: ReactNo
   );
 }
 
-/** A link that outlived what it pointed at — deleted, or reseeded underneath. */
-export function NotFound({ what }: { what: string }) {
+/**
+ * A link that led nowhere. Deliberately ambiguous, and deliberately the same
+ * wording whether the record was deleted or simply outside the viewer's access
+ * (#22, #24): the backend already answers both cases with the same null, and a
+ * screen that said "you don't have access to this promotion" would confirm the
+ * promotion exists — which is the whole thing a denied link must not do.
+ *
+ * That is also why it takes no argument. "This chain plan is gone" would leak
+ * the tier of a record the reader was never told about.
+ */
+export function NotFound() {
   return (
     <div className="flex h-72 flex-col items-center justify-center gap-3 text-center">
       <span
@@ -82,9 +159,12 @@ export function NotFound({ what }: { what: string }) {
         ⌀
       </span>
       <div>
-        <p className="text-sm font-medium text-ink-200">This {what} is gone</p>
+        <p className="text-sm font-medium text-ink-200">
+          This page doesn't exist, or you don't have access to it
+        </p>
         <p className="mx-auto mt-1 max-w-sm text-xs text-ink-500">
-          The link still works, but the {what} behind it has been deleted or replaced.
+          The link still works, but there is nothing here for you. If you expected something, ask an
+          administrator for access.
         </p>
       </div>
       <a href={href({ name: "home" })}>

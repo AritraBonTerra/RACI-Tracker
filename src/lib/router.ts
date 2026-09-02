@@ -20,6 +20,7 @@ export type Route =
   | { name: "promotion"; promotionId: Id<"promotions">; focusTaskId?: Id<"tasks"> }
   | { name: "people"; personId?: Id<"people"> }
   | { name: "manage" }
+  | { name: "directory" }
   | { name: "notFound"; path: string };
 
 function withTask(base: string, focusTaskId: Id<"tasks"> | undefined) {
@@ -40,6 +41,8 @@ export function href(route: Route): string {
       return route.personId === undefined ? "#/people" : `#/people/${route.personId}`;
     case "manage":
       return "#/manage";
+    case "directory":
+      return "#/directory";
     case "notFound":
       return `#/${route.path}`;
   }
@@ -64,6 +67,7 @@ export function parse(hash: string): Route {
     return { name: "people", personId: id ? (id as Id<"people">) : undefined };
   }
   if (view === "manage") return { name: "manage" };
+  if (view === "directory") return { name: "directory" };
   if (view === "year" && id) return { name: "home", seasonId: id as Id<"seasons"> };
   if (view === undefined || view === "") return { name: "home" };
   // A path nobody links to: say so, rather than quietly showing the dashboard.

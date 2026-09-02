@@ -1,7 +1,14 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { type MutationCtx, mutation, type QueryCtx, query } from "./_generated/server";
-import { fromUrl, mustGet, patched, patchedNumber, patchedText } from "./model";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
+import {
+  authedMutation,
+  authedQuery,
+  editorsOf,
+  readablePromotion,
+  writablePromotion,
+} from "./access";
+import { patched, patchedNumber, patchedText } from "./model";
 import { kpiMetric, repeatVerdict } from "./schema";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
@@ -59,14 +66,15 @@ async function retroFor(ctx: QueryCtx, promotionId: Id<"promotions">) {
  * rows that exist (the client lays them out against the fixed slide-14 grid)
  * with their computed uplift, and the retro if one has been started.
  *
- * Null when the promotion no longer resolves, so a stale link degrades the same
- * way the rest of the app does.
+ * Null when the promotion no longer resolves or the viewer's scope does not
+ * reach it — phase 7-8 figures are the promotion's content, and a stale link
+ * and a denied one degrade the same way the rest of the app does.
  */
-export const board = query({
+export const board = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { promotionId: v.string() },
   handler: async (ctx, args) => {
-    const promotion = await fromUrl(ctx, "promotions", args.promotionId);
+    const promotion = await readablePromotion(ctx, ctx.scope, args.promotionId);
     if (promotion === null) return null;
 
     const entries = await ctx.db
@@ -74,9 +82,13 @@ export const board = query({
       .withIndex("by_promotion", (q) => q.eq("promotionId", promotion._id))
       .collect();
 
+    const retro = await retroFor(ctx, promotion._id);
     return {
       metrics: entries.map((entry) => ({ ...entry, uplift: upliftOf(entry) })),
-      retro: await retroFor(ctx, promotion._id),
+      retro,
+      // Phase 7-8 figures are typed by hand, so who typed them last is part of
+      // reading them.
+      editors: await editorsOf(ctx, [...entries, ...(retro === null ? [] : [retro])]),
     };
   },
 });
@@ -90,7 +102,7 @@ export const board = query({
  * row is deleted rather than left as a husk, so the table only ever holds
  * figures somebody actually typed.
  */
-export const setMetric = mutation({
+export const setMetric = authedMutation({
   args: {
     promotionId: v.id("promotions"),
     metric: kpiMetric,
@@ -100,7 +112,10 @@ export const setMetric = mutation({
     note: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const promotion = await mustGet(ctx, args.promotionId, "promotion");
+    // A Member whose scope covers the promotion writes its phase 7-8 work
+    // where the promotion lives (#22, story 15); anyone else fails here the
+    // way they would against a deleted promotion.
+    const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
     const existing = await entryFor(ctx, promotion._id, args.metric);
 
     const fields = {
@@ -121,15 +136,16 @@ export const setMetric = mutation({
         promotionId: promotion._id,
         metric: args.metric,
         ...fields,
+        ...ctx.stamp,
       });
     } else {
-      await ctx.db.patch(existing._id, fields);
+      await ctx.db.patch(existing._id, { ...fields, ...ctx.stamp });
     }
   },
 });
 
 /** Writes the phase-8 retro, creating it on the first sentence anyone types. */
-export const saveRetro = mutation({
+export const saveRetro = authedMutation({
   args: {
     promotionId: v.id("promotions"),
     worked: v.optional(v.union(v.string(), v.null())),
@@ -138,7 +154,7 @@ export const saveRetro = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    const promotion = await mustGet(ctx, args.promotionId, "promotion");
+    const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
     const existing = await retroFor(ctx, promotion._id);
 
     const fields = {
@@ -155,9 +171,13 @@ export const saveRetro = mutation({
     }
 
     if (existing === null) {
-      await ctx.db.insert("retros", { promotionId: promotion._id, ...fields });
+      await ctx.db.insert("retros", {
+        promotionId: promotion._id,
+        ...fields,
+        ...ctx.stamp,
+      });
     } else {
-      await ctx.db.patch(existing._id, fields);
+      await ctx.db.patch(existing._id, { ...fields, ...ctx.stamp });
     }
   },
 });

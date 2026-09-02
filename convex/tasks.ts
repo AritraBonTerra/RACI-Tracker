@@ -1,17 +1,17 @@
 import type { WithoutSystemFields } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, type QueryCtx } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
+import { authedMutation, writableOwner, writableTask } from "./access";
 import {
   assertBlockedReason,
-  assertPhaseMatchesOwner,
+  assertPhaseInTier,
   checkedDay,
   moveDirection,
   mustGet,
   nextOrder,
   optionalText,
   ownerFields,
-  ownerOf,
   patchedText,
   requiredText,
   responsiblesOf,
@@ -24,6 +24,11 @@ import { phase, taskStatus } from "./schema";
 // Every write to a phase checklist. Reads live with the tier that owns the
 // checklist (seasons / chainPlans / promotions), because a task is never
 // interesting on its own — only as a row under its owner.
+//
+// This is the whole of what a Member controls (#22, stories 12-16): inside a
+// granted scope they create, edit, assign, block and delete freely, and every
+// one of these functions refuses the identical way for a task or an owner their
+// Access Assignments do not reach.
 
 /** An ETA is optional, but once given it has to be a calendar day (model.ts: checkedDay). */
 function checkedEta(eta: string | null | undefined): string | undefined {
@@ -49,18 +54,8 @@ async function livePeople(ctx: QueryCtx, ids: readonly Id<"people">[]) {
   return found.filter((person) => person !== null).map((person) => person._id);
 }
 
-/**
- * The owner a new task is attached to has to exist — a task under a deleted
- * promotion would be invisible everywhere in the UI.
- */
-async function assertOwnerExists(ctx: QueryCtx, owner: TaskOwner) {
-  if (owner.tier === "season") await mustGet(ctx, owner.seasonId, "plan year");
-  else if (owner.tier === "chainPlan") await mustGet(ctx, owner.chainPlanId, "chain plan");
-  else await mustGet(ctx, owner.promotionId, "promotion");
-}
-
 /** Adds a row to a phase checklist. Freeform: a name is the only requirement. */
-export const create = mutation({
+export const create = authedMutation({
   args: {
     owner: taskOwner,
     phase,
@@ -72,8 +67,10 @@ export const create = mutation({
     responsiblePersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
-    assertPhaseMatchesOwner(args.phase, args.owner);
-    await assertOwnerExists(ctx, args.owner);
+    assertPhaseInTier(args.phase, args.owner.tier);
+    // The parent decides, not the argument: an owner the viewer cannot reach
+    // fails here exactly as a deleted one does.
+    await writableOwner(ctx, ctx.scope, args.owner);
     const owner = ownerFields(args.owner);
 
     const siblings = await siblingsOf(ctx, args.owner);
@@ -91,6 +88,7 @@ export const create = mutation({
       consultedPersonIds: [],
       informedPersonIds: [],
       order: nextOrder(siblings),
+      ...ctx.stamp,
     });
   },
 });
@@ -101,7 +99,7 @@ export const create = mutation({
  * columns are deliberately absent: they change one person at a time through
  * `setMembership`, never as a whole list a caller might have read stale.
  */
-export const update = mutation({
+export const update = authedMutation({
   args: {
     taskId: v.id("tasks"),
     name: v.optional(v.string()),
@@ -116,8 +114,8 @@ export const update = mutation({
     accountablePersonId: v.optional(v.union(v.id("people"), v.null())),
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
-    const patch: Partial<WithoutSystemFields<Doc<"tasks">>> = {};
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
+    const patch: Partial<WithoutSystemFields<Doc<"tasks">>> = { ...ctx.stamp };
 
     if (args.name !== undefined) patch.name = requiredText(args.name, "Task name");
     if (args.spec !== undefined) patch.spec = optionalText(args.spec);
@@ -145,7 +143,7 @@ export const update = mutation({
  * states the membership it wants rather than asking for a toggle, so a
  * double-click that sends the same request twice is a no-op, not an undo.
  */
-export const setMembership = mutation({
+export const setMembership = authedMutation({
   args: {
     taskId: v.id("tasks"),
     role: v.union(v.literal("responsible"), v.literal("consulted"), v.literal("informed")),
@@ -153,7 +151,7 @@ export const setMembership = mutation({
     member: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
     await mustGet(ctx, args.personId, "person");
 
     const current =
@@ -162,10 +160,12 @@ export const setMembership = mutation({
         : args.role === "consulted"
           ? task.consultedPersonIds
           : task.informedPersonIds;
+    // Already as asked — a duplicate click, or the other open picker got there
+    // first — is a no-op all the way down: no write, so no stamp naming
+    // someone who changed nothing.
+    if (args.member === current.includes(args.personId)) return;
     const next = args.member
-      ? current.includes(args.personId)
-        ? current
-        : [...current, args.personId]
+      ? [...current, args.personId]
       : current.filter((id) => id !== args.personId);
     const list = await livePeople(ctx, next);
 
@@ -173,15 +173,16 @@ export const setMembership = mutation({
       case "responsible":
         // Writes migrate as they happen: the list is now the truth for this task.
         await ctx.db.patch(task._id, {
+          ...ctx.stamp,
           responsiblePersonIds: list,
           responsiblePersonId: undefined,
         });
         break;
       case "consulted":
-        await ctx.db.patch(task._id, { consultedPersonIds: list });
+        await ctx.db.patch(task._id, { ...ctx.stamp, consultedPersonIds: list });
         break;
       case "informed":
-        await ctx.db.patch(task._id, { informedPersonIds: list });
+        await ctx.db.patch(task._id, { ...ctx.stamp, informedPersonIds: list });
         break;
     }
   },
@@ -191,7 +192,7 @@ export const setMembership = mutation({
  * The status transition, kept separate from `update` so the blocked-reason rule
  * has exactly one place to live. Moving off Blocked drops the stale reason.
  */
-export const setStatus = mutation({
+export const setStatus = authedMutation({
   args: {
     taskId: v.id("tasks"),
     status: taskStatus,
@@ -199,11 +200,12 @@ export const setStatus = mutation({
     deliveredTo: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
     // Re-blocking a task that already carries a reason may reuse it.
     const proposed = args.blockedReason ?? task.blockedReason;
 
     await ctx.db.patch(task._id, {
+      ...ctx.stamp,
       status: args.status,
       blockedReason: assertBlockedReason(args.status, proposed),
       deliveredTo: patchedText(args.deliveredTo, task.deliveredTo),
@@ -211,10 +213,11 @@ export const setStatus = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = authedMutation({
   args: { taskId: v.id("tasks") },
   handler: async (ctx, args) => {
-    await ctx.db.delete(args.taskId);
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
+    await ctx.db.delete(task._id);
   },
 });
 
@@ -223,17 +226,18 @@ export const remove = mutation({
  * draws under one heading (PhaseChecklist: groupByCategory) — so a move never
  * jumps a task into another group.
  */
-export const move = mutation({
+export const move = authedMutation({
   args: {
     taskId: v.id("tasks"),
     direction: moveDirection,
   },
   handler: async (ctx, args) => {
-    const task = await mustGet(ctx, args.taskId, "task");
-    const group = (await siblingsOf(ctx, ownerOf(task))).filter(
+    const { task, owner } = await writableTask(ctx, ctx.scope, args.taskId);
+    const group = (await siblingsOf(ctx, owner)).filter(
       (candidate) => candidate.phase === task.phase && candidate.category === task.category,
     );
-    await swapOrder(ctx, task, group, args.direction);
+    // Reordering is a change to both rows, so both carry the stamp.
+    await swapOrder(ctx, task, group, args.direction, ctx.stamp);
   },
 });
 

@@ -8,9 +8,12 @@
  * @module
  */
 
+import type * as access from "../access.js";
+import type * as bootstrap from "../bootstrap.js";
 import type * as brands from "../brands.js";
 import type * as chainPlans from "../chainPlans.js";
 import type * as chains from "../chains.js";
+import type * as directory from "../directory.js";
 import type * as home from "../home.js";
 import type * as kpi from "../kpi.js";
 import type * as migrations from "../migrations.js";
@@ -32,9 +35,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  access: typeof access;
+  bootstrap: typeof bootstrap;
   brands: typeof brands;
   chainPlans: typeof chainPlans;
   chains: typeof chains;
+  directory: typeof directory;
   home: typeof home;
   kpi: typeof kpi;
   migrations: typeof migrations;

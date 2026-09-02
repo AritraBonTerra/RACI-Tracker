@@ -2,12 +2,20 @@ import { useQuery } from "convex/react";
 import { Fragment, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useIsAdministrator } from "../components/AuthGate";
 import { BrandToggles } from "../components/BrandToggles";
 import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { KpiTable, RetroPanel } from "../components/KpiAndRetro";
 import { Pathway } from "../components/Pathway";
 import { PhaseChecklist } from "../components/PhaseChecklist";
-import { Breadcrumb, MetaItem, NotFound, PageHeader, TierSkeleton } from "../components/page";
+import {
+  Breadcrumb,
+  LastEdited,
+  MetaItem,
+  NotFound,
+  PageHeader,
+  TierSkeleton,
+} from "../components/page";
 import { RollupTiles } from "../components/Rollup";
 import { Button, ConfirmButton, Modal, Pill } from "../components/ui";
 import { formatDay } from "../lib/dates";
@@ -36,9 +44,12 @@ export function PromotionView({
   const update = useReportedMutation(api.promotions.update);
   const remove = useReportedMutation(api.promotions.remove);
   const [editingBrands, setEditingBrands] = useState(false);
+  // Deleting a Promotion is an Administrator's alone (#22). For a
+  // promotion-only Member it would also delete their own way back in.
+  const isAdministrator = useIsAdministrator();
 
   if (data === undefined) return <TierSkeleton />;
-  if (data === null) return <NotFound what="promotion" />;
+  if (data === null) return <NotFound />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,13 +57,23 @@ export function PromotionView({
         eyebrow={
           <Breadcrumb
             trail={[
+              // Both parents are orientation for a promotion-only Member —
+              // a name each, and no way through either (#22).
               {
                 label: `Year ${data.season.label}`,
-                to: { name: "season", seasonId: data.season._id },
+                to:
+                  data.season.reach === "full"
+                    ? { name: "season", seasonId: data.season._id }
+                    : undefined,
+                context: data.season.reach !== "full",
               },
               {
                 label: data.chain.name,
-                to: { name: "plan", chainPlanId: data.plan._id },
+                to:
+                  data.plan.reach === "full"
+                    ? { name: "plan", chainPlanId: data.plan._id }
+                    : undefined,
+                context: data.plan.reach !== "full",
               },
               { label: "Promotion" },
             ]}
@@ -66,18 +87,21 @@ export function PromotionView({
           />
         }
         actions={
-          <ConfirmButton
-            size="md"
-            label="Delete promotion"
-            confirmLabel="Delete and lose its checklist?"
-            onConfirm={async () => {
-              const removed = await remove({ promotionId });
-              // Replace, so Back does not return to a page that no longer exists.
-              if (removed.ok) {
+          isAdministrator ? (
+            <ConfirmButton
+              size="md"
+              label="Delete promotion"
+              confirmLabel="Delete and lose its checklist?"
+              onConfirm={async () => {
+                const removed = await remove({ promotionId });
+                if (!removed.ok) return;
+                // Only an Administrator gets here, and their reach on the plan
+                // above is always full, so the plan is where to land. Replace,
+                // so Back does not return to a page that no longer exists.
                 navigate({ name: "plan", chainPlanId: data.plan._id }, { replace: true });
-              }
-            }}
-          />
+              }}
+            />
+          ) : undefined
         }
         meta={
           <>
@@ -142,6 +166,7 @@ export function PromotionView({
                 </Button>
               </span>
             </MetaItem>
+            <LastEdited record={data.promotion} editors={data.editors} />
           </>
         }
       >
@@ -176,6 +201,7 @@ export function PromotionView({
             tasks={data.tasks}
             today={today}
             people={people}
+            editors={data.editors}
             raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
             focusTaskId={focusTaskId}
           />

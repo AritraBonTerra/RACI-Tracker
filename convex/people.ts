@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
+import { adminMutation, authedQuery, visibleTasks } from "./access";
 import {
   byEta,
   fromUrl,
@@ -17,9 +18,15 @@ import {
 
 // Named humans and the stakeholder buckets they belong to. A person is what
 // makes a task assigned; a function alone never is (CONTEXT.md: Unassigned).
+//
+// The directory itself is reference data, readable in full by every signed-in
+// User (#22) — a RACI picker that hid half the company would name the wrong
+// owner. What a person is *carrying* is not reference data: the load and
+// workload numbers are computed over the viewer's own scope, so two people
+// looking at the same person can honestly see different totals.
 
 /** People with their function, ordered the way the deck lists the buckets. */
-export const list = query({
+export const list = authedQuery({
   args: {},
   handler: async (ctx) => {
     const functions = await ctx.db.query("functions").collect();
@@ -36,7 +43,7 @@ export const list = query({
 });
 
 /** The six stakeholder buckets. Reference data; only the display name is editable. */
-export const listFunctions = query({
+export const listFunctions = authedQuery({
   args: {},
   handler: async (ctx) => {
     const functions = await ctx.db.query("functions").collect();
@@ -65,7 +72,7 @@ function tasksOf(tasks: readonly Doc<"tasks">[], personId: Id<"people">) {
  * that answers "can this person take one more thing?" — how many tasks they are
  * Responsible for, how many they are Accountable for, and how much of it is late.
  */
-export const directory = query({
+export const directory = authedQuery({
   args: { today: v.string() },
   handler: async (ctx, args) => {
     const functions = (await ctx.db.query("functions").collect()).sort((a, b) => a.order - b.order);
@@ -73,7 +80,7 @@ export const directory = query({
       a.name.localeCompare(b.name),
     );
 
-    const tasks = await ctx.db.query("tasks").collect();
+    const tasks = await visibleTasks(ctx, ctx.scope, await ctx.db.query("tasks").collect());
     const loaded = people.map((person) => {
       const { responsible, accountable, all } = tasksOf(tasks, person._id);
       return {
@@ -99,7 +106,7 @@ export const directory = query({
  * One person's plate, for the drill-down: their tasks across every tier with
  * enough context to link back to the page each one is edited on.
  */
-export const workload = query({
+export const workload = authedQuery({
   // A string, not `v.id`: the id comes from the hash (model.ts: fromUrl).
   args: { personId: v.string(), today: v.string() },
   handler: async (ctx, args) => {
@@ -108,7 +115,7 @@ export const workload = query({
 
     const placeOf = placeResolver(ctx);
     const { responsible, accountable, all } = tasksOf(
-      await ctx.db.query("tasks").collect(),
+      await visibleTasks(ctx, ctx.scope, await ctx.db.query("tasks").collect()),
       person._id,
     );
     const responsibleIds = new Set(responsible.map((task) => task._id));
@@ -129,17 +136,22 @@ export const workload = query({
   },
 });
 
-export const renameFunction = mutation({
+// Every write to the People directory is an Administrator's (#22, story 29).
+// The directory is readable by everyone — a RACI picker that hid half the
+// company would make somebody name the wrong owner — but a Person is the thing
+// RACI points at across the whole tool, so who is in it stays governed.
+export const renameFunction = adminMutation({
   args: { functionId: v.id("functions"), name: v.string() },
   handler: async (ctx, args) => {
     await mustGet(ctx, args.functionId, "function");
     await ctx.db.patch(args.functionId, {
+      ...ctx.stamp,
       name: requiredText(args.name, "Function name"),
     });
   },
 });
 
-export const create = mutation({
+export const create = adminMutation({
   args: {
     name: v.string(),
     functionId: v.id("functions"),
@@ -155,11 +167,20 @@ export const create = mutation({
       title: optionalText(args.title),
       email: optionalText(args.email),
       organization: optionalText(args.organization),
+      ...ctx.stamp,
     });
   },
 });
 
-export const update = mutation({
+/** The account this Person is linked to, if any (the link is one-to-one). */
+async function linkedUser(ctx: QueryCtx, personId: Id<"people">) {
+  return await ctx.db
+    .query("users")
+    .withIndex("by_person", (q) => q.eq("personId", personId))
+    .first();
+}
+
+export const update = adminMutation({
   args: {
     personId: v.id("people"),
     name: v.optional(v.string()),
@@ -170,9 +191,21 @@ export const update = mutation({
   },
   handler: async (ctx, args) => {
     const person = await mustGet(ctx, args.personId, "person");
-    if (args.functionId !== undefined) await mustGet(ctx, args.functionId, "function");
+    if (args.functionId !== undefined && args.functionId !== person.functionId) {
+      const fn = await mustGet(ctx, args.functionId, "function");
+      // Only internal People can carry a sign-in (access.ts: setPersonLink),
+      // and that has to stay true after the link is made, not only when it is:
+      // moving a linked Person to a Distributor or Buyer Function is refused
+      // the same way deleting them is. Unlink first, which is recorded.
+      if (fn.kind !== "internal" && (await linkedUser(ctx, person._id)) !== null) {
+        throw new ConvexError(
+          "This person is linked to a sign-in account, and only internal People can be. Unlink them in the Directory first.",
+        );
+      }
+    }
 
     await ctx.db.patch(person._id, {
+      ...ctx.stamp,
       name: patchedRequiredText(args.name, person.name, "Person name"),
       functionId: patched(args.functionId, person.functionId),
       title: patchedText(args.title, person.title),
@@ -187,8 +220,13 @@ export const update = mutation({
  * the Unassigned state the tool exists to surface, so it is refused instead.
  * Consulted / Informed mentions carry no such weight and are simply dropped, so
  * no task is left pointing at a person who is gone.
+ *
+ * A person carrying a sign-in is refused for the same reason: deleting them
+ * would leave the account pointing at nothing, which reads on the Directory as
+ * an unlink nobody performed and no Audit event explains (#34). Unlink first,
+ * which is one click and is recorded.
  */
-export const remove = mutation({
+export const remove = adminMutation({
   args: { personId: v.id("people") },
   handler: async (ctx, args) => {
     const tasks = await ctx.db.query("tasks").collect();
@@ -201,6 +239,12 @@ export const remove = mutation({
       );
     }
 
+    if ((await linkedUser(ctx, args.personId)) !== null) {
+      throw new ConvexError(
+        "This person is linked to a sign-in account. Unlink them in the Directory first.",
+      );
+    }
+
     for (const task of tasks) {
       const consultedPersonIds = task.consultedPersonIds.filter((id) => id !== args.personId);
       const informedPersonIds = task.informedPersonIds.filter((id) => id !== args.personId);
@@ -208,7 +252,7 @@ export const remove = mutation({
         consultedPersonIds.length !== task.consultedPersonIds.length ||
         informedPersonIds.length !== task.informedPersonIds.length
       ) {
-        await ctx.db.patch(task._id, { consultedPersonIds, informedPersonIds });
+        await ctx.db.patch(task._id, { ...ctx.stamp, consultedPersonIds, informedPersonIds });
       }
     }
     await ctx.db.delete(args.personId);

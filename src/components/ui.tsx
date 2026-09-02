@@ -54,16 +54,24 @@ export function ConfirmButton({
   onConfirm,
   label = "Delete",
   confirmLabel = "Confirm",
+  disabledReason,
   className = "",
   size = "xs",
 }: {
   onConfirm: () => void;
   label?: ReactNode;
   confirmLabel?: string;
+  /**
+   * Why the action is refused. Set it and the button greys out and says so on
+   * hover — a refusal the caller already knows about should never be something
+   * you find out by arming and confirming.
+   */
+  disabledReason?: string;
   className?: string;
   size?: keyof typeof BUTTON_SIZES;
 }) {
   const [armed, setArmed] = useState(false);
+  const disabled = disabledReason !== undefined;
 
   useEffect(() => {
     if (!armed) return;
@@ -76,7 +84,13 @@ export function ConfirmButton({
       size={size}
       variant={armed ? "danger" : "ghost"}
       className={className}
-      title={armed ? "Click again to confirm" : typeof label === "string" ? label : undefined}
+      disabled={disabled}
+      // The unarmed title is the action itself: this button is reused for
+      // revokes and deactivations, and "Delete" describes neither.
+      title={
+        disabledReason ??
+        (armed ? "Click again to confirm" : typeof label === "string" ? label : undefined)
+      }
       onClick={() => {
         if (armed) {
           onConfirm();

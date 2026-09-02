@@ -28,8 +28,42 @@ conversation.
 - **Function** — a stakeholder bucket: Commercial Strat Account, Marketing,
   Retail Marketing / Local Sales, Finance (internal); Distributor, Buyer
   (external).
-- **Person** — a named human belonging to a Function. Created in-app; not a
-  login account in v0.
+- **Person** — a named human belonging to a Function. Created in-app; never a
+  login account. A Person may be *linked* to a User, which is orientation, not
+  access — RACI names People and never grants anything.
+- **User** — one signed-in identity, created on first sign-in and never
+  pre-provisioned. Either an **Administrator** (reaches and manages
+  everything) or a **Member** (sees exactly their Access Assignments). Active
+  or deactivated; deactivation is the immediate kill switch and preserves the
+  role and grants a reactivation restores.
+- **Access Assignment** — one Member granted one Plan Year, Chain Plan, or
+  Promotion. Access flows *down* the hierarchy, a Member's access is the union
+  of their assignments, and overlapping assignments are harmless. Records
+  outside them are absent, not greyed out: an out-of-scope link answers exactly
+  as a deleted one does.
+- **Reach** — how far a viewer sees one record of the hierarchy, and the only
+  three states the interface has for it. **Full**: the record and its content —
+  a link, its checklist, its rollups. **Context**: an ancestor of something
+  granted, so the *name* shows for orientation and nothing else — a plain
+  label, never a link, never a phase or a count. **None**: absent, and
+  indistinguishable from deleted. Administrators reach everything in full.
+- **Audit event** — one access-management action (role change, grant, revoke,
+  activation, deactivation, Person link) with its actor and timestamp, kept
+  indefinitely. The actor is a User, or the operator holding deploy
+  credentials. Ordinary record edits are not audited; they carry a
+  last-modified stamp instead.
+- **Directory** — the Administrator-only surface access is run from: a roster of
+  accounts with signal pills and an awaiting-access queue, one account's whole
+  story beside it (identity, Person link, role, grants with an effective-access
+  preview, offboarding), over the audit feed. Not to be confused with the People
+  directory, which is reference data every signed-in User can read.
+- **Last edited** — the stamp every ordinary record edit leaves: which User
+  wrote it and when, shown on the plan work — the three tiers, tasks, the KPI
+  table and the Retro. Reference data (chains, brands, People, Functions, Task
+  Templates) carries the stamp but does not show it: those rows are the
+  Administrator's alone to edit, so "who last touched this" is a question with
+  one plausible answer. One per record, always overwritten, never a history —
+  that is what the Audit event is for, and the Audit event covers access only.
 - **RACI** — per task: **Responsible** does the work — one or more named
   People, and a task needs at least one to count as assigned. **Accountable**
   owns the outcome — always exactly one Person, the one you chase when a task

@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { adminMutation, adminQuery } from "./access";
 import {
   moveDirection,
   mustGet,
@@ -18,8 +18,12 @@ import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
 // edited in Manage and stamped onto every newly created plan year, chain plan
 // and promotion (model.ts: stampTemplates). A stencil — nothing here ever
 // touches a checklist that already exists.
+//
+// The menu is Administrator-only to read as well as to edit: Manage is an
+// Administrator surface (#22), and nothing a Member sees is drawn from it —
+// their checklists were stamped long before they opened one.
 
-export const list = query({
+export const list = adminQuery({
   args: {},
   handler: async (ctx) => {
     const templates = await ctx.db.query("taskTemplates").collect();
@@ -27,7 +31,7 @@ export const list = query({
   },
 });
 
-export const create = mutation({
+export const create = adminMutation({
   args: {
     phase,
     name: v.string(),
@@ -48,12 +52,13 @@ export const create = mutation({
       category: optionalText(args.category),
       quantity: args.quantity ?? undefined,
       order: nextOrder(siblings),
+      ...ctx.stamp,
     });
   },
 });
 
 /** Inline edits; every field keeps its current value unless sent (model.ts: patched). */
-export const update = mutation({
+export const update = adminMutation({
   args: {
     templateId: v.id("taskTemplates"),
     name: v.optional(v.string()),
@@ -64,6 +69,7 @@ export const update = mutation({
   handler: async (ctx, args) => {
     const template = await mustGet(ctx, args.templateId, "template task");
     await ctx.db.patch(template._id, {
+      ...ctx.stamp,
       name: patchedRequiredText(args.name, template.name, "Template task name"),
       spec: patchedText(args.spec, template.spec),
       category: patchedText(args.category, template.category),
@@ -72,7 +78,7 @@ export const update = mutation({
   },
 });
 
-export const remove = mutation({
+export const remove = adminMutation({
   args: { templateId: v.id("taskTemplates") },
   handler: async (ctx, args) => {
     await ctx.db.delete(args.templateId);
@@ -84,7 +90,7 @@ export const remove = mutation({
  * here — Manage draws templates flat, without the category headings a
  * checklist gets — so unlike tasks.move the swap ignores `category`.
  */
-export const move = mutation({
+export const move = adminMutation({
   args: {
     templateId: v.id("taskTemplates"),
     direction: moveDirection,
@@ -95,7 +101,8 @@ export const move = mutation({
       .query("taskTemplates")
       .withIndex("by_phase", (q) => q.eq("phase", template.phase))
       .collect();
-    await swapOrder(ctx, template, section, args.direction);
+    // Reordering is a change to both rows, so both carry the stamp.
+    await swapOrder(ctx, template, section, args.direction, ctx.stamp);
   },
 });
 
@@ -104,7 +111,7 @@ export const move = mutation({
  * empty-state button. Guarded to empty so a double click cannot duplicate the
  * menu; an edited table is the team's own and stays untouched.
  */
-export const loadDefaults = mutation({
+export const loadDefaults = adminMutation({
   args: {},
   handler: async (ctx) => {
     const existing = await ctx.db.query("taskTemplates").first();
@@ -116,7 +123,7 @@ export const loadDefaults = mutation({
     for (const row of DEFAULT_TASK_TEMPLATES) {
       const order = perPhase.get(row.phase) ?? 0;
       perPhase.set(row.phase, order + 1);
-      await ctx.db.insert("taskTemplates", { ...row, order });
+      await ctx.db.insert("taskTemplates", { ...row, order, ...ctx.stamp });
     }
     return { inserted: DEFAULT_TASK_TEMPLATES.length };
   },
