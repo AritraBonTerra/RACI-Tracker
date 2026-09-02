@@ -70,21 +70,36 @@ export function AuthGate({ children }: { children: ReactNode }) {
   useAdoptStrandedSession();
   const me = useMe();
   const ensureUser = useMutation(api.access.ensureUser);
-  const ensured = useRef(false);
+  // The account `ensureUser` last settled for this tab, so one sign-in calls it
+  // once — including the first, whose create answers with the id `me` is about
+  // to report, and so does not trigger a second call when it does.
+  const ensuredFor = useRef<string | null>(null);
 
-  // First sign-in creates the User. Convex has already verified the token by
-  // the time this lands, so the record is created from claims, not from
-  // anything the browser says about itself.
-  const unregistered = me?.state === "unregistered";
+  // Once per signed-in identity, not only the first time: the first call
+  // creates the User, every later one refreshes the name and address off the
+  // token, so a renamed employee is renamed in the Directory too. Convex has
+  // already verified the token by the time this lands, so the record is built
+  // from claims, not from anything the browser says about itself.
+  const signedInAs =
+    me === undefined || me.state === "anonymous" || me.state === "ineligible"
+      ? null
+      : me.state === "unregistered"
+        ? "new"
+        : me.account.id;
   useEffect(() => {
-    if (!unregistered || ensured.current) return;
-    ensured.current = true;
-    void ensureUser({}).catch(() => {
-      // A failed create leaves `me` unregistered and the pending screen up;
-      // reloading retries. Nothing here is worth a toast on a blank page.
-      ensured.current = false;
-    });
-  }, [unregistered, ensureUser]);
+    if (signedInAs === null || ensuredFor.current === signedInAs) return;
+    ensuredFor.current = signedInAs;
+    ensureUser({}).then(
+      (userId) => {
+        ensuredFor.current = userId;
+      },
+      () => {
+        // A failed create leaves `me` unregistered and the pending screen up;
+        // reloading retries. Nothing here is worth a toast on a blank page.
+        ensuredFor.current = null;
+      },
+    );
+  }, [signedInAs, ensureUser]);
 
   const active = me?.state === "active";
   useRememberLocation(active);
