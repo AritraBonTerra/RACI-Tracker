@@ -472,6 +472,26 @@ describe("the email-domain admission gate", () => {
     expect(await t.withIdentity(unverified).mutation(api.access.ensureUser, {})).toBeNull();
     expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
 
+    // The caller is admitted by definition, whatever their row says: a row that
+    // is stale in the *restrictive* direction must not let them remove
+    // themselves while they are the only Administrator who can get in.
+    await t.run(async (ctx) => {
+      const dana = await ctx.db
+        .query("users")
+        .withIndex("by_clerk_user_id", (q) => q.eq("clerkUserId", EMPLOYEE.subject))
+        .unique();
+      if (dana === null) throw new Error("expected Dana's row");
+      await ctx.db.patch(dana._id, { emailVerified: false });
+    });
+    expect(await asEmployee.query(api.directory.account, { userId: me.account.id })).toMatchObject({
+      isLastActiveAdministrator: true,
+    });
+    await expect(
+      asEmployee.mutation(api.directory.setActive, { userId: me.account.id, isActive: false }),
+    ).rejects.toThrow(/last active Administrator/);
+    // Their next sign-in puts the row right again.
+    await asEmployee.mutation(api.access.ensureUser, {});
+
     // And the one who can still get in may tidy the other off the roster: an
     // Administrator who cannot sign in is not "the last", whatever their row says.
     const sashaId = roster.accounts.find((account) => account.email === "sasha@gmail.com")?.userId;

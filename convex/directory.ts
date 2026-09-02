@@ -286,7 +286,11 @@ export const account = adminQuery({
       // Person, but a link left dangling by anything else has to be repairable
       // from this pane rather than being a permanent, buttonless nothing.
       candidates: summary.person === null ? await candidatesFor(ctx, user) : [],
-      isLastActiveAdministrator: await isLastActiveAdministrator(ctx, user),
+      isLastActiveAdministrator: await isLastActiveAdministrator(
+        ctx,
+        user,
+        actorOf(ctx.viewer._id),
+      ),
     };
   },
 });

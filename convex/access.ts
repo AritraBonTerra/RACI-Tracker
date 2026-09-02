@@ -806,9 +806,15 @@ async function activeAdministrators(ctx: QueryCtx): Promise<Doc<"users">[]> {
 export async function isLastActiveAdministrator(
   ctx: QueryCtx,
   user: Doc<"users">,
+  actor?: Actor,
 ): Promise<boolean> {
-  if (user.role !== "administrator" || !canSignIn(user)) return false;
-  return (await activeAdministrators(ctx)).length <= 1;
+  if (user.role !== "administrator") return false;
+  // The actor asking about their own account is admitted by definition — they
+  // are making this call — whatever their row still says about the address or
+  // verification it last saw. Everyone else is judged by the row.
+  const self = actor?.kind === "user" && actor.userId === user._id;
+  if (self ? !user.isActive : !canSignIn(user)) return false;
+  return (await activeAdministrators(ctx)).every((other) => other._id === user._id);
 }
 
 const LAST_ADMINISTRATOR = "This is the last active Administrator. Promote someone else first.";
@@ -828,7 +834,7 @@ export async function setUserRole(
   actor: Actor,
 ): Promise<boolean> {
   if (user.role === role) return false;
-  if (role === "member" && (await isLastActiveAdministrator(ctx, user))) {
+  if (role === "member" && (await isLastActiveAdministrator(ctx, user, actor))) {
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 
@@ -857,7 +863,7 @@ export async function setUserActive(
   actor: Actor,
 ): Promise<boolean> {
   if (user.isActive === isActive) return false;
-  if (!isActive && (await isLastActiveAdministrator(ctx, user))) {
+  if (!isActive && (await isLastActiveAdministrator(ctx, user, actor))) {
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 
