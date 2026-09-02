@@ -172,16 +172,25 @@ table rejects a stamped row, which is why the file is pinned, and that rows
 written without the columns still validate under this schema, which is why
 rolling forward again is safe.
 
+**Know what you are rolling back to.** The pre-auth backend has no
+authentication at all: every one of its functions answers an anonymous caller,
+exactly as production did before this release. The moment `convex deploy` above
+finishes, that surface is open again — whatever the frontend is showing. A
+rollback is therefore a return to the *unauthenticated* product, not to a safe
+locked state, and it is the wrong tool for a security concern: for a wrong
+sign-in use `ALLOWED_EMAIL_DOMAIN` or deactivate the account (below), and for a
+suspected leak in *this* release, pause the Vercel deployment rather than
+reopening the old backend.
+
 **Expect a blank page between the two steps.** Both halves of the rollback move
 in one direction, so for the minute or so between them the deployed pair does
 not match, and neither mismatch renders: this frontend against the pre-auth
 backend calls `access.me`, which that backend does not have, and the pre-auth
 frontend against this backend has its first query denied for being anonymous.
-Both fail closed — nothing leaks either way — but a failed query at the top of
-the tree is a white page, not an error screen and not "the old app with a
-sign-in screen in front of it". It is the one procedure where the intermediate
-state reads exactly like a broken production, so know it is coming and finish
-the sequence rather than panicking forward.
+A failed query at the top of the tree is a white page, not an error screen and
+not "the old app with a sign-in screen in front of it". It is the one
+procedure where the intermediate state reads exactly like a broken production,
+so know it is coming and finish the sequence rather than panicking forward.
 
 Then roll the frontend back in Vercel: **Deployments → the last pre-auth build →
 Promote to Production**. A Vercel rollback serves a cached build and does *not*

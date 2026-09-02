@@ -1000,10 +1000,16 @@ export const ensureUser = mutation({
       // the token is verified, and the row is the only record the guard
       // (`canSignIn`) has of whether this account can still get in; without
       // this, an Administrator whose primary address moved outside the domain
-      // would be counted as a way back in forever. It answers null rather than
-      // throwing, because a thrown mutation is rolled back, patch included.
+      // would be counted as a way back in forever. Fail closed on the way: a
+      // token the gate refused did not carry a verified address, whether it
+      // said so or simply left the claims out, so the row must not keep
+      // saying it did. Answers null rather than throwing, because a thrown
+      // mutation is rolled back, patch included.
       if (existing === null) deny();
-      await ctx.db.patch(existing._id, claims);
+      await ctx.db.patch(existing._id, {
+        ...claims,
+        emailVerified: identity.emailVerified === true && typeof identity.email === "string",
+      });
       return null;
     }
     if (existing !== null) {

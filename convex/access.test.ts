@@ -472,6 +472,18 @@ describe("the email-domain admission gate", () => {
     expect(await t.withIdentity(unverified).mutation(api.access.ensureUser, {})).toBeNull();
     expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
 
+    // A token that simply leaves the claims out fails closed the same way: the
+    // row stops saying it saw a verified address, because it did not.
+    await t.withIdentity(EMPLOYEE).mutation(api.access.ensureUser, {});
+    await t.withIdentity(sasha).mutation(api.access.ensureUser, {});
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(2);
+    expect(
+      await t
+        .withIdentity(token("user_2sasha", { name: "Sasha Kim" }))
+        .mutation(api.access.ensureUser, {}),
+    ).toBeNull();
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
+
     // The caller is admitted by definition, whatever their row says: a row that
     // is stale in the *restrictive* direction must not let them remove
     // themselves while they are the only Administrator who can get in.
