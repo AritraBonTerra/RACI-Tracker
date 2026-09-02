@@ -99,7 +99,7 @@ export const create = mutation({
  * Inline field edits. Omitting a field leaves it alone; passing `null` clears
  * it, which is how the UI empties an ETA or a quantity. The many-person RACI
  * columns are deliberately absent: they change one person at a time through
- * `togglePerson`, never as a whole list a caller might have read stale.
+ * `setMembership`, never as a whole list a caller might have read stale.
  */
 export const update = mutation({
   args: {
@@ -138,16 +138,19 @@ export const update = mutation({
 });
 
 /**
- * Adds or removes one person from a many-person RACI column (R, C or I). The
- * current list is read here, inside the transaction, so two quick clicks in an
- * open picker each build on the other's result instead of on a stale copy the
- * client rendered before the first write landed.
+ * Puts one person in, or takes them out of, a many-person RACI column (R, C or
+ * I). The current list is read here, inside the transaction, so two quick
+ * clicks in an open picker each build on the other's result instead of on a
+ * stale copy the client rendered before the first write landed. The client
+ * states the membership it wants rather than asking for a toggle, so a
+ * double-click that sends the same request twice is a no-op, not an undo.
  */
-export const togglePerson = mutation({
+export const setMembership = mutation({
   args: {
     taskId: v.id("tasks"),
     role: v.union(v.literal("responsible"), v.literal("consulted"), v.literal("informed")),
     personId: v.id("people"),
+    member: v.boolean(),
   },
   handler: async (ctx, args) => {
     const task = await mustGet(ctx, args.taskId, "task");
@@ -159,9 +162,11 @@ export const togglePerson = mutation({
         : args.role === "consulted"
           ? task.consultedPersonIds
           : task.informedPersonIds;
-    const next = current.includes(args.personId)
-      ? current.filter((id) => id !== args.personId)
-      : [...current, args.personId];
+    const next = args.member
+      ? current.includes(args.personId)
+        ? current
+        : [...current, args.personId]
+      : current.filter((id) => id !== args.personId);
     const list = await livePeople(ctx, next);
 
     switch (args.role) {
