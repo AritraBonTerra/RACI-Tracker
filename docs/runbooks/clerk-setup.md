@@ -228,8 +228,10 @@ bunx convex env remove ALLOWED_EMAIL_DOMAIN --prod   # turn it back off
 **Set**: only a *verified* address ending in `@bonterraorganic.com` may create or keep a
 User. Everyone else is refused — at first sign-in and on every call after it —
 with the one sentence every refusal in this app uses. The value is normalised,
-so `@VCTUSA.com` with a stray space means the same thing, and the match is on
-`@<domain>` so `notbonterraorganic.com` and `bonterraorganic.com.attacker.net` are both outside.
+so `@BonterraOrganic.com` with a stray space means the same thing, and the match
+is on `@<domain>` so `notbonterraorganic.com` and `bonterraorganic.com.attacker.net`
+are both outside. (The tests use `vctusa.com` as a stand-in domain; production
+is `bonterraorganic.com`.)
 
 **Unset**: the gate is off. Any verified sign-in becomes a zero-access Member
 in the awaiting-access queue and stays there until an Administrator grants
@@ -251,8 +253,13 @@ Three things to know before you set it:
   work-address Google account. That is fine — email code is the strategy the
   boundary is built on.
 
-Leave it unset for the pilot if you would rather not lock anyone out on day one;
-deny-by-default still means a stranger who signs in sees nothing at all.
+Leave it unset for the pilot if you would rather not lock anyone out on day one
+— knowing what that buys a stranger. Deny-by-default keeps every plan, task and
+promotion behind a grant, but a signed-in zero-grant Member can read the
+*reference data* every picker needs: the People directory (names, titles,
+work addresses, organisations), Functions, Brands and the RACI matrix
+(`docs/runbooks/access-administration.md`). If that is not acceptable for the
+pilot, set the gate.
 
 ---
 
