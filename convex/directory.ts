@@ -6,9 +6,11 @@ import {
   adminMutation,
   adminQuery,
   authedQuery,
+  canSignIn,
   expandScopes,
   grantScope,
   isLastActiveAdministrator,
+  labelOf,
   type Reach,
   revokeScope,
   scopeOfAssignment,
@@ -66,31 +68,6 @@ async function hierarchy(ctx: QueryCtx) {
         }))
         .sort((a, b) => a.chain.localeCompare(b.chain)),
     }));
-}
-
-/**
- * The label one scope goes by in the grants list, the audit feed and the
- * Member's own "what do I have?" — always naming the tier above it, because
- * "Holiday Endcap" without its chain is two promotions in a busy year.
- */
-async function labelOf(ctx: QueryCtx, scope: AccessScope): Promise<string | null> {
-  if (scope.tier === "season") {
-    const season = await ctx.db.get(scope.seasonId);
-    return season === null ? null : `Plan Year ${season.label}`;
-  }
-  if (scope.tier === "chainPlan") {
-    const plan = await ctx.db.get(scope.chainPlanId);
-    if (plan === null) return null;
-    const [chain, season] = await Promise.all([
-      ctx.db.get(plan.chainId),
-      ctx.db.get(plan.seasonId),
-    ]);
-    return `${chain?.name ?? "Chain"} plan · ${season?.label ?? "—"}`;
-  }
-  const promotion = await ctx.db.get(scope.promotionId);
-  if (promotion === null) return null;
-  const chain = await ctx.db.get(promotion.chainId);
-  return `${promotion.name} · ${chain?.name ?? "Chain"}`;
 }
 
 /** A User's live grants, with who made each one and when. */
@@ -184,10 +161,11 @@ export const roster = adminQuery({
       accounts,
       awaitingCount: accounts.filter((entry) => entry.awaitingAccess).length,
       // Drives the "add another Administrator before…" warning, so the UI can
-      // explain the refusal before anyone runs into it.
-      activeAdministrators: accounts.filter(
-        (entry) => entry.isActive && entry.role === "administrator",
-      ).length,
+      // explain the refusal before anyone runs into it. Counted the way the
+      // guard counts (access.ts: canSignIn): an Administrator the email-domain
+      // gate has since locked out is not one the deployment can fall back on.
+      activeAdministrators: users.filter((user) => user.role === "administrator" && canSignIn(user))
+        .length,
     };
   },
 });

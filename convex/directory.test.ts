@@ -138,7 +138,7 @@ test("granting from the Directory unlocks the Member's world", async () => {
   expect(promotion?.promotion.name).toBe("Spring Rosé");
   expect(await asSam.query(api.directory.myAccess, {})).toEqual({
     role: "member",
-    scopes: [{ tier: "promotion", label: "Spring Rosé · Albertsons" }],
+    scopes: [{ tier: "promotion", label: "Spring Rosé · Albertsons · 2026" }],
   });
 });
 
@@ -443,7 +443,7 @@ test("a grant carries who made it, and the CLI's grants say so", async () => {
   });
 
   expect((await as.query(api.directory.account, { userId: samId }))?.grants).toMatchObject([
-    { label: "Gift Sets · Albertsons", grantedByName: ADMIN.name },
+    { label: "Gift Sets · Albertsons · 2026", grantedByName: ADMIN.name },
   ]);
   // The fixture's grants were made with deploy credentials: no account to name.
   expect(
@@ -514,13 +514,13 @@ test("a promoted Member keeps their grants and gets them back on demotion", asyn
   await as.mutation(api.directory.setRole, { userId: priyaId, role: "administrator" });
   expect(await t.withIdentity(PROMO_MEMBER).query(api.directory.myAccess, {})).toEqual({
     role: "administrator",
-    scopes: [{ tier: "promotion", label: "Gift Sets · Albertsons" }],
+    scopes: [{ tier: "promotion", label: "Gift Sets · Albertsons · 2026" }],
   });
 
   await as.mutation(api.directory.setRole, { userId: priyaId, role: "member" });
   expect(await t.withIdentity(PROMO_MEMBER).query(api.directory.myAccess, {})).toEqual({
     role: "member",
-    scopes: [{ tier: "promotion", label: "Gift Sets · Albertsons" }],
+    scopes: [{ tier: "promotion", label: "Gift Sets · Albertsons · 2026" }],
   });
 });
 
@@ -627,6 +627,12 @@ test("every access-management action lands in the feed with an actor and a times
     expect(event.subjectName).toBe(NEWCOMER.name);
     expect(event.at).toBeGreaterThan(0);
   }
+  // The grant and the revoke name the scope, so the history still says which
+  // promotion it was after the assignment row itself is gone.
+  expect(feed.filter((event) => event.action.startsWith("access_")).map((e) => e.detail)).toEqual([
+    "Gift Sets · Albertsons · 2026",
+    "Gift Sets · Albertsons · 2026",
+  ]);
 });
 
 test("the feed names the operator behind a deploy-credential action", async () => {

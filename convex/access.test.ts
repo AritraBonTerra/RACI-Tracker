@@ -394,6 +394,32 @@ describe("the email-domain admission gate", () => {
     expect(await wrapperResults(t.withIdentity(OUTSIDER))).toEqual(REFUSED_EVERYWHERE);
   });
 
+  test("turned on afterwards, it stops counting the Administrators it locked out", async () => {
+    // The last-Administrator guard (#30, story 26) is about who can still get
+    // in. An outside-domain Administrator from before the gate cannot, so they
+    // must not keep the count above one — or the one admitted Administrator
+    // could step down and leave the deployment governed by nobody.
+    const t = harness();
+    for (const who of [OUTSIDER, EMPLOYEE]) {
+      await t.withIdentity(who).mutation(api.access.ensureUser, {});
+      await t.mutation(internal.bootstrap.grantAdmin, { email: who.email });
+    }
+    const asEmployee = t.withIdentity(EMPLOYEE);
+    const me = await asEmployee.query(api.access.me, {});
+    if (me.state !== "active") throw new Error(`expected an active viewer, got ${me.state}`);
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(2);
+
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
+    await expect(
+      asEmployee.mutation(api.directory.setRole, { userId: me.account.id, role: "member" }),
+    ).rejects.toThrow(/last active Administrator/);
+    await expect(
+      asEmployee.mutation(api.directory.setActive, { userId: me.account.id, isActive: false }),
+    ).rejects.toThrow(/last active Administrator/);
+  });
+
   test("a gated caller is refused in the same words as everyone else", async () => {
     // The gate must not become an oracle for "is this address an employee?".
     vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");

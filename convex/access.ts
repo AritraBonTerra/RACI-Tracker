@@ -81,19 +81,38 @@ function allowedEmailDomain(): string {
 }
 
 /**
+ * Whether an address is inside the configured domain. It has to end with
+ * `@<domain>` rather than merely contain it, so `vctusa.com.attacker.net` and
+ * `notvctusa.com` are both outside. With the gate off, every address is inside.
+ */
+function admissibleAddress(email: string | undefined): boolean {
+  const domain = allowedEmailDomain();
+  if (domain === "") return true;
+  return (email ?? "").trim().toLowerCase().endsWith(`@${domain}`);
+}
+
+/**
  * Whether this identity may hold an account on this deployment.
  *
  * Two conditions when the gate is on, and both matter. The address has to be
  * **verified** — an unverified one is a claim the identity provider has not
  * checked, and treating it as a domain membership would make the gate a
- * text field. And it has to end with `@<domain>` rather than merely contain
- * it, so `vctusa.com.attacker.net` and `notvctusa.com` are both outside.
+ * text field. And it has to be inside the domain (`admissibleAddress`).
  */
 function admissible(identity: UserIdentity): boolean {
-  const domain = allowedEmailDomain();
-  if (domain === "") return true;
+  if (allowedEmailDomain() === "") return true;
   if (identity.emailVerified !== true) return false;
-  return (identity.email ?? "").trim().toLowerCase().endsWith(`@${domain}`);
+  return admissibleAddress(identity.email);
+}
+
+/**
+ * Whether a User can still get in: active, and at an address the gate admits.
+ * The guard below counts these, not rows — an Administrator created before the
+ * gate was turned on, at an outside address, is one the gate now refuses at
+ * the door, and a way back in that nobody can take is not a way back in.
+ */
+export function canSignIn(user: Doc<"users">): boolean {
+  return user.isActive && admissibleAddress(user.email);
 }
 
 /**
@@ -689,7 +708,7 @@ export async function grantScope(
     action: "access_granted",
     actor,
     subjectUserId: user._id,
-    detail: `${scope.tier}${via(actor)}`,
+    detail: `${await auditLabel(ctx, scope)}${via(actor)}`,
   });
   return true;
 }
@@ -715,18 +734,57 @@ export async function revokeScope(
     action: "access_revoked",
     actor,
     subjectUserId: user._id,
-    detail: `${scope.tier}${via(actor)}`,
+    detail: `${await auditLabel(ctx, scope)}${via(actor)}`,
   });
   return true;
 }
 
-/** The active Administrators — the people who can still let everyone back in. */
+/**
+ * The name one scope goes by in the grants list, the audit feed and a Member's
+ * own "what do I have?" — always naming the tiers above it, because "Holiday
+ * Endcap" without its chain is two promotions in a busy year, and with its
+ * chain but without its year is the same promotion two years running. Null
+ * when the record is gone.
+ */
+export async function labelOf(ctx: QueryCtx, scope: AccessScope): Promise<string | null> {
+  if (scope.tier === "season") {
+    const season = await ctx.db.get(scope.seasonId);
+    return season === null ? null : `Plan Year ${season.label}`;
+  }
+  if (scope.tier === "chainPlan") {
+    const plan = await ctx.db.get(scope.chainPlanId);
+    if (plan === null) return null;
+    const [chain, season] = await Promise.all([
+      ctx.db.get(plan.chainId),
+      ctx.db.get(plan.seasonId),
+    ]);
+    return `${chain?.name ?? "Chain"} plan · ${season?.label ?? "—"}`;
+  }
+  const promotion = await ctx.db.get(scope.promotionId);
+  if (promotion === null) return null;
+  const [chain, season] = await Promise.all([
+    ctx.db.get(promotion.chainId),
+    ctx.db.get(promotion.seasonId),
+  ]);
+  return `${promotion.name} · ${chain?.name ?? "Chain"} · ${season?.label ?? "—"}`;
+}
+
+/**
+ * What an audit event records about a scope. The label, so the feed still
+ * says *which* promotion was revoked after the assignment row is gone; the
+ * tier alone when the record itself has since been deleted.
+ */
+async function auditLabel(ctx: QueryCtx, scope: AccessScope): Promise<string> {
+  return (await labelOf(ctx, scope)) ?? `a deleted ${TIER_LABEL[scope.tier]}`;
+}
+
+/** The Administrators who can still sign in — the people who can let everyone back in. */
 async function activeAdministrators(ctx: QueryCtx): Promise<Doc<"users">[]> {
   const administrators = await ctx.db
     .query("users")
     .withIndex("by_role", (q) => q.eq("role", "administrator"))
     .collect();
-  return administrators.filter((user) => user.isActive);
+  return administrators.filter(canSignIn);
 }
 
 /**
@@ -896,8 +954,10 @@ function claimsFrom(identity: UserIdentity): TokenClaims {
 /**
  * First sign-in, and every sign-in after it. Creates exactly one active,
  * zero-assignment Member User per Clerk identity — repeat calls find the
- * existing row and only refresh what the token says. This is the one mutation
- * an identity without a User row may call; it is still not open, because Convex
+ * existing row and only refresh what the token says, which is how a renamed or
+ * re-addressed employee lands without a migration (the shell calls this once
+ * per signed-in identity, not only on the first). This is the one mutation an
+ * identity without a User row may call; it is still not open, because Convex
  * has already verified the token's signature and issuer before we see it.
  *
  * A deactivated User stays deactivated: signing in is not reactivation. An
@@ -915,7 +975,7 @@ export const ensureUser = mutation({
     const existing = await userByClerkId(ctx, identity.subject);
     if (existing !== null) {
       await ctx.db.patch(existing._id, { ...claims, lastSignInAt: Date.now() });
-      return;
+      return existing._id;
     }
 
     const userId = await ctx.db.insert("users", {
@@ -931,6 +991,7 @@ export const ensureUser = mutation({
       subjectUserId: userId,
       detail: "first sign-in",
     });
+    return userId;
   },
 });
 
