@@ -447,12 +447,24 @@ describe("the email-domain admission gate", () => {
     expect(await t.withIdentity(moved).mutation(api.access.ensureUser, {})).toBeNull();
     expect(await wrapperResults(t.withIdentity(moved))).toEqual(REFUSED_EVERYWHERE);
 
-    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
+    const roster = await asEmployee.query(api.directory.roster, {});
+    expect(roster.activeAdministrators).toBe(1);
     const me = await asEmployee.query(api.access.me, {});
     if (me.state !== "active") throw new Error(`expected an active viewer, got ${me.state}`);
     await expect(
       asEmployee.mutation(api.directory.setRole, { userId: me.account.id, role: "member" }),
     ).rejects.toThrow(/last active Administrator/);
+
+    // And the one who can still get in may tidy the other off the roster: an
+    // Administrator who cannot sign in is not "the last", whatever their row says.
+    const sashaId = roster.accounts.find((account) => account.email === "sasha@gmail.com")?.userId;
+    if (sashaId === undefined) throw new Error("expected Sasha on the roster");
+    expect(await asEmployee.query(api.directory.account, { userId: sashaId })).toMatchObject({
+      isLastActiveAdministrator: false,
+    });
+    expect(
+      await asEmployee.mutation(api.directory.setActive, { userId: sashaId, isActive: false }),
+    ).toBe(true);
   });
 
   test("turned on afterwards, it takes the accounts it locked out off the awaiting queue", async () => {

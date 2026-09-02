@@ -257,6 +257,25 @@ test("linking and unlinking a Person both work and are audited", async () => {
   ]);
 });
 
+test("a Person carrying a sign-in cannot be moved to an external Function", async () => {
+  const { t, carol, functionId } = await world();
+  const as = t.withIdentity(ADMIN);
+  const samId = await userIdOf(t, NEWCOMER.email);
+  const { distributorFunction } = await withExternalPerson(t);
+
+  // Only internal People may be linked, and that has to hold after the link is
+  // made too — Manage exposes the Function selector.
+  await as.mutation(api.directory.linkPerson, { userId: samId, personId: carol });
+  await expect(
+    as.mutation(api.people.update, { personId: carol, functionId: distributorFunction }),
+  ).rejects.toThrow(/linked to a sign-in account/);
+  // Other edits, and a move between internal Functions, are untouched.
+  await as.mutation(api.people.update, { personId: carol, title: "Director", functionId });
+
+  await as.mutation(api.directory.linkPerson, { userId: samId, personId: null });
+  await as.mutation(api.people.update, { personId: carol, functionId: distributorFunction });
+});
+
 test("a Person carrying a sign-in cannot be deleted out from under the account", async () => {
   const { t, functionId } = await world();
   const as = t.withIdentity(ADMIN);

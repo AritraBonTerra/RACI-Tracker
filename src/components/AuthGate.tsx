@@ -1,5 +1,5 @@
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
-import { createContext, type ReactNode, useContext, useEffect, useRef } from "react";
+import { createContext, type ReactNode, useContext, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import {
   isSsoCallback,
@@ -34,6 +34,9 @@ type Viewer = Extract<Me, { state: "active" }>;
 type Account = Viewer["account"];
 
 const ViewerContext = createContext<Viewer | null>(null);
+
+/** How long a failed first-sign-in create waits before trying again. */
+const ENSURE_RETRY_MS = 3000;
 
 function useViewer(): Viewer {
   const viewer = useContext(ViewerContext);
@@ -92,20 +95,29 @@ export function AuthGate({ children }: { children: ReactNode }) {
         : me.state === "ineligible"
           ? `ineligible:${me.email ?? ""}`
           : me.account.id;
+  // A failed *create* would otherwise leave `me` unregistered, the pending
+  // screen up, and nothing to change `signedInAs` — so it re-arms this effect.
+  const [retry, setRetry] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `retry` is the re-arm, not an input.
   useEffect(() => {
     if (signedInAs === null || ensuredFor.current === signedInAs) return;
     ensuredFor.current = signedInAs;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     ensureUser({}).then(
       (userId) => {
         ensuredFor.current = userId ?? signedInAs;
       },
       () => {
-        // Refused (ineligible), or a failed create that leaves `me`
-        // unregistered and the pending screen up — reloading retries. Nothing
-        // here is worth a toast on a blank page.
+        // An ineligible identity is refused by design; nothing to retry. A
+        // create that failed for any other reason is forgotten and tried
+        // again shortly. Nothing here is worth a toast on a blank page.
+        if (signedInAs !== "new") return;
+        ensuredFor.current = null;
+        timer = setTimeout(() => setRetry((count) => count + 1), ENSURE_RETRY_MS);
       },
     );
-  }, [signedInAs, ensureUser]);
+    return () => clearTimeout(timer);
+  }, [signedInAs, ensureUser, retry]);
 
   useRememberLocation();
 

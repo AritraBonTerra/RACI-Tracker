@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import type { QueryCtx } from "./_generated/server";
 import { adminMutation, authedQuery, visibleTasks } from "./access";
 import {
   byEta,
@@ -171,6 +172,14 @@ export const create = adminMutation({
   },
 });
 
+/** The account this Person is linked to, if any (the link is one-to-one). */
+async function linkedUser(ctx: QueryCtx, personId: Id<"people">) {
+  return await ctx.db
+    .query("users")
+    .withIndex("by_person", (q) => q.eq("personId", personId))
+    .first();
+}
+
 export const update = adminMutation({
   args: {
     personId: v.id("people"),
@@ -182,7 +191,18 @@ export const update = adminMutation({
   },
   handler: async (ctx, args) => {
     const person = await mustGet(ctx, args.personId, "person");
-    if (args.functionId !== undefined) await mustGet(ctx, args.functionId, "function");
+    if (args.functionId !== undefined && args.functionId !== person.functionId) {
+      const fn = await mustGet(ctx, args.functionId, "function");
+      // Only internal People can carry a sign-in (access.ts: setPersonLink),
+      // and that has to stay true after the link is made, not only when it is:
+      // moving a linked Person to a Distributor or Buyer Function is refused
+      // the same way deleting them is. Unlink first, which is recorded.
+      if (fn.kind !== "internal" && (await linkedUser(ctx, person._id)) !== null) {
+        throw new ConvexError(
+          "This person is linked to a sign-in account, and only internal People can be. Unlink them in the Directory first.",
+        );
+      }
+    }
 
     await ctx.db.patch(person._id, {
       ...ctx.stamp,
@@ -219,11 +239,7 @@ export const remove = adminMutation({
       );
     }
 
-    const linked = await ctx.db
-      .query("users")
-      .withIndex("by_person", (q) => q.eq("personId", args.personId))
-      .first();
-    if (linked !== null) {
+    if ((await linkedUser(ctx, args.personId)) !== null) {
       throw new ConvexError(
         "This person is linked to a sign-in account. Unlink them in the Directory first.",
       );

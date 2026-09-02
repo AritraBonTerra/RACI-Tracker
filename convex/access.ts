@@ -792,12 +792,16 @@ async function activeAdministrators(ctx: QueryCtx): Promise<Doc<"users">[]> {
  * deactivating them would leave the deployment governed by nobody, recoverable
  * only from the CLI — so the server refuses, and the UI reads the same answer
  * from here rather than counting rows of its own.
+ *
+ * An Administrator who cannot sign in is never "the last": they are not a way
+ * back in, so removing them takes nothing away — and the one who can must be
+ * able to tidy them off the roster.
  */
 export async function isLastActiveAdministrator(
   ctx: QueryCtx,
   user: Doc<"users">,
 ): Promise<boolean> {
-  if (user.role !== "administrator" || !user.isActive) return false;
+  if (user.role !== "administrator" || !canSignIn(user)) return false;
   return (await activeAdministrators(ctx)).length <= 1;
 }
 
