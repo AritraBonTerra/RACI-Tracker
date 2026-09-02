@@ -106,7 +106,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const attempts = useRef(0);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `retry` is the re-arm, not an input.
   useEffect(() => {
-    if (signedInAs === null || ensuredFor.current === signedInAs) return;
+    if (signedInAs === null) {
+      // Signed out, or a session that expired: the next sign-in is a new one,
+      // even into the same account, so it gets its own refresh.
+      ensuredFor.current = null;
+      attempts.current = 0;
+      return;
+    }
+    if (ensuredFor.current === signedInAs) return;
     ensuredFor.current = signedInAs;
     let timer: ReturnType<typeof setTimeout> | undefined;
     ensureUser({}).then(
