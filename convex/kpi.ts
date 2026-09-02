@@ -1,8 +1,8 @@
-import { ConvexError, v } from "convex/values";
+import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { type MutationCtx, mutation, type QueryCtx, query } from "./_generated/server";
+import { fromUrl, mustGet, patched, patchedNumber, patchedText } from "./model";
 import { kpiMetric, repeatVerdict } from "./schema";
-import { fromUrl, mustGet, optionalText } from "./model";
 
 // Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
 // slide-14 KPI grid and the retro that reads it.
@@ -81,36 +81,14 @@ export const board = query({
   },
 });
 
-// Patch semantics shared by both mutations: an argument left off means "leave
-// this alone", and an explicit null means "clear it". Clicking into a cell,
-// deleting the contents and tabbing away has to remove the figure, not leave
-// the last value sitting there.
-
-function patched<Value>(arg: Value | null | undefined, current: Value | undefined) {
-  return arg === undefined ? current : (arg ?? undefined);
-}
-
-/** As `patched`, but whitespace-only text counts as clearing the field. */
-function patchedText(arg: string | null | undefined, current: string | undefined) {
-  return arg === undefined ? current : optionalText(arg);
-}
-
-/** A typed figure has to be a real number — "1,240" and "n/a" belong in a note. */
-function patchedNumber(
-  arg: number | null | undefined,
-  current: number | undefined,
-  field: string,
-) {
-  if (arg === undefined) return current;
-  if (arg === null) return undefined;
-  if (!Number.isFinite(arg)) throw new ConvexError(`${field} must be a number.`);
-  return arg;
-}
+// Both mutations use the shared patch semantics (model.ts: patched): an
+// argument left off means "leave this alone", an explicit null means "clear
+// it", and a row whose every field has been cleared is deleted.
 
 /**
- * Writes one cell of the KPI grid, creating the row on first entry. A row whose
- * every field has been cleared is deleted rather than left as an empty husk, so
- * the table only ever holds figures somebody actually typed.
+ * Writes one cell of the KPI grid, creating the row on first entry. An emptied
+ * row is deleted rather than left as a husk, so the table only ever holds
+ * figures somebody actually typed.
  */
 export const setMetric = mutation({
   args: {
@@ -127,11 +105,7 @@ export const setMetric = mutation({
 
     const fields = {
       baseline: patchedNumber(args.baseline, existing?.baseline, "Baseline"),
-      promotional: patchedNumber(
-        args.promotional,
-        existing?.promotional,
-        "Promotional period",
-      ),
+      promotional: patchedNumber(args.promotional, existing?.promotional, "Promotional period"),
       upliftOverride: patchedText(args.upliftOverride, existing?.upliftOverride),
       note: patchedText(args.note, existing?.note),
     };
@@ -193,10 +167,7 @@ export const saveRetro = mutation({
  * from `promotions.remove`; that call is the only line elsewhere in the backend
  * that has to go if this feature is detached.
  */
-export async function removeForPromotion(
-  ctx: MutationCtx,
-  promotionId: Id<"promotions">,
-) {
+export async function removeForPromotion(ctx: MutationCtx, promotionId: Id<"promotions">) {
   const entries = await ctx.db
     .query("kpiEntries")
     .withIndex("by_promotion", (q) => q.eq("promotionId", promotionId))

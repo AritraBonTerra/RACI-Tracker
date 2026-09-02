@@ -20,6 +20,12 @@ bun run dev      # Vite dev server (separate terminal)
 
 `bun run build` type-checks and builds the frontend into `dist/`.
 
+```sh
+bun run check    # biome lint + format check, tsc, and the unit tests — run before pushing
+bun run format   # apply biome's fixes
+bun test         # unit tests for the pure modules in src/lib (tests/)
+```
+
 ## Deployment
 
 - **Backend**: `bunx convex deploy` pushes functions to the production Convex deployment.

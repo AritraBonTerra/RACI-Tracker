@@ -1,14 +1,15 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import {
-  SEASON_PHASES,
   deleteTasks,
-  mustGet,
   fromUrl,
+  mustGet,
   optionalText,
+  patchedRequiredText,
+  patchedText,
   raciDefaults,
-  requiredText,
   rollup,
+  SEASON_PHASES,
   stampTemplates,
 } from "./model";
 
@@ -99,9 +100,7 @@ export const tree = query({
                         rollup: rollup(
                           await ctx.db
                             .query("tasks")
-                            .withIndex("by_promotion", (q) =>
-                              q.eq("promotionId", promotion._id),
-                            )
+                            .withIndex("by_promotion", (q) => q.eq("promotionId", promotion._id))
                             .collect(),
                           args.today,
                         ),
@@ -132,13 +131,17 @@ export const contextFor = query({
     promotionId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // The plan comes back too, so the sidebar can hold the right branch open
+    // without walking the tree to find which plan a promotion sits under.
     if (args.promotionId !== undefined) {
       const promotion = await fromUrl(ctx, "promotions", args.promotionId);
-      return promotion === null ? null : { seasonId: promotion.seasonId };
+      return promotion === null
+        ? null
+        : { seasonId: promotion.seasonId, chainPlanId: promotion.chainPlanId };
     }
     if (args.chainPlanId !== undefined) {
       const plan = await fromUrl(ctx, "chainPlans", args.chainPlanId);
-      return plan === null ? null : { seasonId: plan.seasonId };
+      return plan === null ? null : { seasonId: plan.seasonId, chainPlanId: plan._id };
     }
     return null;
   },
@@ -174,12 +177,10 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.seasonId, "season");
-    await ctx.db.patch(args.seasonId, {
-      ...(args.label === undefined
-        ? {}
-        : { label: requiredText(args.label, "Year label") }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+    const season = await mustGet(ctx, args.seasonId, "season");
+    await ctx.db.patch(season._id, {
+      label: patchedRequiredText(args.label, season.label, "Year label"),
+      notes: patchedText(args.notes, season.notes),
     });
   },
 });

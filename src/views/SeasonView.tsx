@@ -2,8 +2,9 @@ import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { InlineText } from "../components/inline";
+import { Pathway } from "../components/Pathway";
 import { PhaseChecklist } from "../components/PhaseChecklist";
-import { RollupChips, RollupTiles } from "../components/Rollup";
 import {
   Breadcrumb,
   cardClass,
@@ -13,9 +14,8 @@ import {
   PageHeader,
   TierSkeleton,
 } from "../components/page";
-import { InlineText } from "../components/inline";
+import { RollupChips, RollupTiles } from "../components/Rollup";
 import { EmptyState, Panel } from "../components/ui";
-import { Pathway } from "../components/Pathway";
 import { formatDay } from "../lib/dates";
 import { CHAIN_PLAN_PHASES, PHASES, SEASON_PHASES } from "../lib/domain";
 import { buildPathway } from "../lib/pathway";
@@ -79,11 +79,8 @@ export function SeasonView({
         </div>
       </PageHeader>
 
-      <Pathway
-        phases={buildPathway(SEASON_PHASES, data.tasks, {}, 0, today)}
-        today={today}
-      >
-        {planCount > 0 && <ChainPositions tree={tree} />}
+      <Pathway phases={buildPathway(SEASON_PHASES, data.tasks, {}, 0, today)} today={today}>
+        {planCount > 0 && <ChainPositions tree={tree} today={today} />}
       </Pathway>
 
       <RollupTiles rollup={data.rollup} />
@@ -107,9 +104,9 @@ export function SeasonView({
       >
         {planCount === 0 ? (
           <EmptyState title="No chain plans for this year yet">
-            One plan per retail account per year. Every chain in Manage is listed in the
-            sidebar with a <span className="text-ink-300">+ Plan</span> button beside it —
-            starting one lays down the phase 1–4 checklist.
+            One plan per retail account per year. Every chain in Manage is listed in the sidebar
+            with a <span className="text-ink-300">+ Plan</span> button beside it — starting one lays
+            down the phase 1–4 checklist.
           </EmptyState>
         ) : (
           <div className={cardGrid(planCount)}>
@@ -121,15 +118,13 @@ export function SeasonView({
                   className={cardClass}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-sm font-semibold text-ink-100">
-                      {chain.chain.name}
-                    </h3>
+                    <h3 className="text-sm font-semibold text-ink-100">{chain.chain.name}</h3>
                     <RollupChips rollup={node.rollup} />
                   </div>
                   <p className="mt-1 text-xs text-ink-500">
                     Currently phase {node.plan.currentPhase}
                     {node.plan.jbpDate !== undefined &&
-                      ` · JBP ${formatDay(node.plan.jbpDate)}`}
+                      ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
                   </p>
                   <p className="mt-3 text-2xs text-ink-500">
                     {node.promotions.length} promotion
@@ -147,7 +142,7 @@ export function SeasonView({
 
 // Where every chain sits on phases 1-4, so the year view answers "what's
 // where" without a single click (CONTEXT.md: Pathway).
-function ChainPositions({ tree }: { tree: Tree }) {
+function ChainPositions({ tree, today }: { tree: Tree; today: string }) {
   return (
     <div className="mt-3 grid gap-1.5 border-t border-ink-800 pt-3">
       {tree.chains.flatMap((chain) =>
@@ -157,9 +152,7 @@ function ChainPositions({ tree }: { tree: Tree }) {
             href={href({ name: "plan", chainPlanId: node.plan._id })}
             className="flex items-center gap-3 rounded-md px-1 py-0.5 text-xs hover:bg-ink-800/60"
           >
-            <span className="w-24 shrink-0 truncate text-ink-200">
-              {chain.chain.name}
-            </span>
+            <span className="w-24 shrink-0 truncate text-ink-200">{chain.chain.name}</span>
             <span className="flex items-center gap-1">
               {CHAIN_PLAN_PHASES.map((phase) => {
                 const done = phase < node.plan.currentPhase;
@@ -182,7 +175,7 @@ function ChainPositions({ tree }: { tree: Tree }) {
             </span>
             <span className="truncate text-2xs text-ink-500">
               phase {node.plan.currentPhase} · {PHASES[node.plan.currentPhase].title}
-              {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate)}`}
+              {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
               {` · ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
             </span>
           </a>

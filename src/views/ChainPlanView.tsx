@@ -2,8 +2,10 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { BrandToggles } from "../components/BrandToggles";
+import { InlineDate, InlineSelect, InlineText } from "../components/inline";
+import { Pathway } from "../components/Pathway";
 import { PhaseChecklist } from "../components/PhaseChecklist";
-import { RollupChips, RollupTiles } from "../components/Rollup";
 import {
   Breadcrumb,
   cardClass,
@@ -13,19 +15,18 @@ import {
   PageHeader,
   TierSkeleton,
 } from "../components/page";
-import { InlineDate, InlineSelect, InlineText } from "../components/inline";
+import { RollupChips, RollupTiles } from "../components/Rollup";
 import {
   Button,
   ConfirmButton,
   EmptyState,
   Field,
+  inputClass,
   Modal,
   Panel,
-  inputClass,
 } from "../components/ui";
-import { Pathway } from "../components/Pathway";
 import { formatDay, formatRange } from "../lib/dates";
-import { CHAIN_PLAN_PHASES, PHASES, toPhase } from "../lib/domain";
+import { CHAIN_PLAN_PHASES, PHASES, toPhaseIn } from "../lib/domain";
 import { buildPathway, chainPlanAnchors } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { href, navigate } from "../lib/router";
@@ -94,7 +95,7 @@ export function ChainPlanView({
                   label: `${phase} · ${PHASES[phase].title}`,
                 }))}
                 onChange={(value) => {
-                  const phase = toPhase(Number(value));
+                  const phase = toPhaseIn(CHAIN_PLAN_PHASES, Number(value));
                   if (phase !== null) void update({ chainPlanId, currentPhase: phase });
                 }}
               />
@@ -153,8 +154,8 @@ export function ChainPlanView({
               </Button>
             }
           >
-            A promotion is one approved program: this chain, a date window, a set of
-            stores. Phases 5–8 — activation, execution, measurement, review — hang off it.
+            A promotion is one approved program: this chain, a date window, a set of stores. Phases
+            5–8 — activation, execution, measurement, review — hang off it.
           </EmptyState>
         ) : (
           <div className={cardGrid(data.promotions.length)}>
@@ -165,19 +166,16 @@ export function ChainPlanView({
                 className={cardClass}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-ink-100">
-                    {node.promotion.name}
-                  </h3>
+                  <h3 className="text-sm font-semibold text-ink-100">{node.promotion.name}</h3>
                   <RollupChips rollup={node.rollup} />
                 </div>
                 <p className="mt-1 text-xs text-ink-500">
-                  {formatRange(node.promotion.startDate, node.promotion.endDate)}
+                  {formatRange(node.promotion.startDate, node.promotion.endDate, today)}
                   {node.promotion.storeCount !== undefined &&
                     ` · ${node.promotion.storeCount} stores`}
                 </p>
                 <p className="mt-3 text-2xs text-ink-500">
-                  Phase {node.promotion.currentPhase} ·{" "}
-                  {PHASES[node.promotion.currentPhase].title}
+                  Phase {node.promotion.currentPhase} · {PHASES[node.promotion.currentPhase].title}
                 </p>
               </a>
             ))}
@@ -218,7 +216,7 @@ function NewPromotionModal({
   chainName: string;
   onClose: () => void;
 }) {
-  const brands = useQuery(api.brands.list) ?? [];
+  const brands = useQuery(api.brands.list);
   const create = useReportedMutation(api.promotions.create);
 
   const [name, setName] = useState("");
@@ -273,7 +271,7 @@ function NewPromotionModal({
             type="date"
             value={startDate}
             onChange={(event) => setStartDate(event.target.value)}
-            className={`${inputClass} [color-scheme:dark]`}
+            className={inputClass}
           />
         </Field>
         <Field label="End date">
@@ -281,7 +279,7 @@ function NewPromotionModal({
             type="date"
             value={endDate}
             onChange={(event) => setEndDate(event.target.value)}
-            className={`${inputClass} [color-scheme:dark]`}
+            className={inputClass}
           />
         </Field>
       </div>
@@ -294,31 +292,17 @@ function NewPromotionModal({
         />
       </Field>
       <Field label="Brands">
-        <div className="flex flex-wrap gap-1.5">
-          {brands.map((brand) => {
-            const selected = brandIds.includes(brand._id);
-            return (
-              <button
-                key={brand._id}
-                type="button"
-                onClick={() =>
-                  setBrandIds((current) =>
-                    selected
-                      ? current.filter((id) => id !== brand._id)
-                      : [...current, brand._id],
-                  )
-                }
-                className={`rounded-full px-2.5 py-1 text-xs transition ${
-                  selected
-                    ? "bg-sand-400/20 text-sand-100 ring-1 ring-sand-400/60"
-                    : "bg-ink-800 text-ink-400 ring-1 ring-ink-700 hover:text-ink-200"
-                }`}
-              >
-                {brand.name}
-              </button>
-            );
-          })}
-        </div>
+        <BrandToggles
+          brands={brands}
+          selected={brandIds}
+          onToggle={(brandId) =>
+            setBrandIds((current) =>
+              current.includes(brandId)
+                ? current.filter((id) => id !== brandId)
+                : [...current, brandId],
+            )
+          }
+        />
       </Field>
       {!ready && (
         <p className="text-2xs text-ink-500">

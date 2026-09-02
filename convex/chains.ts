@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { mustGet, optionalText, requiredText } from "./model";
+import { mustGet, optionalText, patchedRequiredText, patchedText, requiredText } from "./model";
 
 // Retail accounts. A chain is reference data: it owns nothing itself, but a
 // chain plan cannot exist without one.
@@ -34,10 +34,10 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    await mustGet(ctx, args.chainId, "chain");
-    await ctx.db.patch(args.chainId, {
-      ...(args.name === undefined ? {} : { name: requiredText(args.name, "Chain name") }),
-      ...(args.notes === undefined ? {} : { notes: optionalText(args.notes) }),
+    const chain = await mustGet(ctx, args.chainId, "chain");
+    await ctx.db.patch(chain._id, {
+      name: patchedRequiredText(args.name, chain.name, "Chain name"),
+      notes: patchedText(args.notes, chain.notes),
     });
   },
 });
@@ -51,7 +51,7 @@ export const remove = mutation({
       .collect();
     if (plans.length > 0) {
       throw new ConvexError(
-        `This chain has ${plans.length} plan(s) across seasons. Delete those first.`,
+        `This chain has ${plans.length} plan(s) across plan years. Delete those first.`,
       );
     }
     await ctx.db.delete(args.chainId);

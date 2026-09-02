@@ -6,11 +6,7 @@ import { Button, Skeleton } from "./ui";
 // Page furniture shared by the three tier views, plus the placeholders each of
 // them shows while its query resolves.
 
-export function Breadcrumb({
-  trail,
-}: {
-  trail: ReadonlyArray<{ label: string; to?: Route }>;
-}) {
+export function Breadcrumb({ trail }: { trail: ReadonlyArray<{ label: string; to?: Route }> }) {
   return (
     <nav className="flex flex-wrap items-center gap-1.5 text-2xs text-ink-500">
       {trail.map((crumb, index) => (
@@ -69,9 +65,7 @@ export function PageHeader({
 export function MetaItem({ label, children }: { label: string; children: ReactNode }) {
   return (
     <span className="flex items-center gap-1.5">
-      <span className="text-3xs font-semibold tracking-wider text-ink-600 uppercase">
-        {label}
-      </span>
+      <span className="text-3xs font-semibold tracking-wider text-ink-600 uppercase">{label}</span>
       <span className="text-ink-300">{children}</span>
     </span>
   );
@@ -108,10 +102,7 @@ export function NotFound({ what }: { what: string }) {
  * with it — a blank screen with the navigation gone. Reset by keying this on the
  * route, so the next link works.
  */
-export class ViewBoundary extends Component<
-  { children: ReactNode },
-  { message: string | null }
-> {
+export class ViewBoundary extends Component<{ children: ReactNode }, { message: string | null }> {
   state: { message: string | null } = { message: null };
 
   static getDerivedStateFromError(error: unknown) {
@@ -134,10 +125,7 @@ export class ViewBoundary extends Component<
         </span>
         <div>
           <p className="text-sm font-medium text-ink-200">This view could not load</p>
-          <p
-            className="mx-auto mt-1 max-w-sm text-xs text-ink-500"
-            title={this.state.message}
-          >
+          <p className="mx-auto mt-1 max-w-sm text-xs text-ink-500" title={this.state.message}>
             Nothing was lost. Try the dashboard, or reload the page.
           </p>
         </div>

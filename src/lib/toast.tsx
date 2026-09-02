@@ -1,14 +1,7 @@
-import { ConvexError } from "convex/values";
 import { useMutation } from "convex/react";
 import type { FunctionArgs, FunctionReference, FunctionReturnType } from "convex/server";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { ConvexError } from "convex/values";
+import { createContext, type ReactNode, useCallback, useContext, useMemo, useState } from "react";
 
 // Rules the backend enforces (a blocked task needs a reason, a chain with plans
 // cannot be deleted) are only useful if the person clicking sees why the click
@@ -52,7 +45,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext value={notify}>
       {children}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-6">
+      {/* A live region, so a rejected write is announced and not just painted. */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-2 p-6"
+      >
         {toasts.map((toast) => (
           <button
             key={toast.id}
