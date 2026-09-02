@@ -969,10 +969,21 @@ export const ensureUser = mutation({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (identity === null) deny();
-    if (!admissible(identity)) deny();
 
     const claims = claimsFrom(identity);
     const existing = await userByClerkId(ctx, identity.subject);
+    if (!admissible(identity)) {
+      // An identity with no row gets the same refusal as every other denied
+      // call. One we already know gets its row brought up to date instead —
+      // the token is verified, and the row is the only record the guard
+      // (`canSignIn`) has of whether this account can still get in; without
+      // this, an Administrator whose primary address moved outside the domain
+      // would be counted as a way back in forever. It answers null rather than
+      // throwing, because a thrown mutation is rolled back, patch included.
+      if (existing === null) deny();
+      await ctx.db.patch(existing._id, claims);
+      return null;
+    }
     if (existing !== null) {
       await ctx.db.patch(existing._id, { ...claims, lastSignInAt: Date.now() });
       return existing._id;

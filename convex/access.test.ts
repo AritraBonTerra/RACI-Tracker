@@ -420,6 +420,60 @@ describe("the email-domain admission gate", () => {
     ).rejects.toThrow(/last active Administrator/);
   });
 
+  test("an Administrator whose address moved outside the domain stops counting once they knock", async () => {
+    // The guard reads the address the row last saw. A primary address changed
+    // in Clerk is only observable when that identity next presents a token —
+    // refused, but the row learns the new address on the way, so the guard
+    // stops counting an Administrator who can no longer get in.
+    const t = harness();
+    const sasha = token("user_2sasha", {
+      name: "Sasha Kim",
+      email: "sasha@vctusa.com",
+      emailVerified: true,
+    });
+    for (const who of [EMPLOYEE, sasha]) {
+      await t.withIdentity(who).mutation(api.access.ensureUser, {});
+      await t.mutation(internal.bootstrap.grantAdmin, { email: who.email });
+    }
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+    const asEmployee = t.withIdentity(EMPLOYEE);
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(2);
+
+    const moved = token("user_2sasha", {
+      name: "Sasha Kim",
+      email: "sasha@gmail.com",
+      emailVerified: true,
+    });
+    expect(await t.withIdentity(moved).mutation(api.access.ensureUser, {})).toBeNull();
+    expect(await wrapperResults(t.withIdentity(moved))).toEqual(REFUSED_EVERYWHERE);
+
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
+    const me = await asEmployee.query(api.access.me, {});
+    if (me.state !== "active") throw new Error(`expected an active viewer, got ${me.state}`);
+    await expect(
+      asEmployee.mutation(api.directory.setRole, { userId: me.account.id, role: "member" }),
+    ).rejects.toThrow(/last active Administrator/);
+  });
+
+  test("turned on afterwards, it takes the accounts it locked out off the awaiting queue", async () => {
+    // An account the gate refuses never reaches the "access comes next"
+    // screen, so it is not waiting there — and the badge must not say it is.
+    const t = harness();
+    await t.withIdentity(OUTSIDER).mutation(api.access.ensureUser, {});
+    await t.withIdentity(EMPLOYEE).mutation(api.access.ensureUser, {});
+    await t.mutation(internal.bootstrap.grantAdmin, { email: EMPLOYEE.email });
+    const asEmployee = t.withIdentity(EMPLOYEE);
+    expect(await asEmployee.query(api.directory.awaitingCount, {})).toBe(1);
+
+    vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");
+
+    expect(await asEmployee.query(api.directory.awaitingCount, {})).toBe(0);
+    const roster = await asEmployee.query(api.directory.roster, {});
+    expect(roster.accounts.find((account) => account.email === OUTSIDER.email)).toMatchObject({
+      awaitingAccess: false,
+    });
+  });
+
   test("a gated caller is refused in the same words as everyone else", async () => {
     // The gate must not become an oracle for "is this address an employee?".
     vi.stubEnv("ALLOWED_EMAIL_DOMAIN", "vctusa.com");

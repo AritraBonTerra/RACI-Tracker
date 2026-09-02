@@ -59,14 +59,14 @@ function appUrl(hash: string) {
 
 /**
  * Where to put the user back after a round trip through the identity provider.
- * Recorded continuously while signed in, so an expired session returns to the
- * promotion they were reading rather than the dashboard.
+ * Recorded continuously — signed in, so an expired session returns to the
+ * promotion they were reading rather than the dashboard; and on the sign-in
+ * screen, so a deep link opened while signed out survives the Google round
+ * trip, which comes back to `/sign-in/sso-callback` without the fragment.
  *
- * The address bar is the fallback, ahead of the dashboard: a tab reloaded on a
- * lapsed session, a browser restarted overnight, or a shared deep link opened
- * while signed out all reach the sign-in screen with the wanted page already in
- * the hash and nothing in `sessionStorage`. Sending those to the dashboard
- * would throw away the link the user just clicked.
+ * The address bar is the fallback, ahead of the dashboard: a tab that reaches
+ * the sign-in screen with the wanted page already in the hash and nothing in
+ * `sessionStorage` should land on that page, not on the dashboard.
  */
 function returnTo(): string {
   const remembered = sessionStorage.getItem(RETURN_TO_KEY);
@@ -79,14 +79,15 @@ export function returnToUrl(): string {
   return appUrl(returnTo());
 }
 
-export function useRememberLocation(active: boolean) {
+export function useRememberLocation() {
   useEffect(() => {
-    if (!active) return;
+    // The callback page is Clerk's, not a place to return to.
+    if (isSsoCallback()) return;
     const remember = () => sessionStorage.setItem(RETURN_TO_KEY, window.location.hash || "#/");
     remember();
     window.addEventListener("hashchange", remember);
     return () => window.removeEventListener("hashchange", remember);
-  }, [active]);
+  }, []);
 }
 
 /**

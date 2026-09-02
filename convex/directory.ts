@@ -108,15 +108,17 @@ async function grantsOf(ctx: QueryCtx, userId: Id<"users">) {
 
 /**
  * The awaiting-access queue, as one predicate (CONTEXT.md: awaiting access):
- * signed in, still here, and holding nothing. The roster pill and the sidebar
- * badge are two queries — the badge must not pull the whole roster — so the
+ * able to sign in, and holding nothing. The roster pill and the sidebar badge
+ * are two queries — the badge must not pull the whole roster — so the
  * definition lives here rather than being written twice and drifting.
  *
  * An Administrator is never awaiting: the role reaches everything, so an
- * Administrator with no assignment rows is not waiting on anyone.
+ * Administrator with no assignment rows is not waiting on anyone. Nor is an
+ * account the email-domain gate refuses at the door (access.ts: canSignIn) —
+ * it never reaches the "access comes next" screen, so it is not waiting there.
  */
 function isAwaitingAccess(user: Doc<"users">, scopes: readonly AccessScope[]): boolean {
-  return user.isActive && user.role === "member" && scopes.length === 0;
+  return canSignIn(user) && user.role === "member" && scopes.length === 0;
 }
 
 /** Everything the roster row and the detail header both need. */
@@ -193,13 +195,18 @@ export const awaitingCount = adminQuery({
  * The internal People this account might be (#30, story 21). Two ways to
  * match — the email on the Person record, and the words in the account's name —
  * so an Administrator connects a sign-in to the Person already carrying its
- * RACI history instead of creating a duplicate.
+ * RACI history instead of creating a duplicate. Every other unlinked internal
+ * Person follows the matches, ranked last: a legal-name change or a Person
+ * record with no address must not leave the right Person unreachable and force
+ * a duplicate.
  *
  * Distributor and Buyer People are never offered, at any strength of match:
  * they are external contacts and structurally cannot hold a sign-in
  * (CONTEXT.md: Person). People already linked to another account are left out
  * too — the link is one-to-one.
  */
+const CANDIDATE_RANK = { email: 0, name: 1, other: 2 } as const;
+
 async function candidatesFor(ctx: QueryCtx, user: Doc<"users">) {
   const functions = await ctx.db.query("functions").collect();
   const internal = new Map(
@@ -231,7 +238,6 @@ async function candidatesFor(ctx: QueryCtx, user: Doc<"users">) {
       const sameEmail = email !== undefined && person.email?.trim().toLowerCase() === email;
       const name = person.name.toLowerCase();
       const byName = [...words].some((word) => name.includes(word));
-      if (!sameEmail && !byName) return [];
 
       return [
         {
@@ -239,14 +245,14 @@ async function candidatesFor(ctx: QueryCtx, user: Doc<"users">) {
           name: person.name,
           title: person.title,
           functionName: fn.name,
-          // Ranked, because an exact address is a fact and a shared first name
-          // is a guess.
-          reason: sameEmail ? ("email" as const) : ("name" as const),
+          // Ranked, because an exact address is a fact, a shared first name is
+          // a guess, and the rest is the Administrator's own knowledge.
+          reason: sameEmail ? ("email" as const) : byName ? ("name" as const) : ("other" as const),
         },
       ];
     })
-    .sort((a, b) =>
-      a.reason === b.reason ? a.name.localeCompare(b.name) : a.reason === "email" ? -1 : 1,
+    .sort(
+      (a, b) => CANDIDATE_RANK[a.reason] - CANDIDATE_RANK[b.reason] || a.name.localeCompare(b.name),
     );
 }
 

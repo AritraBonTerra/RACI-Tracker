@@ -311,7 +311,7 @@ function PersonLink({ detail }: { detail: Detail }) {
           ))}
           <p className="text-3xs text-ink-600">
             {detail.candidates.length === 0
-              ? "No internal Person matches this account. Create one in Manage first."
+              ? "No unlinked internal Person to offer. Create one in Manage first."
               : "None of these? Leave unlinked and create a Person in Manage first."}
           </p>
         </>

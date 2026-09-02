@@ -80,29 +80,34 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // token, so a renamed employee is renamed in the Directory too. Convex has
   // already verified the token by the time this lands, so the record is built
   // from claims, not from anything the browser says about itself.
+  //
+  // An ineligible identity calls it too: the call is refused, but on the way it
+  // brings a known row's address up to date, which is what keeps the
+  // last-Administrator guard honest about who can still get in.
   const signedInAs =
-    me === undefined || me.state === "anonymous" || me.state === "ineligible"
+    me === undefined || me.state === "anonymous"
       ? null
       : me.state === "unregistered"
         ? "new"
-        : me.account.id;
+        : me.state === "ineligible"
+          ? `ineligible:${me.email ?? ""}`
+          : me.account.id;
   useEffect(() => {
     if (signedInAs === null || ensuredFor.current === signedInAs) return;
     ensuredFor.current = signedInAs;
     ensureUser({}).then(
       (userId) => {
-        ensuredFor.current = userId;
+        ensuredFor.current = userId ?? signedInAs;
       },
       () => {
-        // A failed create leaves `me` unregistered and the pending screen up;
-        // reloading retries. Nothing here is worth a toast on a blank page.
-        ensuredFor.current = null;
+        // Refused (ineligible), or a failed create that leaves `me`
+        // unregistered and the pending screen up — reloading retries. Nothing
+        // here is worth a toast on a blank page.
       },
     );
   }, [signedInAs, ensureUser]);
 
-  const active = me?.state === "active";
-  useRememberLocation(active);
+  useRememberLocation();
 
   // Google sends the browser back here; Clerk finishes and moves it along.
   if (isSsoCallback()) return <SsoCallback />;

@@ -169,7 +169,7 @@ async function withExternalPerson(t: Awaited<ReturnType<typeof world>>["t"]) {
 }
 
 test("candidate matching offers internal People only, never Distributor or Buyer", async () => {
-  const { t, functionId } = await world();
+  const { t, functionId, carol } = await world();
   const as = t.withIdentity(ADMIN);
   await withExternalPerson(t);
   const internal = await as.mutation(api.people.create, {
@@ -183,7 +183,8 @@ test("candidate matching offers internal People only, never Distributor or Buyer
   });
 
   // "Sam Vasquez" matches on the account's name *and* carries its exact email
-  // address — the strongest possible match, and still never offered.
+  // address — the strongest possible match, and still never offered. Carol,
+  // internal and unlinked, is offered after the match without matching at all.
   expect(detail?.candidates).toEqual([
     {
       personId: internal,
@@ -191,6 +192,13 @@ test("candidate matching offers internal People only, never Distributor or Buyer
       title: "Retail Marketing Manager",
       functionName: "Retail Marketing",
       reason: "name",
+    },
+    {
+      personId: carol,
+      name: "Carol Diaz",
+      title: undefined,
+      functionName: "Retail Marketing",
+      reason: "other",
     },
   ]);
 });
@@ -207,7 +215,11 @@ test("an email match outranks a name match, and a Person is only offered once", 
   const samId = await userIdOf(t, NEWCOMER.email);
 
   const before = await as.query(api.directory.account, { userId: samId });
-  expect(before?.candidates.map((candidate) => candidate.reason)).toEqual(["email", "name"]);
+  expect(before?.candidates.map((candidate) => candidate.reason)).toEqual([
+    "email",
+    "name",
+    "other",
+  ]);
 
   // Linked to somebody else, a Person stops being a candidate for anyone.
   await as.mutation(api.directory.linkPerson, {
@@ -215,7 +227,10 @@ test("an email match outranks a name match, and a Person is only offered once", 
     personId: byEmail,
   });
   const after = await as.query(api.directory.account, { userId: samId });
-  expect(after?.candidates.map((candidate) => candidate.name)).toEqual(["Sam Rivera"]);
+  expect(after?.candidates.map((candidate) => candidate.name)).toEqual([
+    "Sam Rivera",
+    "Carol Diaz",
+  ]);
 });
 
 test("linking and unlinking a Person both work and are audited", async () => {
@@ -260,7 +275,7 @@ test("a Person carrying a sign-in cannot be deleted out from under the account",
 });
 
 test("a link left pointing at nothing is repairable from the pane", async () => {
-  const { t, functionId } = await world();
+  const { t, functionId, carol } = await world();
   const as = t.withIdentity(ADMIN);
   const samId = await userIdOf(t, NEWCOMER.email);
   const gone = await as.mutation(api.people.create, { name: "Sam Rivera", functionId });
@@ -278,7 +293,7 @@ test("a link left pointing at nothing is repairable from the pane", async () => 
 
   const detail = await as.query(api.directory.account, { userId: samId });
   expect(detail?.person).toBeNull();
-  expect(detail?.candidates.map((candidate) => candidate.personId)).toEqual([replacement]);
+  expect(detail?.candidates.map((candidate) => candidate.personId)).toEqual([replacement, carol]);
 
   await as.mutation(api.directory.linkPerson, { userId: samId, personId: replacement });
   expect((await as.query(api.directory.account, { userId: samId }))?.person).toMatchObject({
