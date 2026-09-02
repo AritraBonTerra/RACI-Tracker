@@ -64,14 +64,17 @@ function appUrl(hash: string) {
  * screen, so a deep link opened while signed out survives the Google round
  * trip, which comes back to `/sign-in/sso-callback` without the fragment.
  *
- * The address bar is the fallback, ahead of the dashboard: a tab that reaches
- * the sign-in screen with the wanted page already in the hash and nothing in
- * `sessionStorage` should land on that page, not on the dashboard.
+ * Off the callback page the address bar wins: a deep link just opened in a
+ * signed-out tab is the page wanted *now*, and must outrank whatever this tab
+ * remembered from an earlier visit. On the callback page the fragment is gone,
+ * so what was remembered is the only answer; the dashboard is the last resort.
  */
 function returnTo(): string {
+  const here = window.location.hash;
+  if (!isSsoCallback() && here !== "" && here !== "#/") return here;
   const remembered = sessionStorage.getItem(RETURN_TO_KEY);
   if (remembered !== null && remembered !== "") return remembered;
-  return window.location.hash === "" ? "#/" : window.location.hash;
+  return here === "" ? "#/" : here;
 }
 
 /** The same place, as the absolute URL Clerk's redirect props want. */
