@@ -8,11 +8,13 @@ import {
   assertPhaseInTier,
   checkedDay,
   moveDirection,
+  mustGet,
   nextOrder,
   optionalText,
   ownerFields,
   patchedText,
   requiredText,
+  responsiblesOf,
   swapOrder,
   type TaskOwner,
   taskOwner,
@@ -93,7 +95,9 @@ export const create = authedMutation({
 
 /**
  * Inline field edits. Omitting a field leaves it alone; passing `null` clears
- * it, which is how the UI empties an ETA or a quantity.
+ * it, which is how the UI empties an ETA or a quantity. The many-person RACI
+ * columns are deliberately absent: they change one person at a time through
+ * `setMembership`, never as a whole list a caller might have read stale.
  */
 export const update = authedMutation({
   args: {
@@ -106,12 +110,8 @@ export const update = authedMutation({
     notes: v.optional(v.union(v.string(), v.null())),
     deliveredTo: v.optional(v.union(v.string(), v.null())),
     proofOfExecution: v.optional(v.union(v.string(), v.null())),
-    // R, C and I are whole-list replacements: the editor sends the set it wants.
     // A stays a single person — one name to chase (CONTEXT.md: RACI).
-    responsiblePersonIds: v.optional(v.array(v.id("people"))),
     accountablePersonId: v.optional(v.union(v.id("people"), v.null())),
-    consultedPersonIds: v.optional(v.array(v.id("people"))),
-    informedPersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
     const { task } = await writableTask(ctx, ctx.scope, args.taskId);
@@ -127,22 +127,62 @@ export const update = authedMutation({
     if (args.proofOfExecution !== undefined) {
       patch.proofOfExecution = optionalText(args.proofOfExecution);
     }
-    if (args.responsiblePersonIds !== undefined) {
-      patch.responsiblePersonIds = await livePeople(ctx, args.responsiblePersonIds);
-      // Writes migrate as they happen: the list is now the truth for this task.
-      patch.responsiblePersonId = undefined;
-    }
     if (args.accountablePersonId !== undefined) {
       patch.accountablePersonId = args.accountablePersonId ?? undefined;
     }
-    if (args.consultedPersonIds !== undefined) {
-      patch.consultedPersonIds = await livePeople(ctx, args.consultedPersonIds);
-    }
-    if (args.informedPersonIds !== undefined) {
-      patch.informedPersonIds = await livePeople(ctx, args.informedPersonIds);
-    }
 
     await ctx.db.patch(task._id, patch);
+  },
+});
+
+/**
+ * Puts one person in, or takes them out of, a many-person RACI column (R, C or
+ * I). The current list is read here, inside the transaction, so two quick
+ * clicks in an open picker each build on the other's result instead of on a
+ * stale copy the client rendered before the first write landed. The client
+ * states the membership it wants rather than asking for a toggle, so a
+ * double-click that sends the same request twice is a no-op, not an undo.
+ */
+export const setMembership = authedMutation({
+  args: {
+    taskId: v.id("tasks"),
+    role: v.union(v.literal("responsible"), v.literal("consulted"), v.literal("informed")),
+    personId: v.id("people"),
+    member: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const { task } = await writableTask(ctx, ctx.scope, args.taskId);
+    await mustGet(ctx, args.personId, "person");
+
+    const current =
+      args.role === "responsible"
+        ? responsiblesOf(task)
+        : args.role === "consulted"
+          ? task.consultedPersonIds
+          : task.informedPersonIds;
+    const next = args.member
+      ? current.includes(args.personId)
+        ? current
+        : [...current, args.personId]
+      : current.filter((id) => id !== args.personId);
+    const list = await livePeople(ctx, next);
+
+    switch (args.role) {
+      case "responsible":
+        // Writes migrate as they happen: the list is now the truth for this task.
+        await ctx.db.patch(task._id, {
+          ...ctx.stamp,
+          responsiblePersonIds: list,
+          responsiblePersonId: undefined,
+        });
+        break;
+      case "consulted":
+        await ctx.db.patch(task._id, { ...ctx.stamp, consultedPersonIds: list });
+        break;
+      case "informed":
+        await ctx.db.patch(task._id, { ...ctx.stamp, informedPersonIds: list });
+        break;
+    }
   },
 });
 

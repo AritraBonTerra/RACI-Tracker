@@ -193,6 +193,13 @@ function everyWrite(caller: Caller, ids: Handles) {
         taskId: ids.taskId,
         status: "in_progress",
       }),
+    "tasks.setMembership": () =>
+      caller.mutation(api.tasks.setMembership, {
+        taskId: ids.taskId,
+        role: "consulted",
+        personId: ids.personId,
+        member: true,
+      }),
     "tasks.remove": () => caller.mutation(api.tasks.remove, { taskId: ids.taskId }),
     "tasks.move": () => caller.mutation(api.tasks.move, { taskId: ids.taskId, direction: "down" }),
   };
@@ -351,13 +358,17 @@ test("a Member assigns RACI from the whole People directory, other functions inc
 
   const taskId = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!.tasks[0]
     ._id;
-  await priya.mutation(api.tasks.update, {
-    taskId,
-    responsiblePersonIds: [carol, frank],
-    accountablePersonId: frank,
-    consultedPersonIds: [carol],
-    informedPersonIds: [frank],
-  });
+  // The many-person columns change one membership at a time (tasks.setMembership);
+  // A is the one single-person column and still goes through `update`.
+  await priya.mutation(api.tasks.update, { taskId, accountablePersonId: frank });
+  for (const [role, personId] of [
+    ["responsible", carol],
+    ["responsible", frank],
+    ["consulted", carol],
+    ["informed", frank],
+  ] as const) {
+    await priya.mutation(api.tasks.setMembership, { taskId, role, personId, member: true });
+  }
 
   const task = (await priya.query(api.promotions.get, { promotionId, today: TODAY }))!.tasks.find(
     (row) => row._id === taskId,
@@ -893,7 +904,12 @@ test("Unassigned, Blocked and Overdue mean the same thing after a Member writes"
   });
   expect(await rollupOf()).toMatchObject({ total: 4, unassigned: 2, overdue: 2 });
 
-  await priya.mutation(api.tasks.update, { taskId: fresh, responsiblePersonIds: [carol] });
+  await priya.mutation(api.tasks.setMembership, {
+    taskId: fresh,
+    role: "responsible",
+    personId: carol,
+    member: true,
+  });
   expect(await rollupOf()).toMatchObject({ unassigned: 1, overdue: 2 });
 
   // Delivered work cannot be late, however far past its ETA it is.

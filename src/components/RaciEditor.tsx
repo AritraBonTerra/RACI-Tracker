@@ -1,3 +1,4 @@
+import type { FunctionArgs } from "convex/server";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
@@ -17,15 +18,21 @@ import { Picker } from "./Picker";
 //    several people (shared work is real); A stays exactly one — the name you
 //    chase when the task is late.
 
-const toggled = (current: ReadonlyArray<Id<"people">>, personId: Id<"people">) =>
-  current.includes(personId) ? current.filter((id) => id !== personId) : [...current, personId];
+// The many-person columns (R, C, I). Membership changes one person at a time
+// on the server (tasks.setMembership), which reads the live list itself — the
+// editor never sends a whole list it might have rendered before an earlier
+// click landed.
+type ListRole = FunctionArgs<typeof api.tasks.setMembership>["role"];
 
 /** The RACI block on an expanded task row: defaults on top, named people below. */
 export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: PeopleDirectory }) {
   const update = useReportedMutation(api.tasks.update);
+  const setMembership = useReportedMutation(api.tasks.setMembership);
   const matrix = useRaciMatrix();
   const cells = matrix.cellsFor(task.phase);
   const responsibles = responsiblesOf(task);
+  const setMember = (role: ListRole, personId: Id<"people">, member: boolean) =>
+    void setMembership({ taskId: task._id, role, personId, member });
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-950/60">
@@ -57,12 +64,7 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
             selected={responsibles}
             people={people}
             matrix={matrix}
-            onToggle={(personId) =>
-              void update({
-                taskId: task._id,
-                responsiblePersonIds: toggled(responsibles, personId),
-              })
-            }
+            onChange={(personId, member) => setMember("responsible", personId, member)}
           />
         </RoleSlot>
 
@@ -87,12 +89,7 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
             selected={task.consultedPersonIds}
             people={people}
             matrix={matrix}
-            onToggle={(personId) =>
-              void update({
-                taskId: task._id,
-                consultedPersonIds: toggled(task.consultedPersonIds, personId),
-              })
-            }
+            onChange={(personId, member) => setMember("consulted", personId, member)}
           />
         </RoleSlot>
 
@@ -103,12 +100,7 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
             selected={task.informedPersonIds}
             people={people}
             matrix={matrix}
-            onToggle={(personId) =>
-              void update({
-                taskId: task._id,
-                informedPersonIds: toggled(task.informedPersonIds, personId),
-              })
-            }
+            onChange={(personId, member) => setMember("informed", personId, member)}
           />
         </RoleSlot>
       </div>
@@ -217,14 +209,15 @@ function PersonList({
   selected,
   people,
   matrix,
-  onToggle,
+  onChange,
 }: {
   role: RaciRole;
   phase: PhaseNumber;
   selected: ReadonlyArray<Id<"people">>;
   people: PeopleDirectory;
   matrix: RaciMatrix;
-  onToggle: (personId: Id<"people">) => void;
+  /** Whether `personId` should be in the list — stated, not toggled, so repeats are harmless. */
+  onChange: (personId: Id<"people">, member: boolean) => void;
 }) {
   const alarming = role === "responsible" && selected.length === 0;
 
@@ -238,7 +231,7 @@ function PersonList({
             key={id}
             type="button"
             title={`Remove ${person.name}`}
-            onClick={() => onToggle(id)}
+            onClick={() => onChange(id, false)}
             className="group inline-flex items-center gap-1 rounded-full bg-ink-800 px-2 py-0.5 text-2xs text-ink-300 ring-1 ring-ink-700 ring-inset transition hover:bg-ink-700 hover:text-ink-100"
           >
             {person.name}
@@ -256,7 +249,7 @@ function PersonList({
         closeOnPick={alarming}
         selected={selected}
         onPick={(next) => {
-          if (next !== null) onToggle(next);
+          if (next !== null) onChange(next, !selected.includes(next));
         }}
         trigger={<span>{selected.length === 0 ? (alarming ? "Assign R" : "+ Add") : "+"}</span>}
         triggerClass={
@@ -275,7 +268,7 @@ function PersonList({
  * navigation, because the whole point of the rail is to fix things in place.
  */
 export function AssignButton({ task, people }: { task: Doc<"tasks">; people: PeopleDirectory }) {
-  const update = useReportedMutation(api.tasks.update);
+  const setMembership = useReportedMutation(api.tasks.setMembership);
   const matrix = useRaciMatrix();
 
   // R is a list: the button reads as the first name plus how many more, and the
@@ -294,11 +287,13 @@ export function AssignButton({ task, people }: { task: Doc<"tasks">; people: Peo
       multi
       closeOnPick={selected.length === 0}
       selected={selected}
-      onPick={(next) => {
-        if (next !== null) {
-          void update({
+      onPick={(personId) => {
+        if (personId !== null) {
+          void setMembership({
             taskId: task._id,
-            responsiblePersonIds: toggled(selected, next),
+            role: "responsible",
+            personId,
+            member: !selected.includes(personId),
           });
         }
       }}
