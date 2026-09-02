@@ -131,6 +131,10 @@ async function summarize(ctx: QueryCtx, user: Doc<"users">) {
     email: user.email,
     role: user.role,
     isActive: user.isActive,
+    // False for an active account the email-domain gate now refuses at the
+    // door (access.ts: canSignIn) — the roster has to say so, or an
+    // Administrator grants and reactivates into a wall.
+    canSignIn: canSignIn(user),
     person: person === null ? null : { personId: person._id, name: person.name },
     grantCount: scopes.length,
     // The account sitting on the "access comes next" screen (#30, story 20).

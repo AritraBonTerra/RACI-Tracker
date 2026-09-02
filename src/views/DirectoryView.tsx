@@ -144,6 +144,14 @@ function SignalPills({ account }: { account: Account }) {
           Administrator
         </Pill>
       )}
+      {!account.canSignIn && (
+        <Pill
+          title="The email-domain gate refuses this address, so this account cannot sign in until its address is inside the domain or the gate is changed."
+          className="bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40 ring-inset"
+        >
+          Outside the domain
+        </Pill>
+      )}
       {account.awaitingAccess && (
         <Pill className="bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/40 ring-inset">
           Awaiting access

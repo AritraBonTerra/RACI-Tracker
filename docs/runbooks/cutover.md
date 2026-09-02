@@ -62,7 +62,7 @@ A missing `CLERK_JWT_ISSUER_DOMAIN` fails the *deploy*, not the app:
 `convex deploy` refuses to push an auth config whose variable is unset and says
 so by name — *"Environment variable CLERK_JWT_ISSUER_DOMAIN is used in auth
 config file but its value was not set"* — which in the Vercel build means a
-failed build and the previous deployment still serving. Skipping step 2 cannot
+failed build and the previous deployment still serving. Skipping step 1 cannot
 produce a half-signed-in production; it produces a red build.
 
 `ALLOWED_EMAIL_DOMAIN` fails closed and fails *fast*. Set it to a domain nobody
@@ -77,12 +77,10 @@ no deploy.
 
 Roughly thirty minutes, most of it verification.
 
-**1. Merge the integration branch.** `feat/access-signin` into `main`, with the
-suite green. `main` auto-deploys, so this step *is* the release: Vercel builds
-the frontend and `convex deploy` pushes the matching backend in the same build.
-
-**2. Set the environment variables** — before the merge lands if you can, since
-the deploy that follows reads them.
+**1. Set the environment variables.** First, not alongside: the deploy the
+merge triggers reads them, a missing issuer fails that build, and Vercel bakes
+the publishable key in at build time. Nothing here changes what is running —
+the current release does not read these variables.
 
 ```sh
 bunx convex env set CLERK_JWT_ISSUER_DOMAIN https://clerk.<your-domain> --prod
@@ -91,8 +89,11 @@ bunx convex env list --prod   # confirm
 ```
 
 `VITE_CLERK_PUBLISHABLE_KEY` goes in the Vercel project's **Production**
-environment. Vercel bakes it at build time, so set it first and redeploy if you
-did not.
+environment; confirm it is there before moving on.
+
+**2. Merge the integration branch.** `feat/access-signin` into `main`, with the
+suite green. `main` auto-deploys, so this step *is* the release: Vercel builds
+the frontend and `convex deploy` pushes the matching backend in the same build.
 
 **3. Watch the deploy finish**, then open the app. You should see the sign-in
 card: an email field, a "Continue with Google" button, no password field. The

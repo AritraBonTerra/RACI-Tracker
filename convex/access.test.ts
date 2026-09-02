@@ -449,6 +449,13 @@ describe("the email-domain admission gate", () => {
 
     const roster = await asEmployee.query(api.directory.roster, {});
     expect(roster.activeAdministrators).toBe(1);
+    // And the roster says so, rather than showing a working Administrator.
+    expect(roster.accounts.map((account) => [account.email, account.canSignIn])).toEqual(
+      expect.arrayContaining([
+        ["sasha@gmail.com", false],
+        [EMPLOYEE.email, true],
+      ]),
+    );
     const me = await asEmployee.query(api.access.me, {});
     if (me.state !== "active") throw new Error(`expected an active viewer, got ${me.state}`);
     await expect(

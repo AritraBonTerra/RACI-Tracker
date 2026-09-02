@@ -2,6 +2,7 @@ import { ConvexError } from "convex/values";
 import { expect, test } from "vitest";
 import { api } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { responsiblesOf } from "./model";
 import {
   ADMIN,
   type Caller,
@@ -803,6 +804,26 @@ test("an edit records who made it, everywhere the record is shown", async () => 
   });
   // Two editors on one page resolve to two names, and to nobody else's.
   expect(new Set(Object.values(after.editors))).toEqual(new Set([ADMIN.name, PROMO_MEMBER.name]));
+
+  // A membership request that changes nothing writes nothing — so it does not
+  // re-stamp the row as edited by someone who changed nothing.
+  const carolOnRow = (await as.query(api.promotions.get, {
+    promotionId,
+    today: TODAY,
+  }))!.tasks.find((task) => responsiblesOf(task).length > 0)!;
+  const responsible = responsiblesOf(carolOnRow)[0];
+  if (responsible === undefined) throw new Error("expected a Responsible on the fixture row");
+  await as.mutation(api.tasks.setMembership, {
+    taskId: carolOnRow._id,
+    role: "responsible",
+    personId: responsible,
+    member: true,
+  });
+  const untouched = (await as.query(api.promotions.get, { promotionId, today: TODAY }))!.tasks.find(
+    (task) => task._id === carolOnRow._id,
+  )!;
+  expect(untouched.lastModifiedBy).toBe(carolOnRow.lastModifiedBy);
+  expect(untouched.lastModifiedAt).toBe(carolOnRow.lastModifiedAt);
 
   // The same stamp on the other two tiers, and on the phase 7-8 rows.
   await t

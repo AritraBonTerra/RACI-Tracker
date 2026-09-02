@@ -160,10 +160,12 @@ export const setMembership = authedMutation({
         : args.role === "consulted"
           ? task.consultedPersonIds
           : task.informedPersonIds;
+    // Already as asked — a duplicate click, or the other open picker got there
+    // first — is a no-op all the way down: no write, so no stamp naming
+    // someone who changed nothing.
+    if (args.member === current.includes(args.personId)) return;
     const next = args.member
-      ? current.includes(args.personId)
-        ? current
-        : [...current, args.personId]
+      ? [...current, args.personId]
       : current.filter((id) => id !== args.personId);
     const list = await livePeople(ctx, next);
 

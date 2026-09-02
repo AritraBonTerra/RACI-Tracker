@@ -35,8 +35,9 @@ type Account = Viewer["account"];
 
 const ViewerContext = createContext<Viewer | null>(null);
 
-/** How long a failed first-sign-in create waits before trying again. */
+/** How long a failed `ensureUser` waits before trying again, and how often. */
 const ENSURE_RETRY_MS = 3000;
+const ENSURE_RETRY_LIMIT = 3;
 
 function useViewer(): Viewer {
   const viewer = useContext(ViewerContext);
@@ -95,9 +96,14 @@ export function AuthGate({ children }: { children: ReactNode }) {
         : me.state === "ineligible"
           ? `ineligible:${me.email ?? ""}`
           : me.account.id;
-  // A failed *create* would otherwise leave `me` unregistered, the pending
-  // screen up, and nothing to change `signedInAs` — so it re-arms this effect.
+  // A failed call would otherwise leave nothing to change `signedInAs` — a
+  // failed create keeps `me` unregistered and the pending screen up; a failed
+  // refresh of a refused identity keeps the guard counting a stale address —
+  // so a failure re-arms this effect, a few times. The one refusal that is by
+  // design (an ineligible identity with no row) exhausts the same small
+  // budget and then stops, which costs three calls and nothing else.
   const [retry, setRetry] = useState(0);
+  const attempts = useRef(0);
   // biome-ignore lint/correctness/useExhaustiveDependencies: `retry` is the re-arm, not an input.
   useEffect(() => {
     if (signedInAs === null || ensuredFor.current === signedInAs) return;
@@ -105,13 +111,13 @@ export function AuthGate({ children }: { children: ReactNode }) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     ensureUser({}).then(
       (userId) => {
+        attempts.current = 0;
         ensuredFor.current = userId ?? signedInAs;
       },
       () => {
-        // An ineligible identity is refused by design; nothing to retry. A
-        // create that failed for any other reason is forgotten and tried
-        // again shortly. Nothing here is worth a toast on a blank page.
-        if (signedInAs !== "new") return;
+        // Nothing here is worth a toast on a blank page.
+        attempts.current += 1;
+        if (attempts.current >= ENSURE_RETRY_LIMIT) return;
         ensuredFor.current = null;
         timer = setTimeout(() => setRetry((count) => count + 1), ENSURE_RETRY_MS);
       },

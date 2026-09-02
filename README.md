@@ -56,8 +56,12 @@ break-glass live in `convex/bootstrap.ts` as internal functions, reachable only
 with deploy credentials.
 
 Reads answer over the caller's Access Assignments and writes obey the same
-scope: a Member has full task control and in-scope field editing, while the
-hierarchy, the reference data and the People directory are Administrator-only.
+scope: a Member has full task control and in-scope field editing, while managing
+the hierarchy, the reference data and the People directory is Administrator-only.
+*Reading* reference data — People, Functions, Brands, the RACI matrix — is open
+to every signed-in account, because a picker that hid half the company would
+name the wrong owner; that is what the optional `ALLOWED_EMAIL_DOMAIN` gate is
+for (`docs/runbooks/access-administration.md`).
 Every scope check reads the ancestry off the *loaded* record, so a client-supplied
 id is a lookup key and never an authorization input, and a call aimed at
 something out of scope fails exactly as one aimed at something deleted does.
