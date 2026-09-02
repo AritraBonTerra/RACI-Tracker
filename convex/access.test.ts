@@ -462,6 +462,16 @@ describe("the email-domain admission gate", () => {
       asEmployee.mutation(api.directory.setRole, { userId: me.account.id, role: "member" }),
     ).rejects.toThrow(/last active Administrator/);
 
+    // The same for an address still inside the domain that the provider no
+    // longer vouches for: the row records the verification state it last saw.
+    const unverified = token("user_2sasha", {
+      name: "Sasha Kim",
+      email: "sasha@vctusa.com",
+      emailVerified: false,
+    });
+    expect(await t.withIdentity(unverified).mutation(api.access.ensureUser, {})).toBeNull();
+    expect((await asEmployee.query(api.directory.roster, {})).activeAdministrators).toBe(1);
+
     // And the one who can still get in may tidy the other off the roster: an
     // Administrator who cannot sign in is not "the last", whatever their row says.
     const sashaId = roster.accounts.find((account) => account.email === "sasha@gmail.com")?.userId;

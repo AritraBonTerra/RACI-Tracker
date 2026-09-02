@@ -182,6 +182,10 @@ export default defineSchema({
     personId: v.optional(v.id("people")),
 
     email: v.optional(v.string()),
+    // Whether the identity provider had verified `email` on the last token this
+    // row saw. Read by the sign-in guard (access.ts: canSignIn) when the
+    // email-domain gate is on; absent on rows written before it was recorded.
+    emailVerified: v.optional(v.boolean()),
     displayName: v.optional(v.string()),
 
     entraOid: v.optional(v.string()),

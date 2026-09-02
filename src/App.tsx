@@ -143,11 +143,14 @@ export default function App() {
                   return;
                 }
                 const next = seasons.find((season) => season._id === event.target.value);
-                // A year the viewer only sees as context is a label, not a
-                // door: its option is disabled, and there is no page to send
-                // them to if a stray change event names one anyway.
-                if (next === undefined || next.reach !== "full") return;
-                navigate({ name: "season", seasonId: next._id });
+                if (next === undefined) return;
+                // A year the viewer holds opens on its page. A year they only
+                // reach through a grant below it has no page of its own for
+                // them, so it opens on its dashboard — which shows exactly the
+                // chains and promotions they hold in it. Without this, a Member
+                // with promotions in two years could never reach the older one.
+                if (next.reach === "full") navigate({ name: "season", seasonId: next._id });
+                else navigate({ name: "home", seasonId: next._id });
               }}
               className={selectClass}
             >
@@ -155,7 +158,6 @@ export default function App() {
                 <option
                   key={season._id}
                   value={season._id}
-                  disabled={season.reach !== "full"}
                   title={season.reach === "full" ? undefined : CONTEXT_HINT}
                 >
                   Year {season.label}

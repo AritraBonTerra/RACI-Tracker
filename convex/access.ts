@@ -106,13 +106,19 @@ function admissible(identity: UserIdentity): boolean {
 }
 
 /**
- * Whether a User can still get in: active, and at an address the gate admits.
- * The guard below counts these, not rows — an Administrator created before the
- * gate was turned on, at an outside address, is one the gate now refuses at
- * the door, and a way back in that nobody can take is not a way back in.
+ * Whether a User can still get in: active, and — when the gate is on — at a
+ * verified address the gate admits, as of the last token this row saw. The
+ * guard below counts these, not rows: an Administrator created before the gate
+ * was turned on, at an outside address, is one the gate now refuses at the
+ * door, and a way back in that nobody can take is not a way back in. A row
+ * written before verification was recorded reads as unverified until its next
+ * sign-in, which errs toward refusing to remove an Administrator rather than
+ * toward counting one who cannot get in.
  */
 export function canSignIn(user: Doc<"users">): boolean {
-  return user.isActive && admissibleAddress(user.email);
+  if (!user.isActive) return false;
+  if (allowedEmailDomain() === "") return true;
+  return user.emailVerified === true && admissibleAddress(user.email);
 }
 
 /**
@@ -924,7 +930,10 @@ export async function userByClerkId(ctx: QueryCtx, clerkUserId: string) {
 }
 
 type TokenClaims = Partial<
-  Pick<Doc<"users">, "email" | "displayName" | "entraOid" | "entraTid" | "entraUserType">
+  Pick<
+    Doc<"users">,
+    "email" | "emailVerified" | "displayName" | "entraOid" | "entraTid" | "entraUserType"
+  >
 >;
 
 /**
@@ -942,12 +951,15 @@ type TokenClaims = Partial<
  */
 function claimsFrom(identity: UserIdentity): TokenClaims {
   const claims: TokenClaims = {};
-  const put = (key: keyof TokenClaims, value: unknown) => {
+  const put = (key: Exclude<keyof TokenClaims, "emailVerified">, value: unknown) => {
     if (typeof value === "string" && value.trim() !== "") {
       claims[key] = value.trim();
     }
   };
   put("email", identity.email);
+  // A boolean, so `put`'s string check does not apply; still absent when the
+  // token does not carry it, for the same reason.
+  if (typeof identity.emailVerified === "boolean") claims.emailVerified = identity.emailVerified;
   put("displayName", identity.name);
   put("entraOid", identity.entra_oid);
   put("entraTid", identity.entra_tid);

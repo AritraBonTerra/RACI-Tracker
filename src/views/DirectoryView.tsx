@@ -146,10 +146,10 @@ function SignalPills({ account }: { account: Account }) {
       )}
       {!account.canSignIn && (
         <Pill
-          title="The email-domain gate refuses this address, so this account cannot sign in until its address is inside the domain or the gate is changed."
+          title="The email-domain gate refuses the address this account last signed in with — outside the domain, or not verified — so it cannot sign in until that changes or the gate does."
           className="bg-amber-500/15 text-amber-300 ring-1 ring-amber-500/40 ring-inset"
         >
-          Outside the domain
+          Cannot sign in
         </Pill>
       )}
       {account.awaitingAccess && (
