@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { lstatSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
@@ -24,13 +24,21 @@ const ROOT = fileURLToPath(new URL("..", import.meta.url));
  * Files git tracks, minus the ones no secret could hide in usefully — and minus
  * this one, which has to spell out the shapes it is looking for to prove it can
  * see them. Every example below is invented.
+ *
+ * Only regular files: git also tracks symlinks, and reading one that points at
+ * a directory is an error, not a scan. Whatever a link points at is scanned
+ * under its own path if it is tracked.
  */
 function trackedFiles(): string[] {
   return execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8" })
     .split("\0")
     .filter((path) => path !== "")
     .filter(
-      (path) => path !== "bun.lock" && path !== "checks/secrets.test.ts" && !path.endsWith(".png"),
+      (path) =>
+        path !== "bun.lock" &&
+        path !== "checks/secrets.test.ts" &&
+        !path.endsWith(".png") &&
+        lstatSync(`${ROOT}${path}`).isFile(),
     );
 }
 
