@@ -1,3 +1,4 @@
+import type { FunctionArgs } from "convex/server";
 import type { ReactNode } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
@@ -17,15 +18,21 @@ import { Picker } from "./Picker";
 //    several people (shared work is real); A stays exactly one — the name you
 //    chase when the task is late.
 
-const toggled = (current: ReadonlyArray<Id<"people">>, personId: Id<"people">) =>
-  current.includes(personId) ? current.filter((id) => id !== personId) : [...current, personId];
+// The many-person columns (R, C, I). Membership changes one person at a time
+// on the server (tasks.togglePerson), which reads the live list itself — the
+// editor never sends a whole list it might have rendered before an earlier
+// click landed.
+type ListRole = FunctionArgs<typeof api.tasks.togglePerson>["role"];
 
 /** The RACI block on an expanded task row: defaults on top, named people below. */
 export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: PeopleDirectory }) {
   const update = useReportedMutation(api.tasks.update);
+  const togglePerson = useReportedMutation(api.tasks.togglePerson);
   const matrix = useRaciMatrix();
   const cells = matrix.cellsFor(task.phase);
   const responsibles = responsiblesOf(task);
+  const toggle = (role: ListRole, personId: Id<"people">) =>
+    void togglePerson({ taskId: task._id, role, personId });
 
   return (
     <div className="rounded-lg border border-ink-800 bg-ink-950/60">
@@ -57,12 +64,7 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
             selected={responsibles}
             people={people}
             matrix={matrix}
-            onToggle={(personId) =>
-              void update({
-                taskId: task._id,
-                responsiblePersonIds: toggled(responsibles, personId),
-              })
-            }
+            onToggle={(personId) => toggle("responsible", personId)}
           />
         </RoleSlot>
 
@@ -87,12 +89,7 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
             selected={task.consultedPersonIds}
             people={people}
             matrix={matrix}
-            onToggle={(personId) =>
-              void update({
-                taskId: task._id,
-                consultedPersonIds: toggled(task.consultedPersonIds, personId),
-              })
-            }
+            onToggle={(personId) => toggle("consulted", personId)}
           />
         </RoleSlot>
 
@@ -103,12 +100,7 @@ export function RaciEditor({ task, people }: { task: Doc<"tasks">; people: Peopl
             selected={task.informedPersonIds}
             people={people}
             matrix={matrix}
-            onToggle={(personId) =>
-              void update({
-                taskId: task._id,
-                informedPersonIds: toggled(task.informedPersonIds, personId),
-              })
-            }
+            onToggle={(personId) => toggle("informed", personId)}
           />
         </RoleSlot>
       </div>
@@ -275,7 +267,7 @@ function PersonList({
  * navigation, because the whole point of the rail is to fix things in place.
  */
 export function AssignButton({ task, people }: { task: Doc<"tasks">; people: PeopleDirectory }) {
-  const update = useReportedMutation(api.tasks.update);
+  const togglePerson = useReportedMutation(api.tasks.togglePerson);
   const matrix = useRaciMatrix();
 
   // R is a list: the button reads as the first name plus how many more, and the
@@ -294,12 +286,9 @@ export function AssignButton({ task, people }: { task: Doc<"tasks">; people: Peo
       multi
       closeOnPick={selected.length === 0}
       selected={selected}
-      onPick={(next) => {
-        if (next !== null) {
-          void update({
-            taskId: task._id,
-            responsiblePersonIds: toggled(selected, next),
-          });
+      onPick={(personId) => {
+        if (personId !== null) {
+          void togglePerson({ taskId: task._id, role: "responsible", personId });
         }
       }}
       trigger={

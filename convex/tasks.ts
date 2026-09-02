@@ -14,6 +14,7 @@ import {
   ownerOf,
   patchedText,
   requiredText,
+  responsiblesOf,
   swapOrder,
   type TaskOwner,
   taskOwner,
@@ -96,7 +97,9 @@ export const create = mutation({
 
 /**
  * Inline field edits. Omitting a field leaves it alone; passing `null` clears
- * it, which is how the UI empties an ETA or a quantity.
+ * it, which is how the UI empties an ETA or a quantity. The many-person RACI
+ * columns are deliberately absent: they change one person at a time through
+ * `togglePerson`, never as a whole list a caller might have read stale.
  */
 export const update = mutation({
   args: {
@@ -109,12 +112,8 @@ export const update = mutation({
     notes: v.optional(v.union(v.string(), v.null())),
     deliveredTo: v.optional(v.union(v.string(), v.null())),
     proofOfExecution: v.optional(v.union(v.string(), v.null())),
-    // R, C and I are whole-list replacements: the editor sends the set it wants.
     // A stays a single person — one name to chase (CONTEXT.md: RACI).
-    responsiblePersonIds: v.optional(v.array(v.id("people"))),
     accountablePersonId: v.optional(v.union(v.id("people"), v.null())),
-    consultedPersonIds: v.optional(v.array(v.id("people"))),
-    informedPersonIds: v.optional(v.array(v.id("people"))),
   },
   handler: async (ctx, args) => {
     const task = await mustGet(ctx, args.taskId, "task");
@@ -130,22 +129,56 @@ export const update = mutation({
     if (args.proofOfExecution !== undefined) {
       patch.proofOfExecution = optionalText(args.proofOfExecution);
     }
-    if (args.responsiblePersonIds !== undefined) {
-      patch.responsiblePersonIds = await livePeople(ctx, args.responsiblePersonIds);
-      // Writes migrate as they happen: the list is now the truth for this task.
-      patch.responsiblePersonId = undefined;
-    }
     if (args.accountablePersonId !== undefined) {
       patch.accountablePersonId = args.accountablePersonId ?? undefined;
     }
-    if (args.consultedPersonIds !== undefined) {
-      patch.consultedPersonIds = await livePeople(ctx, args.consultedPersonIds);
-    }
-    if (args.informedPersonIds !== undefined) {
-      patch.informedPersonIds = await livePeople(ctx, args.informedPersonIds);
-    }
 
     await ctx.db.patch(task._id, patch);
+  },
+});
+
+/**
+ * Adds or removes one person from a many-person RACI column (R, C or I). The
+ * current list is read here, inside the transaction, so two quick clicks in an
+ * open picker each build on the other's result instead of on a stale copy the
+ * client rendered before the first write landed.
+ */
+export const togglePerson = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    role: v.union(v.literal("responsible"), v.literal("consulted"), v.literal("informed")),
+    personId: v.id("people"),
+  },
+  handler: async (ctx, args) => {
+    const task = await mustGet(ctx, args.taskId, "task");
+    await mustGet(ctx, args.personId, "person");
+
+    const current =
+      args.role === "responsible"
+        ? responsiblesOf(task)
+        : args.role === "consulted"
+          ? task.consultedPersonIds
+          : task.informedPersonIds;
+    const next = current.includes(args.personId)
+      ? current.filter((id) => id !== args.personId)
+      : [...current, args.personId];
+    const list = await livePeople(ctx, next);
+
+    switch (args.role) {
+      case "responsible":
+        // Writes migrate as they happen: the list is now the truth for this task.
+        await ctx.db.patch(task._id, {
+          responsiblePersonIds: list,
+          responsiblePersonId: undefined,
+        });
+        break;
+      case "consulted":
+        await ctx.db.patch(task._id, { consultedPersonIds: list });
+        break;
+      case "informed":
+        await ctx.db.patch(task._id, { informedPersonIds: list });
+        break;
+    }
   },
 });
 
