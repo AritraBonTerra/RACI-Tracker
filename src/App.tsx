@@ -208,7 +208,7 @@ export default function App() {
           </>
         )}
 
-        {newYearOpen && (
+        {isAdministrator && newYearOpen && (
           <NewYearModal
             takenYears={(seasons ?? []).map((season) => season.year)}
             onClose={() => setNewYearOpen(false)}
@@ -216,8 +216,14 @@ export default function App() {
         )}
 
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-5 lg:px-8">
+          {account.role === "viewer" && (
+            <p className="mb-4 text-xs text-ink-400">
+              Viewer access · You can read the work shared with you. An Administrator can change
+              your access.
+            </p>
+          )}
           {/* Keyed on the route so a broken link does not poison the next one. */}
-          <ViewBoundary key={hash}>
+          <ViewBoundary key={`${hash}:${account.role}`}>
             {/* Manage, the Directory and the People directory do not hang off a
                 season, so they never wait for one. Everything else shows the
                 placeholder shaped like the page it is about to become. */}

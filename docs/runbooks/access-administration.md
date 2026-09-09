@@ -13,7 +13,7 @@ nobody sits at the "access comes next" screen unnoticed.
 ## Onboarding someone
 
 1. They sign in with their work address — a verification code by email, or
-   Google. That creates their User — active, Member, holding nothing — and lands
+   Google. That creates their User — active, Editor, holding nothing — and lands
    them on "you're signed in, access comes next". Nobody is pre-provisioned;
    only the identity provider can mint an account.
 2. Open the Directory. They are at the top of the roster with an **Awaiting
@@ -34,11 +34,11 @@ nobody sits at the "access comes next" screen unnoticed.
 ### What an account holds before you grant anything
 
 The waiting-room screen is blank, but the boundary underneath it is not "no
-data": a zero-grant account is an ordinary Member, and a Member may read the
+data": a zero-grant account is an ordinary Editor, and a Editor may read the
 **reference data** — People, Functions, Brands and the RACI defaults. That is
 deliberate. A task row saying "Alicia" has to be able to say who Alicia is, and
 the RACI picker has to offer the whole directory (#27, scenario 17), so the
-People roster cannot be scoped without breaking the picker for every Member.
+People roster cannot be scoped without breaking the picker for every Editor.
 
 What it means in practice: between a first sign-in and your first grant, that
 account can reach the People roster — names, titles, email addresses and
@@ -55,7 +55,7 @@ reach the waiting room.
 
 A grant names one Plan Year, Chain Plan or Promotion, and access flows **down**
 from it: a Chain Plan grant reaches promotions created under it next month,
-because nothing is snapshotted. A Member's access is the **union** of their
+because nothing is snapshotted. A Editor's access is the **union** of their
 grants, so handing out an overlapping second one is harmless and revoking it
 takes back only that row. Re-granting the same scope does nothing. A grant
 whose target is later deleted stops counting as access — the account drops back
@@ -66,10 +66,28 @@ grant instead of storing a row that means nothing.
 
 ## Roles
 
-*Make Administrator* / *Make Member*, from the account pane. Access Assignments
-survive both directions: promote a Member and their grants go dormant behind the
-Administrator's blanket reach; demote them again and they get back exactly what
-they had.
+Choose *Make Administrator*, *Make Editor*, or *Make Viewer* from the account
+pane. New accounts start as Editors with no grants. Pilot participants who need
+to update work should remain Editors.
+
+- **Administrator** manages all work, accounts, and permissions, including the
+  hierarchy and reference data.
+- **Editor** reads and updates granted work, including creating, assigning, and
+  deleting tasks. Managing the hierarchy and reference data remains
+  Administrator-only.
+- **Viewer** reads all work details within granted scopes, including notes,
+  RACI assignments, KPI values, and retros. Viewers cannot edit, assign, delete,
+  or administer accounts, and cannot read security audit events.
+
+Editors and Viewers use the same grants and ancestor-label rules. Changing the
+role preserves every grant. Promotion to Administrator makes those grants
+dormant; demotion restores their reach under the new role. Editor-to-Viewer
+changes deny work mutations on the next call, including an already-open editor,
+and the live UI switches to readable values without editing controls. Linking a
+Person or naming someone in RACI never grants access or editing rights.
+
+All active signed-in roles retain the existing reference-data reads described
+above. A Viewer with no grants waits for access just like an Editor.
 
 The **last active Administrator cannot be demoted or deactivated.** The button
 is disabled with an explanation, and the server refuses regardless — the button

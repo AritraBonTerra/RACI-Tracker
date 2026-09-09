@@ -165,21 +165,23 @@ export function Sidebar({
                 <TreeRow>
                   <div className="flex items-center justify-between gap-2 rounded-lg py-1 pr-1 pl-2">
                     <span className="min-w-0 truncate text-sm text-ink-500">{chain.name}</span>
-                    <Button
-                      size="xs"
-                      variant="ghost"
-                      title={`Start a ${chain.name} plan for ${tree.season.label}`}
-                      onClick={async () => {
-                        const plan = await createPlan({
-                          seasonId: tree.season._id,
-                          chainId: chain._id,
-                        });
-                        // Same landing as the modal path: straight onto the new plan.
-                        if (plan.ok) navigate({ name: "plan", chainPlanId: plan.value });
-                      }}
-                    >
-                      + Plan
-                    </Button>
+                    {isAdministrator && (
+                      <Button
+                        size="xs"
+                        variant="ghost"
+                        title={`Start a ${chain.name} plan for ${tree.season.label}`}
+                        onClick={async () => {
+                          const plan = await createPlan({
+                            seasonId: tree.season._id,
+                            chainId: chain._id,
+                          });
+                          // Same landing as the modal path: straight onto the new plan.
+                          if (plan.ok) navigate({ name: "plan", chainPlanId: plan.value });
+                        }}
+                      >
+                        + Plan
+                      </Button>
+                    )}
                   </div>
                 </TreeRow>
               ) : (
@@ -203,7 +205,7 @@ export function Sidebar({
       <GroupLabel>Reference</GroupLabel>
       <ReferenceLinks route={route} isAdministrator={isAdministrator} />
 
-      {creating && (
+      {isAdministrator && creating && (
         <NewChainPlanModal
           seasonId={tree.season._id}
           seasonLabel={tree.season.label}

@@ -142,7 +142,7 @@ the Directory. Finish with two active Administrators in
 `bootstrap:listUsers --prod`.
 
 **G24 — the guard, in the UI.** With one active Administrator, confirm *Make
-Member* and *Deactivate account* are disabled on your own row and say why.
+Editor*, *Make Viewer*, and *Deactivate account* are disabled on your own row and say why.
 
 **G25 — the lockout drill.** Deactivate the second Administrator from the
 Directory, then bring them back with `bootstrap:reactivateUser --prod` — deploy
@@ -176,3 +176,34 @@ sign-in existed, plus the "Last edited by" stamps.
 
 Copy the checkboxes into the cutover issue rather than editing this file, so the
 document stays the definition and the issue stays the evidence.
+
+
+## Viewer access acceptance
+
+The earlier scenarios use the historical name Member for today's Editor role.
+The Viewer extension keeps those Editor capabilities and adds scoped read-only
+access. Its automated coverage lives in `convex/scopedReads.test.ts`,
+`convex/scopedWrites.test.ts`, `convex/directory.test.ts`, and
+`src/components/viewer.test.tsx`.
+
+Run these checks on the matching frontend and backend release before granting
+Viewer access to the pilot group:
+
+- [ ] In an Administrator session, change an account holding one Promotion to
+      Viewer. In its existing browser session, confirm the promotion stays
+      readable, including notes, KPIs, retro, and expanded RACI/task details.
+- [ ] Confirm task fields, status, assignments, brand changes, KPI cells, and
+      retros have no editing controls. Task expansion and navigation still work.
+- [ ] Confirm a sibling Promotion and ungranted ancestor content remain hidden;
+      Manage, Directory, and security audit data remain inaccessible.
+- [ ] With an Editor's field or RACI picker open, change that account to Viewer.
+      Its edit controls disappear, and a direct work mutation is refused.
+- [ ] Change the account back to Editor. Confirm its original grants and work
+      editing return. Confirm both role changes appear in the access audit feed.
+- [ ] Give a zero-grant Viewer a scope, then revoke it with the browser open.
+      Confirm the account enters and leaves the awaiting-access queue correctly.
+- [ ] Confirm deactivation denies the Viewer's reads and reactivation restores
+      read-only access. Confirm the last Administrator cannot become a Viewer.
+
+Record the release, date, and tester. These live runs have not been completed
+by the automated rendering and backend tests.

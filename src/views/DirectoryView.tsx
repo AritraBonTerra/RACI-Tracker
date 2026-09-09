@@ -16,6 +16,7 @@ import {
   Skeleton,
 } from "../components/ui";
 import { formatStamp } from "../lib/dates";
+import { USER_ROLE_LABELS, type UserRole } from "../lib/domain";
 import { useReportedMutation } from "../lib/toast";
 
 // The Directory (#34): people-first access administration. The roster on the
@@ -139,11 +140,9 @@ function SignalPills({ account }: { account: Account }) {
   }
   return (
     <>
-      {account.role === "administrator" && (
-        <Pill className="bg-sand-400/15 text-sand-300 ring-1 ring-sand-500/40 ring-inset">
-          Administrator
-        </Pill>
-      )}
+      <Pill className="bg-ink-800 text-ink-300 ring-1 ring-ink-700 ring-inset">
+        {USER_ROLE_LABELS[account.role]}
+      </Pill>
       {!account.canSignIn && (
         <Pill
           title="The email-domain gate refuses the address this account last signed in with — outside the domain, or not verified — so it cannot sign in until that changes or the gate does."
@@ -207,7 +206,7 @@ function AccountPane({ userId, onGrant }: { userId: Id<"users">; onGrant: () => 
         <RoleSection detail={detail} />
         {/* An Administrator's grants are dormant, not gone — a promoted Member
             gets them back on demotion, so they stay on screen. */}
-        {(detail.role === "member" || detail.grants.length > 0) && (
+        {(detail.role !== "administrator" || detail.grants.length > 0) && (
           <GrantsSection detail={detail} onGrant={onGrant} />
         )}
 
@@ -331,28 +330,39 @@ function PersonLink({ detail }: { detail: Detail }) {
 function RoleSection({ detail }: { detail: Detail }) {
   const setRole = useReportedMutation(api.directory.setRole);
   const locked = detail.isLastActiveAdministrator;
-  const next = detail.role === "administrator" ? "member" : "administrator";
+  const descriptions: Record<UserRole, string> = {
+    administrator: "Manages all work, accounts, and permissions.",
+    member:
+      "Reads and edits work in granted scopes. Hierarchy and reference data are managed by Administrators.",
+    viewer:
+      "Reads all work details in granted scopes, including notes and KPIs. Cannot edit, assign, or delete work.",
+  };
 
   return (
     <div className="flex flex-col gap-1.5">
       <SectionLabel>Role</SectionLabel>
+      <p className="text-xs text-ink-200">
+        {USER_ROLE_LABELS[detail.role]} · {descriptions[detail.role]}
+      </p>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-ink-200">
-          {detail.role === "administrator"
-            ? "Administrator — reaches and manages everything"
-            : "Member — sees granted scopes only"}
-        </span>
-        {detail.isActive && (
-          <Button
-            size="xs"
-            disabled={locked}
-            title={locked ? "The last active Administrator can't be demoted" : undefined}
-            onClick={() => void setRole({ userId: detail.userId, role: next })}
-          >
-            {next === "member" ? "Make Member" : "Make Administrator"}
-          </Button>
-        )}
+        {detail.isActive &&
+          (Object.keys(USER_ROLE_LABELS) as UserRole[])
+            .filter((role) => role !== detail.role)
+            .map((role) => (
+              <Button
+                key={role}
+                size="xs"
+                disabled={locked}
+                title={locked ? "The last active Administrator can't be demoted" : undefined}
+                onClick={() => void setRole({ userId: detail.userId, role })}
+              >
+                Make {USER_ROLE_LABELS[role]}
+              </Button>
+            ))}
       </div>
+      <p className="text-3xs text-ink-500">
+        Changing the role preserves existing scope grants. RACI assignments do not grant access.
+      </p>
       {locked && (
         <p className="text-3xs text-rose-300">
           This is the last active Administrator — promote someone else before demoting or
@@ -401,7 +411,7 @@ function GrantsSection({ detail, onGrant }: { detail: Detail; onGrant: () => voi
       )}
       {/* An Administrator already reaches everything, so the server refuses to
           give them a grant. No button for a refusal. */}
-      {detail.role === "member" && (
+      {detail.role !== "administrator" && (
         <Button size="xs" variant="ghost" className="self-start" onClick={onGrant}>
           + Grant access
         </Button>

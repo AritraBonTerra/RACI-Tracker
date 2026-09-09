@@ -253,3 +253,19 @@ Vercel project's environment variables and rollback control, the merge to
 `main`, anything run with `--prod`, and the manual half of the acceptance
 checklist — the sign-in and session screens, the domain gate, and the rollback
 drill.
+
+
+## Adding Viewer access
+
+Deploy the Viewer-capable backend and matching frontend before assigning the
+new role. The schema adds `viewer` alongside `administrator` and the existing
+`member` value. The UI calls `member` Editor; existing accounts and grants need
+no migration. The default first-sign-in account remains an Editor with no grants.
+
+Run the Viewer acceptance checklist in `acceptance.md`. Do not roll back to a
+schema that omits `viewer` while Viewer accounts exist. A rollback target must
+also enforce the Viewer write restriction: the earlier authenticated backend
+allows every active role through its ordinary mutation wrapper. Keeping only
+the new schema with that older code would permit Viewer writes. Use a tested
+Viewer-capable recovery release, or contain backend access while repairing the
+release. A frontend-only rollback does not restore backend authorization.

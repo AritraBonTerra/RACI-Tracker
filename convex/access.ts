@@ -21,9 +21,9 @@ import type { accessScope } from "./schema";
 //
 // The shape of the boundary:
 //
-//   authedQuery / authedMutation   a signed-in, active User; injects `viewer`
-//                                  (and, for mutations, the `stamp` every
-//                                  ordinary record edit carries)
+//   authedQuery                    a signed-in, active User; injects `viewer`
+//   authedMutation                 an active Editor or Administrator; injects
+//                                  `viewer` and the ordinary-edit `stamp`
 //   adminQuery / adminMutation     the same, and `viewer.role` is administrator
 //   me                             the one query that answers for callers who
 //                                  are *not* signed in, so the UI can render
@@ -296,6 +296,8 @@ export const authedMutation = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
     const viewer = await requireViewer(ctx);
+    // Re-read on every mutation, including calls from an already-open editor.
+    if (viewer.role !== "administrator" && viewer.role !== "member") deny();
     return { viewer, scope: await scopeOf(ctx, viewer), stamp: stampFor(viewer) };
   }),
 );
@@ -605,14 +607,14 @@ export async function scopesOf(ctx: QueryCtx, userId: Id<"users">): Promise<Acce
 type Landing = { kind: "dashboard" } | { kind: "promotion"; promotionId: Id<"promotions"> };
 
 /**
- * A Member whose whole world is one Promotion skips the dashboard and lands on
+ * An Editor or Viewer holding only one Promotion skips the dashboard and lands on
  * it — for them the dashboard would be a page-long restatement of one card.
  * Two grants, a Chain Plan, a Plan Year, or the Administrator role all mean
  * there is something to survey, so the dashboard is the door.
  */
 function landingFor(role: Viewer["role"], scopes: readonly AccessScope[]): Landing {
   const [only, ...rest] = scopes;
-  if (role === "member" && rest.length === 0 && only?.tier === "promotion") {
+  if (role !== "administrator" && rest.length === 0 && only?.tier === "promotion") {
     return { kind: "promotion", promotionId: only.promotionId };
   }
   return { kind: "dashboard" };
@@ -834,7 +836,7 @@ export async function setUserRole(
   actor: Actor,
 ): Promise<boolean> {
   if (user.role === role) return false;
-  if (role === "member" && (await isLastActiveAdministrator(ctx, user, actor))) {
+  if (role !== "administrator" && (await isLastActiveAdministrator(ctx, user, actor))) {
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 

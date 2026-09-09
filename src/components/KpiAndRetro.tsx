@@ -4,6 +4,7 @@ import { type KeyboardEvent, type ReactNode, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { useReportedMutation } from "../lib/toast";
+import { useCanEditWork } from "./AuthGate";
 import { displayClass, editorClass, focusAndSelect, InlineText } from "./inline";
 import { editorOf, LastEdited, type Stamped } from "./page";
 import { Panel, Skeleton } from "./ui";
@@ -119,6 +120,7 @@ function upliftTone(absolute: number): string {
 // --- Phase 7 --------------------------------------------------------------
 
 export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
+  const canEdit = useCanEditWork();
   const board = useQuery(api.kpi.board, { promotionId });
   const setMetric = useReportedMutation(api.kpi.setMetric);
 
@@ -147,8 +149,11 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
       {filled === 0 && (
         <p className="border-b border-ink-800/70 bg-ink-950/40 px-4 py-2.5 text-xs text-ink-400">
           <span className="font-medium text-ink-200">No numbers yet.</span> These five rows are the
-          deck's slide-14 grid — click any figure below and type what the report says. Uplift works
-          itself out.
+          deck's slide-14 grid.{" "}
+          {canEdit
+            ? "Click a figure to enter the report values."
+            : "Values will appear when an Editor enters them."}{" "}
+          Uplift is calculated from the values.
         </p>
       )}
       {/* Five rows against three number columns: on a phone the table keeps its
@@ -219,10 +224,12 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
           </tbody>
         </table>
       </div>
-      <p className="border-t border-ink-800/70 px-4 py-2 text-2xs text-ink-600">
-        Click a figure to type it. Click the uplift column to override the calculation with a
-        sentence — useful on the investment row, where the answer is a return, not a difference.
-      </p>
+      {canEdit && (
+        <p className="border-t border-ink-800/70 px-4 py-2 text-2xs text-ink-600">
+          Click a figure to type it. Click the uplift column to override the calculation with a
+          sentence — useful on the investment row, where the answer is a return, not a difference.
+        </p>
+      )}
     </Panel>
   );
 }
@@ -296,6 +303,7 @@ const VERDICT_OPTIONS = [
 ] as const satisfies ReadonlyArray<{ value: RepeatVerdict | ""; label: string }>;
 
 export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
+  const canEdit = useCanEditWork();
   const board = useQuery(api.kpi.board, { promotionId });
   const save = useReportedMutation(api.kpi.saveRetro);
 
@@ -315,36 +323,42 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
       title="Phase 8 · Retro"
       subtitle="What worked, what didn't, and whether it earns a slot next season."
       actions={
-        <select
-          value={verdict ?? ""}
-          onChange={(event) => {
-            const chosen = VERDICT_OPTIONS.find((option) => option.value === event.target.value);
-            if (chosen === undefined) return;
-            void save({
-              promotionId,
-              repeatNextYear: chosen.value === "" ? null : chosen.value,
-            });
-          }}
-          aria-label="Repeat next year?"
-          className={`h-8 cursor-pointer rounded-md border px-2 text-xs transition focus:outline-none ${
-            verdict === undefined
-              ? "border-ink-700 bg-ink-900 text-ink-400 hover:border-ink-500"
-              : VERDICTS[verdict].className
-          }`}
-        >
-          {VERDICT_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        canEdit ? (
+          <select
+            value={verdict ?? ""}
+            onChange={(event) => {
+              const chosen = VERDICT_OPTIONS.find((option) => option.value === event.target.value);
+              if (chosen === undefined) return;
+              void save({
+                promotionId,
+                repeatNextYear: chosen.value === "" ? null : chosen.value,
+              });
+            }}
+            aria-label="Repeat next year?"
+            className={`h-8 cursor-pointer rounded-md border px-2 text-xs transition focus:outline-none ${
+              verdict === undefined
+                ? "border-ink-700 bg-ink-900 text-ink-400 hover:border-ink-500"
+                : VERDICTS[verdict].className
+            }`}
+          >
+            {VERDICT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-xs text-ink-300">
+            {verdict === undefined ? "Repeat next year: not decided" : VERDICTS[verdict].label}
+          </span>
+        )
       }
     >
       {!written && (
         <p className="border-b border-ink-800/70 bg-ink-950/40 px-4 py-2.5 text-xs text-ink-400">
           <span className="font-medium text-ink-200">No retro written yet.</span> Three boxes,
           written once the window closes — they are what next season's phase 0 gets to start from.
-          Click a box to type into it.
+          {canEdit && "Click a box to type into it."}
         </p>
       )}
       <div className="grid gap-px bg-ink-800 sm:grid-cols-2">
@@ -435,6 +449,13 @@ function NumberCell({
   onCommit: (next: number | null) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const canEdit = useCanEditWork();
+  if (!canEdit)
+    return (
+      <span className="block text-right tabular-nums text-ink-100">
+        {value === undefined ? "—" : format(value)}
+      </span>
+    );
 
   if (draft !== null) {
     const commit = () => {
@@ -486,6 +507,8 @@ function TextCell({
   onCommit: (next: string | null) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const canEdit = useCanEditWork();
+  if (!canEdit) return <span className="block text-right">{display}</span>;
 
   if (draft !== null) {
     const commit = () => {

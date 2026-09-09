@@ -6,6 +6,7 @@ import { PHASES, type PhaseNumber, responsiblesOf, roleLetters } from "../lib/do
 import type { PeopleDirectory } from "../lib/people";
 import { type RaciMatrix, type RaciRole, ROLE_META, useRaciMatrix } from "../lib/raci";
 import { useReportedMutation } from "../lib/toast";
+import { useCanEditWork } from "./AuthGate";
 import { Picker } from "./Picker";
 
 // Assignment, everywhere a task appears. Two rules shape this file:
@@ -167,8 +168,18 @@ export function PersonField({
   onSelect: (next: Id<"people"> | null) => void;
   emptyLabel: string;
 }) {
+  const canEdit = useCanEditWork();
   const person = value === undefined ? undefined : people.byId.get(value);
   const alarming = role === "responsible" && person === undefined;
+  if (!canEdit)
+    return (
+      <span className="text-xs text-ink-300">
+        {person?.name ?? emptyLabel}
+        {person?.function != null && (
+          <span className="block text-3xs text-ink-500">{person.function.name}</span>
+        )}
+      </span>
+    );
 
   return (
     <Picker
@@ -219,6 +230,16 @@ function PersonList({
   /** Whether `personId` should be in the list — stated, not toggled, so repeats are harmless. */
   onChange: (personId: Id<"people">, member: boolean) => void;
 }) {
+  const canEdit = useCanEditWork();
+  if (!canEdit)
+    return (
+      <span className="text-xs text-ink-300">
+        {selected
+          .map((id) => people.byId.get(id)?.name)
+          .filter(Boolean)
+          .join(", ") || "Unassigned"}
+      </span>
+    );
   const alarming = role === "responsible" && selected.length === 0;
 
   return (
@@ -268,6 +289,7 @@ function PersonList({
  * navigation, because the whole point of the rail is to fix things in place.
  */
 export function AssignButton({ task, people }: { task: Doc<"tasks">; people: PeopleDirectory }) {
+  const canEdit = useCanEditWork();
   const setMembership = useReportedMutation(api.tasks.setMembership);
   const matrix = useRaciMatrix();
 
@@ -276,6 +298,15 @@ export function AssignButton({ task, people }: { task: Doc<"tasks">; people: Peo
   // that is the rail's two-click fix — while editing an existing list stays open.
   const selected = responsiblesOf(task);
   const first = selected.length === 0 ? undefined : people.byId.get(selected[0]);
+  if (!canEdit)
+    return (
+      <span className="text-xs text-ink-300">
+        {selected
+          .map((id) => people.byId.get(id)?.name)
+          .filter(Boolean)
+          .join(", ") || "Unassigned"}
+      </span>
+    );
 
   return (
     <Picker

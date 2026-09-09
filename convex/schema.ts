@@ -38,10 +38,13 @@ export const functionKind = v.union(v.literal("internal"), v.literal("external")
 
 // --- Access control (#30) -------------------------------------------------
 
-// The two roles, and the only two there will be (#30: no read-only reviewer).
-// An Administrator can reach and manage everything; a Member sees exactly the
-// union of their Access Assignments and nothing else.
-export const userRole = v.union(v.literal("administrator"), v.literal("member"));
+// `member` is the stored value for Editor, retained for existing accounts.
+// Editors and Viewers share scoped reads; only Editors can change scoped work.
+export const userRole = v.union(
+  v.literal("administrator"),
+  v.literal("member"),
+  v.literal("viewer"),
+);
 
 // The tier an Access Assignment is pinned to. Access flows *down* from here:
 // a Plan Year grant reaches its Chain Plans and their Promotions.

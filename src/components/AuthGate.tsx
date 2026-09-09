@@ -61,6 +61,12 @@ export function useIsAdministrator(): boolean {
   return useViewer().account.role === "administrator";
 }
 
+/** Presentation only; every work mutation enforces this on the backend too. */
+export function useCanEditWork(): boolean {
+  const role = useAccount().role;
+  return role === "administrator" || role === "member";
+}
+
 /** Where the shell opens: the dashboard, or straight into the one Promotion. */
 export function useLanding(): Viewer["landing"] {
   return useViewer().landing;
@@ -154,9 +160,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     case "deactivated":
       return <DeactivatedScreen email={me.account.email} />;
     case "active":
-      // A Member with no Access Assignments has nothing to render yet — an
+      // An Editor or Viewer with no Access Assignments waits for a grant — an
       // Administrator's grant is the next step, not a bug.
-      if (me.account.role === "member" && me.scopes.length === 0) {
+      if (me.account.role !== "administrator" && me.scopes.length === 0) {
         return <NoAccessScreen email={me.account.email} />;
       }
       return <ViewerContext.Provider value={me}>{children}</ViewerContext.Provider>;

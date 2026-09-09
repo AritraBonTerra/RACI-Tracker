@@ -1,4 +1,5 @@
 import { type KeyboardEvent, type ReactNode, useState } from "react";
+import { useCanEditWork } from "./AuthGate";
 
 // Click-to-edit fields. Every value on a checklist row is editable in place:
 // during a live review the fix has to be one click away, not behind a form.
@@ -35,7 +36,15 @@ export function InlineText({
   className?: string;
   title?: string;
 }) {
+  const canEdit = useCanEditWork();
   const [draft, setDraft] = useState<string | null>(null);
+  if (!canEdit) {
+    return (
+      <span className={`block whitespace-pre-wrap ${className}`}>
+        {value?.trim() ? value : "Not set"}
+      </span>
+    );
+  }
 
   if (draft !== null) {
     const commit = () => {
@@ -101,7 +110,16 @@ export function InlineNumber({
   /** What the number is ("Quantity"), so an empty cell has a name and not just a dash. */
   label?: string;
 }) {
+  const canEdit = useCanEditWork();
   const [draft, setDraft] = useState<string | null>(null);
+  if (!canEdit) {
+    return (
+      <span title={label} className={`block text-right tabular-nums ${className}`}>
+        {value ?? "Not set"}
+        {value !== undefined && suffix}
+      </span>
+    );
+  }
 
   if (draft !== null) {
     const commit = () => {
@@ -162,7 +180,15 @@ export function InlineDate({
   placeholder?: string;
   className?: string;
 }) {
+  const canEdit = useCanEditWork();
   const [draft, setDraft] = useState<string | null>(null);
+  if (!canEdit) {
+    return (
+      <span className={`block ${className}`}>
+        {value === undefined ? placeholder : (render?.(value) ?? value)}
+      </span>
+    );
+  }
 
   if (draft !== null) {
     const commit = () => {
@@ -213,6 +239,13 @@ export function InlineSelect<Value extends string>({
   className?: string;
   title?: string;
 }) {
+  const canEdit = useCanEditWork();
+  if (!canEdit)
+    return (
+      <span className={className}>
+        {options.find((option) => option.value === value)?.label ?? value}
+      </span>
+    );
   return (
     <select
       title={title}

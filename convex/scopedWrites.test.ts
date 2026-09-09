@@ -1039,3 +1039,21 @@ test("the demo arc still runs end to end under an Administrator identity", async
 
   expect(await as.query(api.seasons.overview, { seasonId, today: "2028-06-15" })).toBeNull();
 });
+
+test("a Viewer with a whole Plan Year grant is refused by every work mutation", async () => {
+  const { t, as, handles } = await stage();
+  const userId = await t.withIdentity(YEAR_MEMBER).mutation(api.access.ensureUser, {});
+  if (userId === null) throw new Error("Missing user");
+  await as.mutation(api.directory.setRole, { userId, role: "viewer" });
+  const viewer = t.withIdentity(YEAR_MEMBER);
+  const before = await viewer.query(api.promotions.get, {
+    promotionId: handles.promotionId,
+    today: TODAY,
+  });
+  const results = await outcomes(everyWrite(viewer, handles));
+  for (const [name, result] of Object.entries(results))
+    expect({ name, result }).toEqual({ name, result: DENIED });
+  expect(
+    await viewer.query(api.promotions.get, { promotionId: handles.promotionId, today: TODAY }),
+  ).toEqual(before);
+});
