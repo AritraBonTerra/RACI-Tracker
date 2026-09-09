@@ -202,9 +202,11 @@ export function TaskRow({
           </div>
 
           {/* Reordering and deleting stay out of the way of reading until the
-              row is under the cursor — but a touch screen has no cursor. */}
+              row is under the cursor — but a touch screen has no cursor. Sized
+              by its three buttons, not a fixed width: a narrower box would
+              spill them leftward over the status pill. */}
           {canEdit && (
-            <div className="ml-auto flex shrink-0 justify-end gap-0.5 opacity-100 transition group-hover:opacity-100 focus-within:opacity-100 sm:w-16 sm:opacity-0">
+            <div className="ml-auto flex shrink-0 justify-end gap-0.5 opacity-100 transition group-hover:opacity-100 focus-within:opacity-100 sm:opacity-0">
               <Button
                 variant="ghost"
                 size="xs"
