@@ -916,3 +916,81 @@ test("an account with no name claims still has a row and a Person link", async (
     (await as.query(api.directory.account, { userId: entry?.userId as Id<"users"> }))?.person,
   ).toMatchObject({ name: "Carol Diaz" });
 });
+
+test("Viewers cannot administer accounts or read security history", async () => {
+  const { t, seasonId } = await world();
+  const userId = await userIdOf(t, YEAR_MEMBER.email);
+  await t.withIdentity(ADMIN).mutation(api.directory.setRole, { userId, role: "viewer" });
+  const viewer = t.withIdentity(YEAR_MEMBER);
+  expect(Object.values(await directoryReads(viewer, userId))).toEqual(Array(5).fill("refused"));
+  expect(
+    Object.values(await directoryWrites(viewer, userId, { tier: "season", seasonId })),
+  ).toEqual(Array(5).fill("refused"));
+});
+
+test("Viewer and Editor transitions preserve grants and change writes on the next call", async () => {
+  const { t, promotions, carol } = await world();
+  const as = t.withIdentity(ADMIN);
+  const caller = t.withIdentity(PROMO_MEMBER);
+  const userId = await userIdOf(t, PROMO_MEMBER.email);
+  const promotionId = promotions["Gift Sets"];
+  await as.mutation(api.directory.linkPerson, { userId, personId: carol });
+  const accessBefore = await caller.query(api.directory.myAccess, {});
+  const write = () =>
+    caller.mutation(api.promotions.update, { promotionId, notes: "Still editable" });
+  await write();
+  await as.mutation(api.directory.setRole, { userId, role: "viewer" });
+  await caller.mutation(api.access.ensureUser, {});
+  await expect(write()).rejects.toThrow("You don't have access to this.");
+  expect((await caller.query(api.directory.myAccess, {})).scopes).toEqual(accessBefore.scopes);
+  expect(await caller.query(api.access.me, {})).toMatchObject({ account: { role: "viewer" } });
+  await as.mutation(api.directory.setActive, { userId, isActive: false });
+  await expect(caller.query(api.promotions.get, { promotionId, today: TODAY })).rejects.toThrow();
+  await as.mutation(api.directory.setActive, { userId, isActive: true });
+  await expect(write()).rejects.toThrow();
+  await as.mutation(api.directory.setRole, { userId, role: "member" });
+  await write();
+  expect((await caller.query(api.directory.myAccess, {})).scopes).toEqual(accessBefore.scopes);
+  const events = await as.query(api.directory.auditFeed, { userId });
+  expect(
+    events.filter((event) => event.action === "role_changed").map((event) => event.detail),
+  ).toEqual(["viewer -> member", "member -> viewer"]);
+});
+
+test("an awaiting Viewer can receive a grant and returns to waiting after revocation", async () => {
+  const { t, promotions } = await world();
+  const as = t.withIdentity(ADMIN);
+  const caller = t.withIdentity(NEWCOMER);
+  const userId = await userIdOf(t, NEWCOMER.email);
+  await as.mutation(api.directory.setRole, { userId, role: "viewer" });
+  expect(await as.query(api.directory.awaitingCount, {})).toBe(1);
+  expect(entryFor(await as.query(api.directory.roster, {}), NEWCOMER.email).awaitingAccess).toBe(
+    true,
+  );
+  const scope = { tier: "promotion" as const, promotionId: promotions["Gift Sets"] };
+  await as.mutation(api.directory.grant, { userId, scope });
+  expect(await as.query(api.directory.awaitingCount, {})).toBe(0);
+  expect(
+    await caller.query(api.promotions.get, { promotionId: scope.promotionId, today: TODAY }),
+  ).not.toBeNull();
+  await as.mutation(api.directory.revoke, { userId, scope });
+  expect(
+    await caller.query(api.promotions.get, { promotionId: scope.promotionId, today: TODAY }),
+  ).toBeNull();
+  expect(await caller.query(api.access.me, {})).toMatchObject({
+    account: { role: "viewer" },
+    scopes: [],
+  });
+  expect(await as.query(api.directory.awaitingCount, {})).toBe(1);
+});
+
+test("the last Administrator cannot become a Viewer", async () => {
+  const { t } = await world();
+  const userId = await userIdOf(t, ADMIN.email);
+  await expect(
+    t.withIdentity(ADMIN).mutation(api.directory.setRole, { userId, role: "viewer" }),
+  ).rejects.toThrow("last active Administrator");
+  expect(await t.withIdentity(ADMIN).query(api.access.me, {})).toMatchObject({
+    account: { role: "administrator" },
+  });
+});

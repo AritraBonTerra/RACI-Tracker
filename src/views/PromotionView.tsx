@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { Fragment, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { useIsAdministrator } from "../components/AuthGate";
+import { useCanEditWork, useIsAdministrator } from "../components/AuthGate";
 import { BrandToggles } from "../components/BrandToggles";
 import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { KpiTable, RetroPanel } from "../components/KpiAndRetro";
@@ -47,6 +47,7 @@ export function PromotionView({
   // Deleting a Promotion is an Administrator's alone (#22). For a
   // promotion-only Member it would also delete their own way back in.
   const isAdministrator = useIsAdministrator();
+  const canEdit = useCanEditWork();
 
   if (data === undefined) return <TierSkeleton />;
   if (data === null) return <NotFound />;
@@ -161,9 +162,11 @@ export function PromotionView({
                     </Pill>
                   ))
                 )}
-                <Button variant="ghost" size="xs" onClick={() => setEditingBrands(true)}>
-                  Edit
-                </Button>
+                {canEdit && (
+                  <Button variant="ghost" size="xs" onClick={() => setEditingBrands(true)}>
+                    Edit
+                  </Button>
+                )}
               </span>
             </MetaItem>
             <LastEdited record={data.promotion} editors={data.editors} />
@@ -212,7 +215,7 @@ export function PromotionView({
         </Fragment>
       ))}
 
-      {editingBrands && (
+      {canEdit && editingBrands && (
         <BrandPickerModal
           promotionId={promotionId}
           selected={data.promotion.brandIds}

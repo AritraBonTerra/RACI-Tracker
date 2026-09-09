@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { returnToUrl, useSignOut } from "../lib/auth";
+import { USER_ROLE_LABELS, type UserRole } from "../lib/domain";
 import { Button, Pill } from "./ui";
 
 // Every screen the app shows *outside* itself: the sign-in card, the three dead
@@ -276,7 +277,7 @@ export function AccountMenu({
 }: {
   displayName?: string;
   email?: string;
-  role: "administrator" | "member";
+  role: UserRole;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -325,7 +326,7 @@ export function AccountMenu({
           {email !== undefined && <p className="truncate text-2xs text-ink-500">{email}</p>}
           <div className="mt-2 flex flex-wrap items-center gap-1.5">
             <Pill className="bg-ink-800 text-ink-300 ring-1 ring-ink-700 ring-inset">
-              {role === "administrator" ? "Administrator" : "Member"}
+              {USER_ROLE_LABELS[role]}
             </Pill>
           </div>
           <MyScopes open={open} role={role} />
@@ -347,7 +348,7 @@ export function AccountMenu({
  * Asked only while the menu is open: a scope list nobody is looking at is a
  * subscription on every page for a line of text behind a click.
  */
-function MyScopes({ open, role }: { open: boolean; role: "administrator" | "member" }) {
+function MyScopes({ open, role }: { open: boolean; role: UserRole }) {
   const mine = useQuery(api.directory.myAccess, open ? {} : "skip");
   if (role === "administrator") {
     return <p className="mt-2 text-2xs text-ink-500">Reaches every plan year in full.</p>;

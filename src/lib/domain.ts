@@ -16,6 +16,12 @@ export const CONTEXT_HINT = "Shown for context — you don't have access to this
 
 export type PhaseNumber = Doc<"tasks">["phase"];
 export type TaskStatus = Doc<"tasks">["status"];
+export type UserRole = Doc<"users">["role"];
+export const USER_ROLE_LABELS: Record<UserRole, string> = {
+  administrator: "Administrator",
+  member: "Editor",
+  viewer: "Viewer",
+};
 
 type PhaseMeta = {
   title: string;

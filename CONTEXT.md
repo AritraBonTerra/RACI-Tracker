@@ -31,16 +31,22 @@ conversation.
 - **Person** — a named human belonging to a Function. Created in-app; never a
   login account. A Person may be *linked* to a User, which is orientation, not
   access — RACI names People and never grants anything.
-- **User** — one signed-in identity, created on first sign-in and never
-  pre-provisioned. Either an **Administrator** (reaches and manages
-  everything) or a **Member** (sees exactly their Access Assignments). Active
-  or deactivated; deactivation is the immediate kill switch and preserves the
-  role and grants a reactivation restores.
-- **Access Assignment** — one Member granted one Plan Year, Chain Plan, or
-  Promotion. Access flows *down* the hierarchy, a Member's access is the union
-  of their assignments, and overlapping assignments are harmless. Records
-  outside them are absent, not greyed out: an out-of-scope link answers exactly
-  as a deleted one does.
+- **User**: A signed-in identity with an Administrator, Editor, or Viewer role,
+  created on first sign-in. Deactivation denies access while preserving the role
+  and grants for reactivation.
+- **Administrator**: A User who manages all work, accounts, permissions,
+  hierarchy, and reference data.
+- **Editor**: A User who reads and updates work within their Access Assignments,
+  including creating, assigning, and deleting tasks. Hierarchy and reference-data
+  management remain Administrator-only.
+  _Avoid_: Member.
+- **Viewer**: A User who reads all work details within their Access Assignments,
+  including notes and KPIs, but cannot edit, assign, or delete work. Account
+  administration and security audit history remain Administrator-only.
+- **Access Assignment**: A grant to an Editor or Viewer for one Plan Year,
+  Chain Plan, or Promotion, flowing down to its descendants. Access is the union
+  of all assignments; changing a role preserves the assignments, and RACI
+  assignments grant no access.
 - **Reach** — how far a viewer sees one record of the hierarchy, and the only
   three states the interface has for it. **Full**: the record and its content —
   a link, its checklist, its rollups. **Context**: an ancestor of something

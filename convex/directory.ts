@@ -118,7 +118,7 @@ async function grantsOf(ctx: QueryCtx, userId: Id<"users">) {
  * it never reaches the "access comes next" screen, so it is not waiting there.
  */
 function isAwaitingAccess(user: Doc<"users">, scopes: readonly AccessScope[]): boolean {
-  return canSignIn(user) && user.role === "member" && scopes.length === 0;
+  return canSignIn(user) && user.role !== "administrator" && scopes.length === 0;
 }
 
 /** Everything the roster row and the detail header both need. */
@@ -183,13 +183,12 @@ export const roster = adminQuery({
 export const awaitingCount = adminQuery({
   args: {},
   handler: async (ctx) => {
-    // Expanding scopes is the expensive half, and only an active Member can be
-    // awaiting, so the cheap half of the predicate narrows the set first.
-    const members = (await ctx.db.query("users").collect()).filter(
-      (user) => user.isActive && user.role === "member",
+    // Only active non-Administrators can be awaiting grants.
+    const scopedUsers = (await ctx.db.query("users").collect()).filter(
+      (user) => user.isActive && user.role !== "administrator",
     );
-    const scopes = await Promise.all(members.map((user) => scopesOf(ctx, user._id)));
-    return members.filter((user, index) => isAwaitingAccess(user, scopes[index])).length;
+    const scopes = await Promise.all(scopedUsers.map((user) => scopesOf(ctx, user._id)));
+    return scopedUsers.filter((user, index) => isAwaitingAccess(user, scopes[index])).length;
   },
 });
 

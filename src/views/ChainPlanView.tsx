@@ -217,7 +217,7 @@ export function ChainPlanView({
         />
       ))}
 
-      {creating && (
+      {isAdministrator && creating && (
         <NewPromotionModal
           chainPlanId={chainPlanId}
           chainName={data.chain.name}

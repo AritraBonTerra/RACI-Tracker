@@ -657,3 +657,53 @@ test("an Administrator still reads the whole tree", async () => {
   });
   expect(Object.values(results).some((value) => value === "refused")).toBe(false);
 });
+
+test.each([YEAR_MEMBER, PLAN_MEMBER, PROMO_MEMBER, NEWCOMER])(
+  "Viewer reads match Editor reads for $subject, including scoped details and hidden records",
+  async (identity) => {
+    const { t, seasonId, plans, promotions, carol } = await world();
+    const as = t.withIdentity(ADMIN);
+    const promotionId = promotions["Gift Sets"];
+    await as.mutation(api.promotions.update, { promotionId, notes: "Visible promotion notes" });
+    await as.mutation(api.kpi.setMetric, {
+      promotionId,
+      metric: "investment",
+      baseline: 100,
+      promotional: 150,
+      note: "Visible KPI note",
+    });
+    await as.mutation(api.kpi.saveRetro, { promotionId, worked: "Visible retro" });
+    const caller = t.withIdentity(identity);
+    const userId = await caller.mutation(api.access.ensureUser, {});
+    if (userId === null) throw new Error("Missing user");
+    const snapshot = async () => ({
+      assigned: await reads(caller, { seasonId, chainPlanId: plans.Albertsons, promotionId }),
+      sibling: await reads(caller, {
+        seasonId,
+        chainPlanId: plans.Kroger,
+        promotionId: promotions["Spring Rosé"],
+      }),
+      directory: await caller.query(api.people.directory, { today: TODAY }),
+      workload: await caller.query(api.people.workload, { personId: carol, today: TODAY }),
+    });
+    const before = await snapshot();
+    await as.mutation(api.directory.setRole, { userId, role: "viewer" });
+    expect(await snapshot()).toEqual(before);
+    if (identity === PROMO_MEMBER) {
+      const page = await caller.query(api.promotions.get, { promotionId, today: TODAY });
+      expect(page?.promotion.notes).toBe("Visible promotion notes");
+      const kpi = await caller.query(api.kpi.board, { promotionId });
+      expect(kpi?.metrics[0].note).toBe("Visible KPI note");
+      expect(kpi?.retro?.worked).toBe("Visible retro");
+      expect(
+        await caller.query(api.promotions.get, {
+          promotionId: promotions["Spring Rosé"],
+          today: TODAY,
+        }),
+      ).toBeNull();
+      expect(await caller.query(api.access.me, {})).toMatchObject({
+        landing: { kind: "promotion", promotionId },
+      });
+    }
+  },
+);

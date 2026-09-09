@@ -56,8 +56,14 @@ break-glass live in `convex/bootstrap.ts` as internal functions, reachable only
 with deploy credentials.
 
 Reads answer over the caller's Access Assignments and writes obey the same
-scope: a Member has full task control and in-scope field editing, while managing
+scope: an Editor has full task control and in-scope field editing, while managing
 the hierarchy, the reference data and the People directory is Administrator-only.
+A Viewer has the same scoped reads, including notes and KPIs, but every work
+mutation is refused. New accounts default to Editor with no grants. Existing
+`member` records retain that stored value and are labeled Editor in the UI;
+`viewer` is the additional stored role, so no account migration is needed.
+Changing between Editor and Viewer preserves all grants. Administrator-only
+operations and security audit reads remain Administrator-only.
 *Reading* reference data — People, Functions, Brands, the RACI matrix — is open
 to every signed-in account, because a picker that hid half the company would
 name the wrong owner; that is what the optional `ALLOWED_EMAIL_DOMAIN` gate is

@@ -7,6 +7,7 @@ import { isOverdue } from "../lib/dates";
 import { PHASES, type PhaseNumber, roleLetters } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
+import { useCanEditWork } from "./AuthGate";
 import type { Editors } from "./page";
 import { TaskRow } from "./TaskRow";
 import { Button, EmptyState, inputClass } from "./ui";
@@ -40,6 +41,7 @@ export function PhaseChecklist({
   /** The row a needs-attention link pointed at, if it lives in this phase. */
   focusTaskId?: Id<"tasks">;
 }) {
+  const canEdit = useCanEditWork();
   const rows = tasks.filter((task) => task.phase === phase);
   const meta = PHASES[phase];
 
@@ -96,7 +98,7 @@ export function PhaseChecklist({
         <EmptyState
           title={`Nothing on the phase ${phase} checklist`}
           action={
-            adding ? undefined : (
+            adding || !canEdit ? undefined : (
               <Button variant="primary" size="md" onClick={() => setAdding(true)}>
                 Add the first task
               </Button>
@@ -134,7 +136,7 @@ export function PhaseChecklist({
         ))
       )}
 
-      <AddTaskForm phase={phase} owner={owner} open={adding} onOpen={setAdding} />
+      {canEdit && <AddTaskForm phase={phase} owner={owner} open={adding} onOpen={setAdding} />}
     </section>
   );
 }

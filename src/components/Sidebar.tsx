@@ -203,7 +203,7 @@ export function Sidebar({
       <GroupLabel>Reference</GroupLabel>
       <ReferenceLinks route={route} isAdministrator={isAdministrator} />
 
-      {creating && (
+      {isAdministrator && creating && (
         <NewChainPlanModal
           seasonId={tree.season._id}
           seasonLabel={tree.season.label}

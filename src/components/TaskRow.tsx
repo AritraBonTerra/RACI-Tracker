@@ -5,6 +5,7 @@ import { dueLabel, formatDay, isOverdue } from "../lib/dates";
 import { STATUS_ORDER, STATUSES, type TaskStatus } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
+import { useCanEditWork } from "./AuthGate";
 import { InlineDate, InlineNumber, InlineText } from "./inline";
 import { type Editors, LastEdited } from "./page";
 import { AssignButton, RaciEditor } from "./RaciEditor";
@@ -34,6 +35,7 @@ export function TaskRow({
   /** Arrived here from a needs-attention link: open the row and scroll to it. */
   focused?: boolean;
 }) {
+  const canEdit = useCanEditWork();
   const update = useReportedMutation(api.tasks.update);
   const setStatus = useReportedMutation(api.tasks.setStatus);
   const remove = useReportedMutation(api.tasks.remove);
@@ -106,7 +108,7 @@ export function TaskRow({
             />
           </div>
 
-          {task.status === "blocked" && blockDraft === null && (
+          {task.status === "blocked" && (blockDraft === null || !canEdit) && (
             <p className="mt-1.5 flex items-start gap-1.5 rounded-md bg-rose-500/10 px-2 py-1 text-xs text-rose-200 ring-1 ring-rose-500/40 ring-inset">
               <span className="font-semibold tracking-wide uppercase">Blocked</span>
               <InlineText
@@ -120,7 +122,7 @@ export function TaskRow({
             </p>
           )}
 
-          {blockDraft !== null && (
+          {canEdit && blockDraft !== null && (
             <BlockReasonPrompt
               draft={blockDraft}
               onDraft={setBlockDraft}
@@ -173,55 +175,65 @@ export function TaskRow({
           </div>
 
           <div className="shrink-0 pt-0.5">
-            <select
-              value={task.status}
-              onChange={(event) => {
-                const next = STATUS_ORDER.find((option) => option === event.target.value);
-                if (next !== undefined) changeStatus(next);
-              }}
-              aria-label={`Status — ${task.name}`}
-              title="Status"
-              className={`h-7 cursor-pointer appearance-none rounded-full pr-2 pl-2.5 text-2xs font-medium focus:outline-none ${status.pill}`}
-            >
-              {STATUS_ORDER.map((option) => (
-                <option key={option} value={option} className="bg-ink-900 text-ink-100">
-                  {STATUSES[option].label}
-                </option>
-              ))}
-            </select>
+            {canEdit ? (
+              <select
+                value={task.status}
+                onChange={(event) => {
+                  const next = STATUS_ORDER.find((option) => option === event.target.value);
+                  if (next !== undefined) changeStatus(next);
+                }}
+                aria-label={`Status — ${task.name}`}
+                title="Status"
+                className={`h-7 cursor-pointer appearance-none rounded-full pr-2 pl-2.5 text-2xs font-medium focus:outline-none ${status.pill}`}
+              >
+                {STATUS_ORDER.map((option) => (
+                  <option key={option} value={option} className="bg-ink-900 text-ink-100">
+                    {STATUSES[option].label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span
+                className={`inline-block rounded-full px-2.5 py-1 text-2xs font-medium ${status.pill}`}
+              >
+                {status.label}
+              </span>
+            )}
           </div>
 
           {/* Reordering and deleting stay out of the way of reading until the
               row is under the cursor — but a touch screen has no cursor. */}
-          <div className="ml-auto flex shrink-0 justify-end gap-0.5 opacity-100 transition group-hover:opacity-100 focus-within:opacity-100 sm:w-16 sm:opacity-0">
-            <Button
-              variant="ghost"
-              size="xs"
-              className="px-1"
-              disabled={isFirst}
-              title="Move up"
-              aria-label="Move up"
-              onClick={() => void move({ taskId: task._id, direction: "up" })}
-            >
-              ↑
-            </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="px-1"
-              disabled={isLast}
-              title="Move down"
-              aria-label="Move down"
-              onClick={() => void move({ taskId: task._id, direction: "down" })}
-            >
-              ↓
-            </Button>
-            <ConfirmButton
-              label="✕"
-              confirmLabel="Delete?"
-              onConfirm={() => void remove({ taskId: task._id })}
-            />
-          </div>
+          {canEdit && (
+            <div className="ml-auto flex shrink-0 justify-end gap-0.5 opacity-100 transition group-hover:opacity-100 focus-within:opacity-100 sm:w-16 sm:opacity-0">
+              <Button
+                variant="ghost"
+                size="xs"
+                className="px-1"
+                disabled={isFirst}
+                title="Move up"
+                aria-label="Move up"
+                onClick={() => void move({ taskId: task._id, direction: "up" })}
+              >
+                ↑
+              </Button>
+              <Button
+                variant="ghost"
+                size="xs"
+                className="px-1"
+                disabled={isLast}
+                title="Move down"
+                aria-label="Move down"
+                onClick={() => void move({ taskId: task._id, direction: "down" })}
+              >
+                ↓
+              </Button>
+              <ConfirmButton
+                label="✕"
+                confirmLabel="Delete?"
+                onConfirm={() => void remove({ taskId: task._id })}
+              />
+            </div>
+          )}
         </div>
       </div>
 
