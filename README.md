@@ -82,7 +82,31 @@ its scenarios; the actions themselves live in `convex/access.ts`, shared with
 the deploy-credential CLI, so clicking and typing cannot mean different things.
 `docs/runbooks/access-administration.md` is how to run it.
 
+### Assigning chains
+
+In Directory, select the signed-in account and choose Viewer for read-only
+access or Editor for task updates. Choose **Grant access**, then the chain's
+**all plan years** option. Repeat for each assigned chain. A chain grant includes
+its existing and future Chain Plans, Promotions, tasks, notes, KPIs and retros.
+The dashboard totals and attention lists use only accessible work. The Plan
+Year label is visible for navigation, but its company-wide phase-0 work is not.
+
+Grants combine. Remove any broader Plan Year or unrelated grants when limiting
+an account to its chains, and do not give it the Administrator role. RACI names
+and Person links do not grant access. Shared People, Functions, Brands and RACI
+reference lists remain readable as described above.
+
+For example, Adam Szabo's screenshot assignment can be configured with Viewer
+and three chain grants: Kroger, Walgreens and ABC Liquors. Match the actual
+signed-in account in Directory; the screenshot alone does not identify it.
+
+The added optional chain assignment field requires deploying the matching
+Convex schema and functions with the frontend. Existing grants need no migration.
+
 ## Deployment
+
+See [development, staging and production](docs/runbooks/environments.md) for the
+three-environment workflow.
 
 `docs/runbooks/cutover.md` is the release that turns sign-in on: the environment
 matrix, the bootstrap drill, rollback, and lockout recovery.
@@ -91,7 +115,7 @@ scenario pointing either at the test that proves it or at the manual run that
 does.
 
 - **Backend**: `bunx convex deploy` pushes functions to the production Convex deployment.
-- **Frontend**: Vercel builds via `vercel.json`, which runs `convex deploy --cmd 'bun run build'`
-  so every Vercel deploy ships the matching backend. Requires a `CONVEX_DEPLOY_KEY`
+- **Frontend**: Vercel builds via `scripts/vercel-build.sh`. Production and the `staging`
+  branch deploy matching Convex code; other previews build only the frontend. Requires a `CONVEX_DEPLOY_KEY`
   (production) environment variable in the Vercel project; `VITE_CONVEX_URL` is injected
   automatically during the build.
