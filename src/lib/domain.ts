@@ -1,6 +1,6 @@
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 
-// Display vocabulary for the domain: the nine phases of the Integrated
+// Display vocabulary for the domain: the eight phases of the Integrated
 // Commercial Cycle and the four task statuses. Kept in one place so the phase
 // number, its title and its colour never drift between views.
 
@@ -29,39 +29,44 @@ type PhaseMeta = {
 };
 
 export const PHASES: Record<PhaseNumber, PhaseMeta> = {
-  0: {
-    title: "Strategic foundation",
-    summary: "Targets, portfolio priorities, brand calendar, trade budget.",
+  "0": {
+    title: "Company Strategic Foundation",
+    summary: "Portfolio priorities, targets, brand calendar, trade budget and ROI.",
   },
-  1: {
-    title: "Internal alignment",
-    summary: "Reason to exist, right to win, spend envelope, negotiation range.",
+  "1": {
+    title: "Strat Acc - Internal Alignment",
+    summary: "Account strategy, buyer intelligence and an approved internal JBP brief.",
   },
-  2: {
-    title: "Distributor alignment",
-    summary: "Joint plan, capability check, incentives, who leads the buyer meeting.",
+  "2": {
+    title: "Strat Acc - Distributor Alignment",
+    summary: "Distributor goals, incentives, logistics and joint planning.",
   },
-  3: {
-    title: "JBP & negotiation",
-    summary: "Business review, the offer, the ask — items, shelf, pricing, calendar.",
+  "3": {
+    title: "JBP Cycle",
+    summary: "Business review, negotiation and signed-off deal terms.",
   },
-  4: { title: "Agreement", summary: "Terms documented and booked; readiness confirmed." },
-  5: {
-    title: "Activation planning",
-    summary: "Stores, mechanics, brand support, distributor execution.",
+  "4": {
+    title: "Activation - Planning",
+    summary: "Materials, store lists, field training and program tracking setup.",
   },
-  6: {
-    title: "Retail execution",
-    summary: "Sell-in, CWD, compliance, proof of execution.",
+  "5": {
+    title: "Activation - Retail Execution",
+    summary: "Sell-in, displays, shelf compliance and store-level execution.",
   },
-  7: { title: "Tracking & measurement", summary: "Depletions, POS, $/store/wk, ROI." },
-  8: { title: "Review", summary: "Worked / didn't / repeat next year." },
+  "6": {
+    title: "Activation - Tracking & Measurement",
+    summary: "Depletions, scan sales, investment, promotional lift and ROI.",
+  },
+  "7": {
+    title: "Overall Review & Optimization",
+    summary: "Business reviews, program analysis and learnings for the next cycle.",
+  },
 };
 
 export const SEASON_PHASES = [0] as const satisfies readonly PhaseNumber[];
-export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly PhaseNumber[];
-export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
-export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
+export const CHAIN_PLAN_PHASES = [1, 2, 3] as const satisfies readonly PhaseNumber[];
+export const PROMOTION_PHASES = [4, 5, 6, 7] as const satisfies readonly PhaseNumber[];
+export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7] as const satisfies readonly PhaseNumber[];
 
 type StatusMeta = {
   label: string;

@@ -255,7 +255,7 @@ function PlanBranch({
           />
         ) : (
           // The chain above someone's promotion. No phase, no counts: phases
-          // 1-4 are the plan's content and the grant did not include them.
+          // 1-3 are the plan's content and the grant did not include them.
           <ContextNode label={chainName} />
         )}
       </TreeRow>

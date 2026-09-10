@@ -22,11 +22,11 @@ import {
   stampTemplates,
 } from "./model";
 
-// The middle tier: one chain x one plan year, carrying phases 1-4 (internal
+// The middle tier: one chain x one plan year, carrying phases 1-3 (internal
 // alignment -> distributor alignment -> JBP & negotiation -> agreement).
 
 /**
- * The chain plan page: its 1-4 checklist plus the promotions hanging off it.
+ * The chain plan page: its 1-3 checklist plus the promotions hanging off it.
  * Null when the id no longer resolves, and null in exactly the same way when
  * the viewer's scope does not reach it — a denied link never confirms that
  * something is there to be denied.

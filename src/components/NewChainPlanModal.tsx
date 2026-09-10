@@ -8,7 +8,7 @@ import { Button, Field, inputClass, Modal } from "./ui";
 /**
  * The "+ New" behind the Chain plans group: pick a chain that has no plan this
  * year, or name a brand-new chain without the detour through Manage. Either
- * way the plan lands with the phase 1–4 template stamped on it.
+ * way the plan lands with the phase 1–3 template stamped on it.
  */
 export function NewChainPlanModal({
   seasonId,
@@ -94,7 +94,7 @@ export function NewChainPlanModal({
         />
       </Field>
       <p className="text-2xs text-ink-500">
-        One plan per chain per year. The new plan starts with the phase 1–4 template checklist —
+        One plan per chain per year. The new plan starts with the phase 1–3 template checklist —
         undated and unassigned until you say otherwise.
       </p>
     </Modal>

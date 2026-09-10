@@ -74,7 +74,7 @@ async function stage() {
 
   const brandId = await as.mutation(api.brands.create, { name: "Fetzer" });
   const templateId = await as.mutation(api.taskTemplates.create, {
-    phase: 6,
+    phase: 5,
     name: "Photo audit",
   });
   const chainId = (await as.query(api.chains.list, {})).filter(
@@ -168,7 +168,7 @@ function everyWrite(caller: Caller, ids: Handles) {
       caller.mutation(api.seasons.update, { seasonId: ids.seasonId, label: "Probe" }),
     "seasons.remove": () => caller.mutation(api.seasons.remove, { seasonId: ids.seasonId }),
     "taskTemplates.create": () =>
-      caller.mutation(api.taskTemplates.create, { phase: 6, name: "Probe" }),
+      caller.mutation(api.taskTemplates.create, { phase: 5, name: "Probe" }),
     "taskTemplates.update": () =>
       caller.mutation(api.taskTemplates.update, {
         templateId: ids.templateId,
@@ -185,7 +185,7 @@ function everyWrite(caller: Caller, ids: Handles) {
     "tasks.create": () =>
       caller.mutation(api.tasks.create, {
         owner: { tier: "promotion", promotionId: ids.promotionId },
-        phase: 6,
+        phase: 5,
         name: "Probe",
       }),
     "tasks.update": () => caller.mutation(api.tasks.update, { taskId: ids.taskId, name: "Probe" }),
@@ -294,7 +294,7 @@ test("a Promotion Member has full task control inside their scope", async () => 
   // Create, with a spec, a quantity and an ETA.
   const taskId = await priya.mutation(api.tasks.create, {
     owner: { tier: "promotion", promotionId },
-    phase: 6,
+    phase: 5,
     name: "Shelf talkers",
     spec: "32 in",
     quantity: 20,
@@ -548,7 +548,7 @@ test("a Plan Year Member reaches phase 0 and every checklist under the year", as
     promotionTaskCreate: () =>
       yolanda.mutation(api.tasks.create, {
         owner: { tier: "promotion", promotionId: promotions["Spring Rosé"] },
-        phase: 6,
+        phase: 5,
         name: "Store audit",
       }),
     promotionEdit: () =>
@@ -583,7 +583,7 @@ test("an out-of-scope write fails byte for byte like a write to a deleted record
       promotionTaskCreate: () =>
         priya.mutation(api.tasks.create, {
           owner: { tier: "promotion", promotionId: sibling },
-          phase: 6,
+          phase: 5,
           name: "Sneak",
         }),
       taskUpdate: () => priya.mutation(api.tasks.update, { taskId: siblingTask, name: "Renamed" }),
@@ -654,7 +654,7 @@ test("a create is refused by the loaded parent's ancestry, not by its argument",
     otherPromotion: () =>
       marcus.mutation(api.tasks.create, {
         owner: { tier: "promotion", promotionId: promotions["Gift Sets"] },
-        phase: 6,
+        phase: 5,
         name: "Sneak",
       }),
     theYearAbove: () =>
@@ -683,7 +683,7 @@ test("a create is refused by the loaded parent's ancestry, not by its argument",
       ownPromotion: () =>
         marcus.mutation(api.tasks.create, {
           owner: { tier: "promotion", promotionId: promotions["Holiday Endcap"] },
-          phase: 6,
+          phase: 5,
           name: "Store audit",
         }),
     }),
@@ -825,7 +825,7 @@ test("an edit records who made it, everywhere the record is shown", async () => 
   expect(untouched.lastModifiedBy).toBe(carolOnRow.lastModifiedBy);
   expect(untouched.lastModifiedAt).toBe(carolOnRow.lastModifiedAt);
 
-  // The same stamp on the other two tiers, and on the phase 7-8 rows.
+  // The same stamp on the other two tiers, and on the phase 6-7 rows.
   await t
     .withIdentity(PLAN_MEMBER)
     .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, notes: "Signed" });
@@ -878,7 +878,7 @@ test("a Member cannot label their plan or promotion with another tier's phase", 
     t
       .withIdentity(PLAN_MEMBER)
       // @ts-expect-error a promotion's phase is not a chain plan's
-      .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, currentPhase: 7 }),
+      .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, currentPhase: 6 }),
   ).rejects.toThrow(/Validator error/);
 
   await expect(
@@ -895,7 +895,7 @@ test("a Member cannot label their plan or promotion with another tier's phase", 
     .mutation(api.chainPlans.update, { chainPlanId: plans.Kroger, currentPhase: 3 });
   await t.withIdentity(PROMO_MEMBER).mutation(api.promotions.update, {
     promotionId: promotions["Gift Sets"],
-    currentPhase: 8,
+    currentPhase: 7,
   });
 });
 
@@ -919,7 +919,7 @@ test("Unassigned, Blocked and Overdue mean the same thing after a Member writes"
   // A new row with no Responsible is Unassigned; giving it one is not.
   const fresh = await priya.mutation(api.tasks.create, {
     owner: { tier: "promotion", promotionId },
-    phase: 6,
+    phase: 5,
     name: "Photo audit",
     eta: "2026-01-02",
   });
@@ -980,7 +980,7 @@ test("the demo arc still runs end to end under an Administrator identity", async
 
   const taskId = await as.mutation(api.tasks.create, {
     owner: { tier: "promotion", promotionId },
-    phase: 6,
+    phase: 5,
     name: "Endcap build",
     quantity: 180,
     eta: "2028-05-25",
@@ -1056,4 +1056,21 @@ test("a Viewer with a whole Plan Year grant is refused by every work mutation", 
   expect(
     await viewer.query(api.promotions.get, { promotionId: handles.promotionId, today: TODAY }),
   ).toEqual(before);
+});
+
+test("a deleted Person cannot become Accountable through a stale task editor", async () => {
+  const { t, plans, functionId } = await world();
+  const as = t.withIdentity(ADMIN);
+  const personId = await as.mutation(api.people.create, { name: "Former colleague", functionId });
+  const taskId = await as.mutation(api.tasks.create, {
+    owner: { tier: "chainPlan", chainPlanId: plans.Kroger },
+    phase: 2,
+    name: "Check owner",
+  });
+  await as.mutation(api.people.remove, { personId });
+  await expect(
+    as.mutation(api.tasks.update, { taskId, accountablePersonId: personId }),
+  ).rejects.toThrow();
+  const plan = await as.query(api.chainPlans.get, { chainPlanId: plans.Kroger, today: TODAY });
+  expect(plan?.tasks.find((task) => task._id === taskId)?.accountablePersonId).toBeUndefined();
 });

@@ -34,8 +34,8 @@ import type { PeopleDirectory } from "../lib/people";
 import { href, navigate } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 
-// Tier two: one chain x one season. Phases 1-4 are the road to an agreement;
-// once there is one, the promotions underneath carry phases 5-8.
+// Tier two: one chain x one season. Phases 1-3 are the road to an agreement;
+// once there is one, the promotions underneath carry phases 4-7.
 
 export function ChainPlanView({
   chainPlanId,
@@ -154,7 +154,7 @@ export function ChainPlanView({
 
       <Panel
         title="Promotions"
-        subtitle="Approved programs under this plan. Each carries its own phases 5–8."
+        subtitle="Approved programs under this plan. Each carries its own phases 4–7."
         actions={
           isAdministrator ? (
             <Button size="sm" onClick={() => setCreating(true)}>
@@ -175,7 +175,7 @@ export function ChainPlanView({
             }
           >
             A promotion is one approved program: this chain, a date window, a set of stores. Phases
-            5–8 — activation, execution, measurement, review — hang off it.
+            4–7 — activation, execution, measurement, review — hang off it.
           </EmptyState>
         ) : (
           <div className={cardGrid(data.promotions.length)}>

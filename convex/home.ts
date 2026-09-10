@@ -105,7 +105,7 @@ export const dashboard = authedQuery({
           const chain = found === undefined ? null : chainLabel(found);
 
           // A plan reached only as the parent of a granted Promotion is a
-          // heading, not a section: no phases 1-4, no counts of work the
+          // heading, not a section: no phases 1-3, no counts of work the
           // viewer cannot open.
           if (planReach === "context") {
             return [

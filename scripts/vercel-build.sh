@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Vercel runs this for every deployment; what it does depends on the target.
-#
-# Production is the real release path: deploy the Convex backend first, then
-# build the frontend against it (the standard Convex+Vercel integration, which
-# needs CONVEX_DEPLOY_KEY in Vercel's Production environment). Previews carry
-# no deploy key on purpose — a branch push must never touch a Convex
-# deployment — so they build the frontend alone, against whatever
-# VITE_CONVEX_URL / VITE_CLERK_PUBLISHABLE_KEY the Preview environment
-# provides (the dev stack, making preview URLs actually signable-into).
+# Only production and the staging branch deploy backend code. Other previews
+# build the frontend against their configured backend without changing it.
 set -euo pipefail
 
 if [ "${VERCEL_ENV:-}" = "production" ]; then
-  bunx convex deploy --cmd 'bun run build'
+  : "${CONVEX_DEPLOY_KEY:?Set the production Convex deploy key in Vercel Production}"
+  if [ "${CONVEX_DEPLOY_KEY%%|*}" != "prod:valuable-ferret-680" ]; then
+    echo "Refusing production deployment: the key does not target the production backend." >&2
+    exit 1
+  fi
+  bunx convex deploy --cmd 'bun run build' --cmd-url-env-var-name VITE_CONVEX_URL
+elif [ "${VERCEL_ENV:-}" = "preview" ] && [ "${VERCEL_GIT_COMMIT_REF:-}" = "staging" ]; then
+  : "${CONVEX_DEPLOY_KEY:?Set a staging-only Convex deploy key for the staging branch}"
+  # Staging intentionally uses Convex's prod deployment type. Verify its
+  # identity before allowing that type in a Vercel Preview build.
+  if [ "${CONVEX_DEPLOY_KEY%%|*}" != "prod:flippant-jaguar-524" ]; then
+    echo "Refusing staging deployment: the key does not target the staging backend." >&2
+    exit 1
+  fi
+  bunx convex deploy --check-build-environment disable --cmd 'bun run build' --cmd-url-env-var-name VITE_CONVEX_URL
 else
   bun run build
 fi

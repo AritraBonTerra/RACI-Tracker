@@ -10,23 +10,23 @@ type Task = Doc<"tasks">;
 
 /**
  * Phase window anchors (CONTEXT.md: Phase window): the dates the domain already
- * knows. A promotion's in-market window pins phases 5–8; a chain plan's JBP
- * date pins phases 3–4. Task ETAs then widen the window, never shrink it.
+ * knows. A promotion's in-market window pins phases 4–7; a chain plan's JBP
+ * date pins phase 3. Task ETAs then widen the window, never shrink it.
  */
 export type PhaseAnchors = Partial<Record<PhaseNumber, { start?: string; end?: string }>>;
 
 export function promotionAnchors(promotion: { startDate: string; endDate: string }): PhaseAnchors {
   return {
-    5: { end: promotion.startDate },
-    6: { start: promotion.startDate, end: promotion.endDate },
+    4: { end: promotion.startDate },
+    5: { start: promotion.startDate, end: promotion.endDate },
+    6: { start: promotion.endDate },
     7: { start: promotion.endDate },
-    8: { start: promotion.endDate },
   };
 }
 
 export function chainPlanAnchors(plan: { jbpDate?: string }): PhaseAnchors {
   if (plan.jbpDate === undefined) return {};
-  return { 3: { end: plan.jbpDate }, 4: { start: plan.jbpDate } };
+  return { 3: { end: plan.jbpDate } };
 }
 
 export type PathwayPhase = {

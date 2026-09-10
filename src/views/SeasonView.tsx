@@ -112,13 +112,13 @@ export function SeasonView({
 
       <Panel
         title="Chain plans"
-        subtitle="Phases 1–4 live here. Start one from the sidebar for any chain without a plan."
+        subtitle="Phases 1–3 live here. Start one from the sidebar for any chain without a plan."
       >
         {planCards.length === 0 ? (
           <EmptyState title="No chain plans for this year yet">
             One plan per retail account per year. Every chain in Manage is listed in the sidebar
             with a <span className="text-ink-300">+ Plan</span> button beside it — starting one lays
-            down the phase 1–4 checklist.
+            down the phase 1–3 checklist.
           </EmptyState>
         ) : (
           <div className={cardGrid(planCards.length)}>
@@ -150,7 +150,7 @@ export function SeasonView({
   );
 }
 
-// Where every chain sits on phases 1-4, so the year view answers "what's
+// Where every chain sits on phases 1-3, so the year view answers "what's
 // where" without a single click (CONTEXT.md: Pathway).
 function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: string }) {
   return (

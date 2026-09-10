@@ -11,7 +11,7 @@ import {
 import { patched, patchedNumber, patchedText } from "./model";
 import { kpiMetric, repeatVerdict } from "./schema";
 
-// Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
+// Phase 6 (tracking & measurement) and phase 7 (review) for one promotion: the
 // slide-14 KPI grid and the retro that reads it.
 //
 // Detachable by design (#14). This file owns both concerns end to end; the rest
@@ -20,7 +20,7 @@ import { kpiMetric, repeatVerdict } from "./schema";
 //
 // Everything here is typed by hand. There are no data integrations, so the tool
 // never invents a number: a blank cell means nobody has pulled the figure yet,
-// which is itself the phase-7 status worth seeing.
+// which is itself the phase-6 status worth seeing.
 
 /** The absolute and percentage change between the two columns of one KPI row. */
 export type Uplift = { absolute: number; percent: number | null };
@@ -62,12 +62,12 @@ async function retroFor(ctx: QueryCtx, promotionId: Id<"promotions">) {
 }
 
 /**
- * Everything the phase-7 and phase-8 panels draw, in one subscription: the KPI
+ * Everything the phase-6 and phase-7 panels draw, in one subscription: the KPI
  * rows that exist (the client lays them out against the fixed slide-14 grid)
  * with their computed uplift, and the retro if one has been started.
  *
  * Null when the promotion no longer resolves or the viewer's scope does not
- * reach it — phase 7-8 figures are the promotion's content, and a stale link
+ * reach it — phase 6-7 figures are the promotion's content, and a stale link
  * and a denied one degrade the same way the rest of the app does.
  */
 export const board = authedQuery({
@@ -86,7 +86,7 @@ export const board = authedQuery({
     return {
       metrics: entries.map((entry) => ({ ...entry, uplift: upliftOf(entry) })),
       retro,
-      // Phase 7-8 figures are typed by hand, so who typed them last is part of
+      // Phase 6-7 figures are typed by hand, so who typed them last is part of
       // reading them.
       editors: await editorsOf(ctx, [...entries, ...(retro === null ? [] : [retro])]),
     };
@@ -112,7 +112,7 @@ export const setMetric = authedMutation({
     note: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
-    // A Member whose scope covers the promotion writes its phase 7-8 work
+    // A Member whose scope covers the promotion writes its phase 6-7 work
     // where the promotion lives (#22, story 15); anyone else fails here the
     // way they would against a deleted promotion.
     const promotion = await writablePromotion(ctx, ctx.scope, args.promotionId);
@@ -144,7 +144,7 @@ export const setMetric = authedMutation({
   },
 });
 
-/** Writes the phase-8 retro, creating it on the first sentence anyone types. */
+/** Writes the phase-7 retro, creating it on the first sentence anyone types. */
 export const saveRetro = authedMutation({
   args: {
     promotionId: v.id("promotions"),
