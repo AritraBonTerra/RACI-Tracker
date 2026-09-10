@@ -5,6 +5,10 @@ set -euo pipefail
 
 if [ "${VERCEL_ENV:-}" = "production" ]; then
   : "${CONVEX_DEPLOY_KEY:?Set the production Convex deploy key in Vercel Production}"
+  if [ "${CONVEX_DEPLOY_KEY%%|*}" != "prod:valuable-ferret-680" ]; then
+    echo "Refusing production deployment: the key does not target the production backend." >&2
+    exit 1
+  fi
   bunx convex deploy --cmd 'bun run build' --cmd-url-env-var-name VITE_CONVEX_URL
 elif [ "${VERCEL_ENV:-}" = "preview" ] && [ "${VERCEL_GIT_COMMIT_REF:-}" = "staging" ]; then
   : "${CONVEX_DEPLOY_KEY:?Set a staging-only Convex deploy key for the staging branch}"

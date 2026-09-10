@@ -115,3 +115,64 @@ test("eight-phase migration preserves work, merges agreement and cannot run twic
   expect(await t.mutation(internal.migrations.eightPhaseWorkflow, {})).toEqual({ changed: false });
   expect(await read()).toEqual(after);
 });
+
+test("approved defaults require migration and replace only defaults once", async () => {
+  const t = convexTest(schema, modules);
+  await expect(t.mutation(internal.migrations.installEightPhaseDefaults, {})).rejects.toThrow(
+    "Run eightPhaseWorkflow",
+  );
+  const { FUNCTIONS } = await import("./seedData");
+  const { DEFAULT_TASK_TEMPLATES } = await import("./templateDefaults");
+  await t.run(async (ctx) => {
+    await ctx.db.insert("dataMigrations", {
+      key: "eight-phase-workflow-2026-09",
+      appliedAt: Date.now(),
+    });
+    for (const fn of FUNCTIONS) await ctx.db.insert("functions", fn);
+    await ctx.db.insert("taskTemplates", { phase: 0, order: 0, name: "Legacy menu" });
+    const seasonId = await ctx.db.insert("seasons", { year: 2026, label: "Existing" });
+    await ctx.db.insert("tasks", {
+      seasonId,
+      phase: 0,
+      order: 0,
+      name: "Existing work",
+      status: "delivered",
+      consultedPersonIds: [],
+      informedPersonIds: [],
+      notes: "Keep this",
+    });
+  });
+  const tasks = await t.run((ctx) => ctx.db.query("tasks").collect());
+  expect(await t.mutation(internal.migrations.installEightPhaseDefaults, {})).toEqual({
+    changed: true,
+  });
+  const templates = await t.run((ctx) => ctx.db.query("taskTemplates").collect());
+  expect(templates.map(({ phase, name, spec }) => ({ phase, name, spec }))).toEqual(
+    DEFAULT_TASK_TEMPLATES,
+  );
+  const matrix = await t.run((ctx) => ctx.db.query("phaseRaciDefaults").collect());
+  expect(matrix).toHaveLength(48);
+  const functions = await t.run((ctx) => ctx.db.query("functions").collect());
+  expect(
+    Array.from({ length: 8 }, (_, phase) =>
+      matrix
+        .filter((row) => row.phase === phase && row.roles.includes("responsible"))
+        .map((row) => functions.find((fn) => fn._id === row.functionId)?.key),
+    ),
+  ).toEqual([
+    ["marketing"],
+    ["commercial"],
+    ["commercial"],
+    ["commercial"],
+    ["retail"],
+    ["retail"],
+    ["finance"],
+    ["commercial"],
+  ]);
+  expect(await t.run((ctx) => ctx.db.query("tasks").collect())).toEqual(tasks);
+  await t.run((ctx) => ctx.db.patch(templates[0]._id, { name: "Later edit" }));
+  expect(await t.mutation(internal.migrations.installEightPhaseDefaults, {})).toEqual({
+    changed: false,
+  });
+  expect((await t.run((ctx) => ctx.db.get(templates[0]._id)))?.name).toBe("Later edit");
+});

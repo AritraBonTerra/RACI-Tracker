@@ -22,7 +22,13 @@ test("only production and staging builds deploy the backend, and both require a 
       ["preview", "feature", false],
       ["development", "staging", false],
     ] as const) {
-      const selected = { ...env, VERCEL_ENV: target, VERCEL_GIT_COMMIT_REF: branch };
+      const selected = {
+        ...env,
+        VERCEL_ENV: target,
+        VERCEL_GIT_COMMIT_REF: branch,
+        CONVEX_DEPLOY_KEY:
+          target === "production" ? "prod:valuable-ferret-680|test-key" : env.CONVEX_DEPLOY_KEY,
+      };
       const output = execFileSync("bash", ["scripts/vercel-build.sh"], {
         env: selected,
         encoding: "utf8",
@@ -37,6 +43,19 @@ test("only production and staging builds deploy the backend, and both require a 
         ).not.toBe(0);
       }
       if (deploys) {
+        for (const wrongKey of [
+          "dev:other|wrong-key",
+          "prod:other|wrong-key",
+          target === "production"
+            ? "prod:flippant-jaguar-524|wrong-key"
+            : "prod:valuable-ferret-680|wrong-key",
+        ]) {
+          expect(
+            spawnSync("bash", ["scripts/vercel-build.sh"], {
+              env: { ...selected, CONVEX_DEPLOY_KEY: wrongKey },
+            }).status,
+          ).not.toBe(0);
+        }
         expect(output).toContain("VITE_CONVEX_URL");
         expect(
           spawnSync("bash", ["scripts/vercel-build.sh"], {

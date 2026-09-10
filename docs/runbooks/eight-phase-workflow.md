@@ -32,9 +32,11 @@ releasing the new schema to `main`. Do not merge directly into production first.
    file. It adds the migration while still accepting the old nine-phase data.
 3. Run `bunx convex run migrations:eightPhaseWorkflow --env-file <target-env-file>`.
 4. Deploy the final eight-phase backend and frontend together.
-5. Replace only `taskTemplates` with the approved 62-task menu, and update the
-   phase RACI matrix's Responsible functions to the table above. Do not reseed
-   the database, which would replace existing work.
+5. Run `bunx convex run migrations:installEightPhaseDefaults --env-file <target-env-file>`.
+   This installs the approved 62-task menu and 48 phase RACI defaults atomically.
+   It requires the phase migration marker, preserves all existing work, and
+   records its own marker so retries cannot overwrite later template edits.
+   Do not reseed the database, which would replace existing work.
 
 The migration combines old phases 3 and 4 into phase 3, and changes old phases
 5–8 to 4–7. It preserves IDs, owners, statuses, dates, notes, RACI people, KPI
