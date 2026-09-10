@@ -107,6 +107,7 @@ export const repeatVerdict = v.union(v.literal("yes"), v.literal("no"), v.litera
 const isoDate = v.string();
 
 export default defineSchema({
+  dataMigrations: defineTable({ key: v.string(), appliedAt: v.number() }).index("by_key", ["key"]),
   // A planning year. Carries phase-0 work for the whole company.
   seasons: defineTable({
     year: v.number(),

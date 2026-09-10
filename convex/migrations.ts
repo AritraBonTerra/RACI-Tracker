@@ -29,3 +29,73 @@ export const backfillResponsibles = internalMutation({
     return { rewritten };
   },
 });
+
+/** Run once before deploying the eight-phase schema. Never renumbers twice. */
+export const eightPhaseWorkflow = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const key = "eight-phase-workflow-2026-09";
+    if (
+      await ctx.db
+        .query("dataMigrations")
+        .withIndex("by_key", (q) => q.eq("key", key))
+        .first()
+    ) {
+      return { changed: false };
+    }
+    const remap = (value: number) =>
+      (value >= 4 ? value - 1 : value) as 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+    for (const table of ["tasks", "taskTemplates"] as const) {
+      const rows = (await ctx.db.query(table).collect()).sort(
+        (a, b) => a.phase - b.phase || a.order - b.order,
+      );
+      const orders = new Map<string, number>();
+      for (const row of rows) {
+        const phase = remap(row.phase);
+        const owner =
+          "promotionId" in row && row.promotionId
+            ? row.promotionId
+            : "chainPlanId" in row && row.chainPlanId
+              ? row.chainPlanId
+              : "seasonId" in row && row.seasonId
+                ? row.seasonId
+                : "templates";
+        const group = `${owner}:${phase}`;
+        const order = orders.get(group) ?? 0;
+        orders.set(group, order + 1);
+        await ctx.db.patch(row._id, { phase, order });
+      }
+    }
+    for (const table of ["chainPlans", "promotions"] as const) {
+      for (const row of await ctx.db.query(table).collect()) {
+        await ctx.db.patch(row._id, { currentPhase: remap(row.currentPhase) });
+      }
+    }
+    const defaults = (await ctx.db.query("phaseRaciDefaults").collect()).sort(
+      (a, b) => a.phase - b.phase,
+    );
+    const merged = new Map<string, (typeof defaults)[number]>();
+    for (const row of defaults) {
+      const phase = remap(row.phase);
+      const group = `${phase}:${row.functionId}`;
+      const existing = merged.get(group);
+      if (existing) {
+        const roles = [...new Set([...existing.roles, ...row.roles])];
+        const note =
+          [
+            ...new Set(
+              [existing.note, row.note].filter((value): value is string => Boolean(value)),
+            ),
+          ].join("; ") || undefined;
+        await ctx.db.patch(existing._id, { roles, note });
+        merged.set(group, { ...existing, roles, note });
+        await ctx.db.delete(row._id);
+      } else {
+        await ctx.db.patch(row._id, { phase });
+        merged.set(group, { ...row, phase });
+      }
+    }
+    await ctx.db.insert("dataMigrations", { key, appliedAt: Date.now() });
+    return { changed: true };
+  },
+});
