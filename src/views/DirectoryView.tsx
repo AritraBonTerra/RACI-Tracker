@@ -526,7 +526,7 @@ function AccessTreeBody({ tree }: { tree: AccessTree }) {
   if (tree.length === 0) {
     return (
       <p className="text-xs text-ink-500">
-        No plan years yet — there is nothing to grant access to.
+        No plan years yet. Chain assignments will include matching plans when they are created.
       </p>
     );
   }
@@ -563,10 +563,21 @@ function AccessTreeBody({ tree }: { tree: AccessTree }) {
  */
 function GrantModal({ userId, onClose }: { userId: Id<"users">; onClose: () => void }) {
   const tree = useQuery(api.directory.effectiveAccess, { userId });
+  const chains = useQuery(api.chains.list, {});
   const grant = useReportedMutation(api.directory.grant);
   const [choice, setChoice] = useState("");
 
-  const options = tree === undefined ? [] : scopeOptions(tree);
+  const options =
+    tree === undefined || chains === undefined
+      ? []
+      : [
+          ...chains.map((chain) => ({
+            key: chain._id,
+            label: `${chain.name} · all plan years`,
+            scope: { tier: "chain" as const, chainId: chain._id },
+          })),
+          ...scopeOptions(tree),
+        ];
   // Default to the first thing in the hierarchy rather than to nothing, so the
   // preview has something to say the moment the modal opens.
   const selected = options.find((option) => option.key === choice) ?? options[0];
@@ -595,17 +606,17 @@ function GrantModal({ userId, onClose }: { userId: Id<"users">; onClose: () => v
         </>
       }
     >
-      {tree === undefined ? (
+      {tree === undefined || chains === undefined ? (
         <Skeleton className="h-24 w-full" />
       ) : options.length === 0 ? (
         <p className="text-sm text-ink-400">
-          There are no plan years, chain plans or promotions to grant yet.
+          There are no chains, plan years, chain plans or promotions to grant yet.
         </p>
       ) : (
         <>
           <Field
             label="Scope"
-            hint="Access flows down: a chain plan includes its promotions, the plan year includes everything."
+            hint="A chain includes its plans and promotions in all current and future years. A plan year includes every chain in that year."
           >
             <select
               value={selected?.key ?? ""}
@@ -619,7 +630,10 @@ function GrantModal({ userId, onClose }: { userId: Id<"users">; onClose: () => v
               ))}
             </select>
           </Field>
-          <Field label="They will see" hint="The union of every grant, after this one.">
+          <Field
+            label="They will see"
+            hint="All grants combine. To limit someone to specific chains, remove broader plan year grants."
+          >
             {selected === undefined ? (
               <span />
             ) : (
@@ -666,6 +680,7 @@ function scopeOf(
 
 /** The id inside a scope, which is the one thing that makes it unique. */
 function keyOf(scope: Scope): string {
+  if (scope.tier === "chain") return scope.chainId;
   return scope.tier === "season"
     ? scope.seasonId
     : scope.tier === "chainPlan"

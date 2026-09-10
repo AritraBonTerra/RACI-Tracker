@@ -224,7 +224,18 @@ export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]
   const contextPlans = new Set<Id<"chainPlans">>();
 
   for (const scope of scopes) {
-    if (scope.tier === "season") {
+    if (scope.tier === "chain") {
+      const chain = await ctx.db.get(scope.chainId);
+      if (chain === null) continue;
+      const plans = await ctx.db
+        .query("chainPlans")
+        .withIndex("by_chain", (q) => q.eq("chainId", chain._id))
+        .collect();
+      for (const plan of plans) {
+        grantedPlans.add(plan._id);
+        contextSeasons.add(plan.seasonId);
+      }
+    } else if (scope.tier === "season") {
       const season = await ctx.db.get(scope.seasonId);
       if (season !== null) grantedSeasons.add(season._id);
     } else if (scope.tier === "chainPlan") {
@@ -435,10 +446,11 @@ export async function visibleTasks(
 
 /** The label each tier goes by in the one error every refusal shares. */
 const TIER_LABEL = {
+  chain: "chain",
   season: "season",
   chainPlan: "chain plan",
   promotion: "promotion",
-} as const satisfies Record<TaskOwner["tier"], string>;
+} as const satisfies Record<AccessScope["tier"], string>;
 
 /** A Plan Year whose own fields and phase-0 checklist the viewer may write. */
 export async function writableSeason(
@@ -559,6 +571,9 @@ export async function editorsOf(
  * everything.
  */
 export function scopeOfAssignment(assignment: Doc<"accessAssignments">): AccessScope | null {
+  if (assignment.chainId !== undefined) {
+    return { tier: "chain", chainId: assignment.chainId };
+  }
   if (assignment.seasonId !== undefined) {
     return { tier: "season", seasonId: assignment.seasonId };
   }
@@ -582,6 +597,7 @@ async function assignmentScopes(ctx: QueryCtx, userId: Id<"users">): Promise<Acc
 
 /** The record a scope points at, or null if it is gone. */
 async function targetOf(ctx: QueryCtx, scope: AccessScope) {
+  if (scope.tier === "chain") return await ctx.db.get(scope.chainId);
   if (scope.tier === "season") return await ctx.db.get(scope.seasonId);
   if (scope.tier === "chainPlan") return await ctx.db.get(scope.chainPlanId);
   return await ctx.db.get(scope.promotionId);
@@ -648,9 +664,10 @@ function via(actor: Actor): string {
   return actor.kind === "operator" ? " (deploy credentials)" : "";
 }
 
-/** The three columns an assignment can be pinned to, from one scope argument. */
+/** The columns an assignment can be pinned to, from one scope argument. */
 function scopeColumns(scope: AccessScope) {
   return {
+    chainId: scope.tier === "chain" ? scope.chainId : undefined,
     seasonId: scope.tier === "season" ? scope.seasonId : undefined,
     chainPlanId: scope.tier === "chainPlan" ? scope.chainPlanId : undefined,
     promotionId: scope.tier === "promotion" ? scope.promotionId : undefined,
@@ -667,6 +684,7 @@ async function assignmentFor(ctx: QueryCtx, userId: Id<"users">, scope: AccessSc
   return (
     rows.find(
       (row) =>
+        row.chainId === columns.chainId &&
         row.seasonId === columns.seasonId &&
         row.chainPlanId === columns.chainPlanId &&
         row.promotionId === columns.promotionId,
@@ -755,6 +773,10 @@ export async function revokeScope(
  * when the record is gone.
  */
 export async function labelOf(ctx: QueryCtx, scope: AccessScope): Promise<string | null> {
+  if (scope.tier === "chain") {
+    const chain = await ctx.db.get(scope.chainId);
+    return chain === null ? null : `${chain.name} · all plan years`;
+  }
   if (scope.tier === "season") {
     const season = await ctx.db.get(scope.seasonId);
     return season === null ? null : `Plan Year ${season.label}`;

@@ -410,22 +410,28 @@ function NewYearModal({
 }
 
 function NoSeasons() {
+  const isAdministrator = useIsAdministrator();
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="max-w-md rounded-xl border border-ink-800 bg-ink-900/60 p-6 text-center">
-        <h1 className="text-lg font-semibold text-ink-100">No plan years yet</h1>
+        <h1 className="text-lg font-semibold text-ink-100">
+          {isAdministrator ? "No plan years yet" : "No plans available yet"}
+        </h1>
         <p className="mt-1.5 text-sm text-ink-400">
-          A plan year is what everything else hangs off — phase 0, then a chain plan per account,
-          then the promotions under it. Create one to start.
+          {isAdministrator
+            ? "Create a plan year, then add chain plans and promotions."
+            : "Your assigned chains have no plans available yet. Their plans will appear here when an Administrator creates them."}
         </p>
-        <Button
-          variant="primary"
-          size="md"
-          className="mt-4"
-          onClick={() => navigate({ name: "manage" })}
-        >
-          Open Manage
-        </Button>
+        {isAdministrator && (
+          <Button
+            variant="primary"
+            size="md"
+            className="mt-4"
+            onClick={() => navigate({ name: "manage" })}
+          >
+            Open Manage
+          </Button>
+        )}
       </div>
     </div>
   );

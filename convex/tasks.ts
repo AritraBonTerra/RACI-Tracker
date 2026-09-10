@@ -128,6 +128,9 @@ export const update = authedMutation({
       patch.proofOfExecution = optionalText(args.proofOfExecution);
     }
     if (args.accountablePersonId !== undefined) {
+      if (args.accountablePersonId !== null) {
+        await mustGet(ctx, args.accountablePersonId, "person");
+      }
       patch.accountablePersonId = args.accountablePersonId ?? undefined;
     }
 

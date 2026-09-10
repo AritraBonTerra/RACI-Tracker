@@ -1057,3 +1057,20 @@ test("a Viewer with a whole Plan Year grant is refused by every work mutation", 
     await viewer.query(api.promotions.get, { promotionId: handles.promotionId, today: TODAY }),
   ).toEqual(before);
 });
+
+test("a deleted Person cannot become Accountable through a stale task editor", async () => {
+  const { t, plans, functionId } = await world();
+  const as = t.withIdentity(ADMIN);
+  const personId = await as.mutation(api.people.create, { name: "Former colleague", functionId });
+  const taskId = await as.mutation(api.tasks.create, {
+    owner: { tier: "chainPlan", chainPlanId: plans.Kroger },
+    phase: 2,
+    name: "Check owner",
+  });
+  await as.mutation(api.people.remove, { personId });
+  await expect(
+    as.mutation(api.tasks.update, { taskId, accountablePersonId: personId }),
+  ).rejects.toThrow();
+  const plan = await as.query(api.chainPlans.get, { chainPlanId: plans.Kroger, today: TODAY });
+  expect(plan?.tasks.find((task) => task._id === taskId)?.accountablePersonId).toBeUndefined();
+});

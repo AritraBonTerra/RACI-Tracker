@@ -48,7 +48,9 @@ export const userRole = v.union(
 
 // The tier an Access Assignment is pinned to. Access flows *down* from here:
 // a Plan Year grant reaches its Chain Plans and their Promotions.
+// A Chain grant reaches its plans across all current and future Plan Years.
 export const accessScope = v.union(
+  v.object({ tier: v.literal("chain"), chainId: v.id("chains") }),
   v.object({ tier: v.literal("season"), seasonId: v.id("seasons") }),
   v.object({ tier: v.literal("chainPlan"), chainPlanId: v.id("chainPlans") }),
   v.object({ tier: v.literal("promotion"), promotionId: v.id("promotions") }),
@@ -201,16 +203,17 @@ export default defineSchema({
     .index("by_role", ["role"])
     .index("by_person", ["personId"]),
 
-  // One Member at one Plan Year, Chain Plan, or Promotion (CONTEXT.md: Access
+  // One Editor or Viewer at one Chain, Plan Year, Chain Plan, or Promotion (CONTEXT.md: Access
   // Assignment). A Member's access is the *union* of their rows, expanded
   // downward at read time rather than stored, so a promotion created tomorrow
   // under a granted Chain Plan is reachable without touching this table.
   //
-  // Exactly one of the three scope columns is set, flat rather than a union
+  // Exactly one of the four scope columns is set, flat rather than a union
   // object so "who can reach this promotion?" is an index read (same shape as
   // `tasks`). Overlapping rows are harmless by construction.
   accessAssignments: defineTable({
     userId: v.id("users"),
+    chainId: v.optional(v.id("chains")),
     seasonId: v.optional(v.id("seasons")),
     chainPlanId: v.optional(v.id("chainPlans")),
     promotionId: v.optional(v.id("promotions")),
