@@ -236,16 +236,15 @@ export const run = internalMutation({
       taskCount += await insertChecklist(ctx, { promotionId }, tasks, people);
     }
 
-    if (
-      !(await ctx.db
-        .query("dataMigrations")
-        .withIndex("by_key", (q) => q.eq("key", "eight-phase-workflow-2026-09"))
-        .first())
-    ) {
-      await ctx.db.insert("dataMigrations", {
-        key: "eight-phase-workflow-2026-09",
-        appliedAt: Date.now(),
-      });
+    for (const key of ["eight-phase-workflow-2026-09", "eight-phase-defaults-2026-09"]) {
+      if (
+        !(await ctx.db
+          .query("dataMigrations")
+          .withIndex("by_key", (q) => q.eq("key", key))
+          .first())
+      ) {
+        await ctx.db.insert("dataMigrations", { key, appliedAt: Date.now() });
+      }
     }
     return {
       today: TODAY,

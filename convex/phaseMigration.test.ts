@@ -176,3 +176,19 @@ test("approved defaults require migration and replace only defaults once", async
   });
   expect((await t.run((ctx) => ctx.db.get(templates[0]._id)))?.name).toBe("Later edit");
 });
+
+test("fresh seeds mark approved defaults so migration cannot overwrite later edits", async () => {
+  const t = convexTest(schema, modules);
+  await t.mutation(internal.seed.run, {});
+  const templateId = await t.run(async (ctx) => {
+    const template = await ctx.db.query("taskTemplates").first();
+    if (!template) throw new Error("Seed did not install templates");
+    await ctx.db.patch(template._id, { name: "Administrator customization" });
+    return template._id;
+  });
+  expect(await t.mutation(internal.migrations.installEightPhaseDefaults, {})).toEqual({
+    changed: false,
+  });
+  expect(await t.mutation(internal.migrations.eightPhaseWorkflow, {})).toEqual({ changed: false });
+  expect((await t.run((ctx) => ctx.db.get(templateId)))?.name).toBe("Administrator customization");
+});
