@@ -109,6 +109,12 @@ signed-in account in Directory; the screenshot alone does not identify it.
 The added optional chain assignment field requires deploying the matching
 Convex schema and functions with the frontend. Existing grants need no migration.
 
+## Workflow and templates
+
+The tracker uses eight phases, numbered 0–7, and the approved 62-task default
+menu. See [the phase mapping and upgrade procedure](docs/runbooks/eight-phase-workflow.md).
+Template changes apply to new work; existing checklists retain their tasks.
+
 ## Deployment
 
 See [development, staging and production](docs/runbooks/environments.md) for the

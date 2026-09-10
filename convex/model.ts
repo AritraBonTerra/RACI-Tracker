@@ -19,10 +19,10 @@ export type LastModified = { lastModifiedBy: Id<"users">; lastModifiedAt: number
 
 /**
  * `currentPhase` on an owner is narrowed to the phases that owner carries. A
- * task's `phase` keeps the full 0-8 range (schema.ts: phase).
+ * task's `phase` keeps the full 0-7 range (schema.ts: phase).
  */
-export const chainPlanPhase = v.union(v.literal(1), v.literal(2), v.literal(3), v.literal(4));
-export const promotionPhase = v.union(v.literal(5), v.literal(6), v.literal(7), v.literal(8));
+export const chainPlanPhase = v.union(v.literal(1), v.literal(2), v.literal(3));
+export const promotionPhase = v.union(v.literal(4), v.literal(5), v.literal(6), v.literal(7));
 
 /**
  * Where a task hangs. Exactly one of the three ownership columns is set, and
@@ -37,25 +37,25 @@ export const taskOwner = v.union(
 export type TaskOwner = Infer<typeof taskOwner>;
 
 export const SEASON_PHASES = [0] as const satisfies readonly PhaseNumber[];
-export const CHAIN_PLAN_PHASES = [1, 2, 3, 4] as const satisfies readonly Infer<
+export const CHAIN_PLAN_PHASES = [1, 2, 3] as const satisfies readonly Infer<
   typeof chainPlanPhase
 >[];
-export const PROMOTION_PHASES = [5, 6, 7, 8] as const satisfies readonly Infer<
+export const PROMOTION_PHASES = [4, 5, 6, 7] as const satisfies readonly Infer<
   typeof promotionPhase
 >[];
-export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7, 8] as const satisfies readonly PhaseNumber[];
+export const ALL_PHASES = [0, 1, 2, 3, 4, 5, 6, 7] as const satisfies readonly PhaseNumber[];
 
-/** The tier a phase belongs to: 0 -> season, 1-4 -> chain plan, 5-8 -> promotion. */
+/** The tier a phase belongs to: 0 -> season, 1-3 -> chain plan, 4-7 -> promotion. */
 export function tierForPhase(value: PhaseNumber): TaskOwner["tier"] {
   if (value === 0) return "season";
-  if (value <= 4) return "chainPlan";
+  if (value <= 3) return "chainPlan";
   return "promotion";
 }
 
 const TIER_LABEL = {
   season: "the plan year (phase 0)",
-  chainPlan: "a chain plan (phases 1-4)",
-  promotion: "a promotion (phases 5-8)",
+  chainPlan: "a chain plan (phases 1-3)",
+  promotion: "a promotion (phases 4-7)",
 } as const satisfies Record<TaskOwner["tier"], string>;
 
 /**

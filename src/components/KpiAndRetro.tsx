@@ -9,7 +9,7 @@ import { displayClass, editorClass, focusAndSelect, InlineText } from "./inline"
 import { editorOf, LastEdited, type Stamped } from "./page";
 import { Panel, Skeleton } from "./ui";
 
-// Phase 7 (tracking & measurement) and phase 8 (review) for one promotion: the
+// Phase 6 (tracking & measurement) and phase 7 (review) for one promotion: the
 // slide-14 KPI grid and the retro underneath it.
 //
 // Detachable by design (#14). This file is the whole client half of the
@@ -117,14 +117,14 @@ function upliftTone(absolute: number): string {
   return "text-ink-300";
 }
 
-// --- Phase 7 --------------------------------------------------------------
+// --- Phase 6 --------------------------------------------------------------
 
 export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
   const canEdit = useCanEditWork();
   const board = useQuery(api.kpi.board, { promotionId });
   const setMetric = useReportedMutation(api.kpi.setMetric);
 
-  if (board === undefined) return <BoardSkeleton title="Phase 7 · KPI table" rows={5} />;
+  if (board === undefined) return <BoardSkeleton title="Phase 6 · KPI table" rows={5} />;
   // The promotion was deleted underneath us; the page's own NotFound takes over.
   if (board === null) return null;
 
@@ -133,7 +133,7 @@ export function KpiTable({ promotionId }: { promotionId: Id<"promotions"> }) {
 
   return (
     <Panel
-      title="Phase 7 · KPI table"
+      title="Phase 6 · KPI table"
       subtitle="Typed by hand — there is no data feed. Uplift is computed wherever both columns hold a number."
       actions={
         <span className="flex items-center gap-3">
@@ -278,7 +278,7 @@ function UpliftCell({
   );
 }
 
-// --- Phase 8 --------------------------------------------------------------
+// --- Phase 7 --------------------------------------------------------------
 
 const VERDICTS: Record<RepeatVerdict, { label: string; className: string }> = {
   yes: {
@@ -307,7 +307,7 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
   const board = useQuery(api.kpi.board, { promotionId });
   const save = useReportedMutation(api.kpi.saveRetro);
 
-  if (board === undefined) return <BoardSkeleton title="Phase 8 · Retro" rows={2} />;
+  if (board === undefined) return <BoardSkeleton title="Phase 7 · Retro" rows={2} />;
   if (board === null) return null;
 
   const retro = board.retro;
@@ -320,7 +320,7 @@ export function RetroPanel({ promotionId }: { promotionId: Id<"promotions"> }) {
 
   return (
     <Panel
-      title="Phase 8 · Retro"
+      title="Phase 7 · Retro"
       subtitle="What worked, what didn't, and whether it earns a slot next season."
       actions={
         canEdit ? (

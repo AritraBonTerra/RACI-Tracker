@@ -25,7 +25,7 @@ import type { PeopleDirectory } from "../lib/people";
 import { navigate } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 
-// Tier three: an approved program. Phases 5-8 are the ones that decide whether
+// Tier three: an approved program. Phases 4-7 are the ones that decide whether
 // the promotion actually happened in the store, so this is the page the tool is
 // really for.
 
@@ -208,10 +208,10 @@ export function PromotionView({
             raciDefault={data.raciDefaults.find((row) => row.phase === phase)}
             focusTaskId={focusTaskId}
           />
-          {/* Detachable phase-7/8 feature (#14): the KPI grid and the retro sit
+          {/* Detachable phase-6/7 feature (#14): the KPI grid and the retro sit
               under the checklist of the phase they belong to. */}
-          {phase === 7 && <KpiTable promotionId={promotionId} />}
-          {phase === 8 && <RetroPanel promotionId={promotionId} />}
+          {phase === 6 && <KpiTable promotionId={promotionId} />}
+          {phase === 7 && <RetroPanel promotionId={promotionId} />}
         </Fragment>
       ))}
 

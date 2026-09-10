@@ -28,7 +28,7 @@ import {
   stampTemplates,
 } from "./model";
 
-// The bottom tier: an approved program under a chain plan, carrying phases 5-8
+// The bottom tier: an approved program under a chain plan, carrying phases 4-7
 // (activation planning -> retail execution -> tracking -> review).
 
 /**
@@ -48,7 +48,7 @@ async function checkedBrands(ctx: QueryCtx, ids: readonly Id<"brands">[]) {
 }
 
 /**
- * The promotion page: its 5-8 checklist, brands, and where it sits in the tree.
+ * The promotion page: its 4-7 checklist, brands, and where it sits in the tree.
  * Null when the id no longer resolves or the viewer's scope does not reach it,
  * so a stale link and a denied one degrade identically.
  *
@@ -126,7 +126,7 @@ export const create = adminMutation({
       startDate,
       endDate,
       storeCount: args.storeCount ?? undefined,
-      currentPhase: args.currentPhase ?? 5,
+      currentPhase: args.currentPhase ?? 4,
       notes: optionalText(args.notes),
       ...ctx.stamp,
     });
@@ -176,8 +176,8 @@ export const update = authedMutation({
 });
 
 /**
- * A promotion owns its whole 5-8 checklist, so removing it removes those tasks —
- * and its phase-7/8 measurement rows.
+ * A promotion owns its whole 4-7 checklist, so removing it removes those tasks —
+ * and its phase-6/7 measurement rows.
  */
 export const remove = adminMutation({
   args: { promotionId: v.id("promotions") },

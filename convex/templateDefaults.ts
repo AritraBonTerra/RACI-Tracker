@@ -1,92 +1,320 @@
 import type { WithoutSystemFields } from "convex/server";
 import type { Doc } from "./_generated/dataModel";
 
-// The deck's default checklist per phase — slide 11's activation menu plus the
-// phase 0-4 items the demo plans carry. This is only the *starting content* of
-// the `taskTemplates` table: the table is the source of truth and stays
-// editable in Manage, so nothing outside seeding may read this constant.
-
+// Approved eight-phase activity list supplied on 2026-09-10.
+// Department responsibility is guidance, never a named RACI assignment.
+// Stored templates are editable in Manage and stamp only newly created work.
 type TemplateSeed = Omit<WithoutSystemFields<Doc<"taskTemplates">>, "order">;
 
 export const DEFAULT_TASK_TEMPLATES: readonly TemplateSeed[] = [
-  // Phase 0 — strategic foundation, once per plan year.
   {
     phase: 0,
-    name: "Volume & value targets by chain",
-    spec: "AOP targets, 9L cases and net revenue",
+    name: "Define portfolio strategy : Identify Core priorities, secondary brand priorities, and innovation priorities, SKU Rationalization (where necessary)",
+    spec: "Responsible function: Marketing",
   },
-  { phase: 0, name: "Portfolio priorities by brand", spec: "Focus SKUs and innovation slots" },
-  { phase: 0, name: "Brand activity calendar", spec: "National calendar, by brand and month" },
-  { phase: 0, name: "Trade spend budget envelope", spec: "By chain, with pricing guardrails" },
-  { phase: 0, name: "Channel investment split (on/off premise)" },
-
-  // Phases 1-4 — the road to an agreement, once per chain plan.
+  {
+    phase: 0,
+    name: "Set annual depletion target",
+    spec: "Responsible function: Marketing",
+  },
+  {
+    phase: 0,
+    name: "Confirm annual brand calendar",
+    spec: "Responsible function: Marketing",
+  },
+  {
+    phase: 0,
+    name: "Confirm program & local campaign rollout timing",
+    spec: "Responsible function: Marketing",
+  },
+  {
+    phase: 0,
+    name: "Confirm innovation launch timing",
+    spec: "Responsible function: Marketing",
+  },
+  {
+    phase: 0,
+    name: "Set trade promotional budget",
+    spec: "Responsible function: Marketing",
+  },
+  {
+    phase: 0,
+    name: "Set ROI targets",
+    spec: "Responsible function: Marketing",
+  },
+  {
+    phase: 0,
+    name: "Finalize strategic foundation output",
+    spec: "Responsible function: Marketing",
+  },
   {
     phase: 1,
-    name: "Internal JBP brief",
-    spec: "Reason to exist, right to win, negotiation range",
+    name: "Define account strategy/objectives, consumer profile & account history",
+    spec: "Responsible function: Sales",
   },
-  { phase: 1, name: "Spend envelope & pricing guardrails" },
   {
     phase: 1,
-    name: "Shopper program menu for the chain profile",
-    spec: "Which mechanics fit the banner",
+    name: "Gather buyer intelligence and priorities",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 1,
+    name: "Align relevant brand plans",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 1,
+    name: "Align shopper marketing programs",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 1,
+    name: "Confirm available investment capacity",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 1,
+    name: "Confirm pricing guardrails against requested programming",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 1,
+    name: "Develop internal JBP brief",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 1,
+    name: "Approve internal JBP brief",
+    spec: "Responsible function: Sales",
   },
   {
     phase: 2,
-    name: "Joint distributor plan",
-    spec: "Goals, incentives, who leads the buyer meeting",
+    name: "Align distributor goals to chain volume priorities",
+    spec: "Responsible function: Sales",
   },
   {
     phase: 2,
-    name: "Distributor capability check",
-    spec: "Delivery windows, MOQs, warehouse allocation",
-  },
-  { phase: 2, name: "Distributor incentive structure", spec: "Rep incentives tied to CWD targets" },
-  { phase: 3, name: "Business review & category story deck" },
-  { phase: 3, name: "JBP presentation & the ask", spec: "Items, shelf, pricing, promo calendar" },
-  { phase: 3, name: "Negotiation range sign-off" },
-  {
-    phase: 4,
-    name: "Document & book agreed terms",
-    spec: "Scan-back schedule, off-invoice, program calendar",
+    name: "Confirm distributor incentive plan mirrors chain volume priorities",
+    spec: "Responsible function: Sales",
   },
   {
-    phase: 4,
-    name: "Confirm distributor readiness",
-    spec: "Inventory build, allocation, delivery windows",
+    phase: 2,
+    name: "Confirm buyer-meeting leadership and team",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 2,
+    name: "Check delivery windows and MOQ capability",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 2,
+    name: "Confirm warehouse allocation for new items",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 2,
+    name: "Set incentive structure tied to JBP asks",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 2,
+    name: "Confirm training participation",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 2,
+    name: "Finalize joint distributor plan and aligned incentive structure",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Prepare prior-year business review: depletions, distribution and share vs. plan",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Prepare category story and segment framing",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Define the ask: new items, shelf placement and pricing",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Define the ask: promo calendar and innovation slotting",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Define the offer: trade spend investment",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Define the offer: shopper program investment",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Conduct structured buyer JBP and negotiation meeting",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Document agreed or provisional terms pending finalization",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Document pricing, spend and program calendar in writing",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Confirm trade spend",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Confirm distributor inventory build, allocations & delivery schedules",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 3,
+    name: "Finalize signed-off deal terms and distributor incentive program",
+    spec: "Responsible function: Sales",
   },
   {
     phase: 4,
-    name: "State ABC compliance review",
-    spec: "Pricing and POS rules for the agreed programs",
+    name: "Build POS materials, display units and shelf talkers by program; Align national brand campaigns with chain promo calendar",
+    spec: "Responsible function: Customer Marketing",
   },
-
-  // Phases 5-8 — slide 11's menu, once per promotion.
-  { phase: 5, category: "Stores list", name: "Stores list" },
-  { phase: 5, category: "Retail Mktg Mechanics", name: "Shelf talkers" },
-  { phase: 5, category: "Retail Mktg Mechanics", name: "Displays" },
-  { phase: 5, category: "Retail Mktg Mechanics", name: "3 case" },
-  { phase: 5, category: "Retail Mktg Mechanics", name: "Cold box" },
-  { phase: 5, category: "Retail Mktg Mechanics", name: "Secondary placement" },
-  { phase: 5, category: "Retail Mktg Mechanics", name: "Features" },
-  { phase: 5, category: "Brand Mktg Support", name: "Geo-target ads" },
-  { phase: 5, category: "Brand Mktg Support", name: "Social media" },
-  { phase: 5, category: "Distributor", name: "Sales rep training" },
-  { phase: 6, category: "Retail Mktg Mechanics", name: "Sell-in & CWD check" },
+  {
+    phase: 4,
+    name: "Communicate to distributor reps on deal, priorities and incentives",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 4,
+    name: "Confirm store list",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 4,
+    name: "Configure CCM & KARMA for tracking & Communicating program performance internally",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 4,
+    name: "Confirm ETA and delivery destination for activation materials",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 4,
+    name: "Confirm sales rep training plan",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 4,
+    name: "Finalize activation kit, synced calendar and field briefing",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Track sell-in of new items by store count and CWD%",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Execute display builds",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Check shelf compliance",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Check shelf price integrity",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Execute features, ads and displays on agreed schedule",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Use KARMA surveys to capture photo audits and visit reports",
+    spec: "Responsible function: Customer Marketing",
+  },
+  {
+    phase: 5,
+    name: "Finalize store-level execution data",
+    spec: "Responsible function: Customer Marketing",
+  },
   {
     phase: 6,
-    category: "Retail Mktg Mechanics",
-    name: "Store photo audit",
-    spec: "GPS-tagged photo per store",
+    name: "Track depletions, distribution & scan sales (where applicable)",
+    spec: "Responsible function: Finance",
   },
-  { phase: 6, category: "Retail Mktg Mechanics", name: "Price compliance check" },
+  {
+    phase: 6,
+    name: "Analyze trade spend and promotional lift / ROI vs expected KPIs",
+    spec: "Responsible function: Finance",
+  },
+  {
+    phase: 6,
+    name: "Capture baseline, promotional-period and uplift measures",
+    spec: "Responsible function: Finance",
+  },
+  {
+    phase: 6,
+    name: "Track $ / store / week over program period (assess 60 days prior & 60 days following)",
+    spec: "Responsible function: Finance",
+  },
+  {
+    phase: 6,
+    name: "Track investment",
+    spec: "Responsible function: Finance",
+  },
+  {
+    phase: 6,
+    name: "Finalize performance dashboard for Phase 7 review",
+    spec: "Responsible function: Finance",
+  },
   {
     phase: 7,
-    name: "Post-promo depletion pull",
-    spec: "Baseline vs. promotional period vs. uplift",
+    name: "Complete mid-year formal business review with buyer",
+    spec: "Responsible function: Sales",
   },
-  { phase: 7, name: "POS / scan data pull" },
-  { phase: 7, name: "Spend ROI summary", spec: "$ investment vs. incremental cases" },
-  { phase: 8, name: "Post-promo retro", spec: "Worked / didn't / repeat next year" },
+  {
+    phase: 7,
+    name: "Complete post-promo analysis by program",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 7,
+    name: "Complete distributor scorecard / quarterly performance review",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 7,
+    name: "Conduct internal retrospective across functions",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 7,
+    name: "Document what worked and what did not & key learnings for next cycle",
+    spec: "Responsible function: Sales",
+  },
+  {
+    phase: 7,
+    name: "Feed learnings into next year's Phase 0 AOP",
+    spec: "Responsible function: Sales",
+  },
 ];

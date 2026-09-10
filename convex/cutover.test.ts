@@ -36,7 +36,7 @@ test("the seed still produces the canonical data set", async () => {
   expect(summary).toEqual({
     today: "2026-08-20",
     deletedBeforeSeed: 0,
-    taskTemplates: 34,
+    taskTemplates: 62,
     seasons: 1,
     chains: 4,
     brands: 4,
@@ -44,7 +44,7 @@ test("the seed still produces the canonical data set", async () => {
     people: 12,
     chainPlans: 4,
     promotions: 4,
-    phaseRaciDefaults: 54,
+    phaseRaciDefaults: 48,
     tasks: 54,
     kpiEntries: 5,
     retros: 1,
@@ -197,7 +197,7 @@ test("the access tables are additive: the plan data never points at them", async
         brandIds: [],
         startDate: "2027-11-01",
         endDate: "2027-12-24",
-        currentPhase: 5,
+        currentPhase: 4,
       }),
   );
   await t.run(
@@ -206,7 +206,7 @@ test("the access tables are additive: the plan data never points at them", async
         promotionId,
         chainPlanId,
         seasonId,
-        phase: 5,
+        phase: 4,
         name: "Written before sign-in existed",
         status: "not_started",
         order: 0,

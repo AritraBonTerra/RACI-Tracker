@@ -130,7 +130,7 @@ export async function world() {
       endDate: "2026-12-24",
     });
     promotions[name] = promotionId;
-    await checklist(t, { tier: "promotion", promotionId }, 6, name, carol);
+    await checklist(t, { tier: "promotion", promotionId }, 5, name, carol);
   }
 
   await t.mutation(internal.bootstrap.grantAccess, {
@@ -160,7 +160,7 @@ async function checklist(
     | { tier: "season"; seasonId: Id<"seasons"> }
     | { tier: "chainPlan"; chainPlanId: Id<"chainPlans"> }
     | { tier: "promotion"; promotionId: Id<"promotions"> },
-  phase: 0 | 2 | 6,
+  phase: 0 | 2 | 5,
   label: string,
   personId: Id<"people">,
 ) {

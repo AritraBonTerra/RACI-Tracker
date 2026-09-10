@@ -51,7 +51,8 @@ export const CELL_ROLES = {
 type Cell = keyof typeof CELL_ROLES;
 
 // Slide 16 of the 2026 Integrated Commercial Process deck: which function plays
-// which role by default, per phase. These are defaults only — a task is assigned
+// which role by default, per phase. Responsible departments follow the approved
+// 2026-09-10 activity list; other letters retain the existing defaults. These are defaults only — a task is assigned
 // when a *named person* is Responsible, never because their function is R here.
 // Seeded as data so the matrix stays editable in-app.
 export const PHASE_RACI_MATRIX = [
@@ -60,16 +61,16 @@ export const PHASE_RACI_MATRIX = [
     commercial: "A",
     marketing: "R",
     retail: "C",
-    finance: "R",
+    finance: "-",
     distributor: "I",
     buyer: "-",
   },
   {
     phase: 1,
     commercial: "A/R",
-    marketing: "R",
-    retail: "R",
-    finance: "R",
+    marketing: "-",
+    retail: "-",
+    finance: "-",
     distributor: "I",
     buyer: "-",
   },
@@ -79,7 +80,7 @@ export const PHASE_RACI_MATRIX = [
     marketing: "I",
     retail: "C",
     finance: "C",
-    distributor: "R",
+    distributor: "-",
     buyer: "-",
   },
   {
@@ -88,39 +89,30 @@ export const PHASE_RACI_MATRIX = [
     marketing: "C",
     retail: "C",
     finance: "C",
-    distributor: "C/R",
+    distributor: "C",
     buyer: "-",
   },
   {
     phase: 4,
-    commercial: "A/R",
-    marketing: "I",
-    retail: "I",
-    finance: "R",
-    distributor: "C",
-    buyer: "C",
-  },
-  {
-    phase: 5,
-    commercial: "R",
-    marketing: "R",
+    commercial: "-",
+    marketing: "-",
     retail: "A/R",
     finance: "C",
     distributor: "C",
     buyer: "I",
   },
   {
-    phase: 6,
+    phase: 5,
     commercial: "A",
     marketing: "I",
     retail: "R",
     finance: "I",
-    distributor: "R",
+    distributor: "-",
     buyer: "I",
   },
   {
-    phase: 7,
-    commercial: "R",
+    phase: 6,
+    commercial: "-",
     marketing: "C",
     retail: "C",
     finance: "A/R",
@@ -128,11 +120,11 @@ export const PHASE_RACI_MATRIX = [
     buyer: "I",
   },
   {
-    phase: 8,
+    phase: 7,
     commercial: "A/R",
     marketing: "C",
     retail: "C",
-    finance: "R",
+    finance: "-",
     distributor: "C",
     buyer: "C",
   },
@@ -270,7 +262,7 @@ export const PEOPLE = [
   organization: string;
 }[];
 
-// --- Phase 7-8 measurement (detachable feature, #14) ----------------------
+// --- Phase 6-7 measurement (detachable feature, #14) ----------------------
 
 // The finished promotion's numbers: a 45-store, six-week Rosé feature that
 // worked. Baseline is the six weeks before the window, so $/store/wk lines up
@@ -360,7 +352,7 @@ type PromotionSeed = Omit<
   chainPlan: ChainPlanKey;
   brandIds: readonly BrandKey[];
   tasks: readonly TaskRow[];
-  // Detachable phase-7/8 feature (#14).
+  // Detachable phase-6/7 feature (#14).
   kpis?: readonly Omit<WithoutSystemFields<Doc<"kpiEntries">>, "promotionId">[];
   retro?: Omit<WithoutSystemFields<Doc<"retros">>, "promotionId">;
 };
@@ -427,13 +419,13 @@ export const SEASON: SeasonSeed = {
   ],
 };
 
-// --- Chain plans (phases 1-4) ---------------------------------------------
+// --- Chain plans (phases 1-3) ---------------------------------------------
 
 export const CHAIN_PLANS = [
   {
     key: "safeway",
     chain: "safeway",
-    currentPhase: 4,
+    currentPhase: 3,
     jbpDate: "2026-06-10",
     notes: "Terms agreed; Q4 programs now in activation.",
     tasks: [
@@ -468,7 +460,7 @@ export const CHAIN_PLANS = [
         informedPersonIds: ["ken"],
       },
       {
-        phase: 4,
+        phase: 3,
         name: "Document & book agreed terms",
         spec: "Scan-back schedule, off-invoice, program calendar",
         eta: "2026-06-26",
@@ -477,7 +469,7 @@ export const CHAIN_PLANS = [
         accountablePersonId: "marisol",
       },
       {
-        phase: 4,
+        phase: 3,
         name: "Confirm distributor readiness",
         spec: "Inventory build, allocation, delivery windows for Q4 programs",
         eta: "2026-07-24",
@@ -488,7 +480,7 @@ export const CHAIN_PLANS = [
         notes: "Allocation for the Halloween 3-case never got confirmed in writing.",
       },
       {
-        phase: 4,
+        phase: 3,
         name: "State ABC compliance review",
         spec: "CA pricing and POS rules for Q4 programs",
         eta: "2026-09-04",
@@ -501,7 +493,7 @@ export const CHAIN_PLANS = [
   {
     key: "ralphs",
     chain: "ralphs",
-    currentPhase: 4,
+    currentPhase: 3,
     jbpDate: "2026-05-20",
     notes: "Agreement finalized; summer and back-to-school programs running.",
     tasks: [
@@ -531,7 +523,7 @@ export const CHAIN_PLANS = [
         accountablePersonId: "marisol",
       },
       {
-        phase: 4,
+        phase: 3,
         name: "Document & book agreed terms",
         eta: "2026-06-05",
         status: "delivered",
@@ -543,7 +535,7 @@ export const CHAIN_PLANS = [
   {
     key: "albertsons",
     chain: "albertsons",
-    currentPhase: 4,
+    currentPhase: 3,
     jbpDate: "2026-03-11",
     notes: "First-half programs complete; second-half calendar being reopened.",
     tasks: [
@@ -565,7 +557,7 @@ export const CHAIN_PLANS = [
         informedPersonIds: ["priya"],
       },
       {
-        phase: 4,
+        phase: 3,
         name: "H2 calendar amendment",
         spec: "Add a holiday gifting window to the agreed calendar",
         eta: "2026-08-14",
@@ -662,7 +654,7 @@ export const CHAIN_PLANS = [
 
 export type ChainPlanKey = (typeof CHAIN_PLANS)[number]["key"];
 
-// --- Promotions (phases 5-8) ----------------------------------------------
+// --- Promotions (phases 4-7) ----------------------------------------------
 
 export const PROMOTIONS: readonly PromotionSeed[] = [
   // The headline demo: slide 11's activation checklist, mid-flight and messy.
@@ -673,11 +665,11 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
     startDate: "2026-10-05",
     endDate: "2026-11-01",
     storeCount: 20,
-    currentPhase: 5,
+    currentPhase: 4,
     notes: "20-store demo program with in-store sampling on October weekends.",
     tasks: [
       {
-        phase: 5,
+        phase: 4,
         category: "Stores list",
         name: "Stores list",
         spec: "20 stores, NorCal high-index wine doors",
@@ -691,7 +683,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         notes: "16 of 20 confirmed; buyer still to approve the last four.",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Shelf talkers",
         spec: "32 in, Halloween creative",
@@ -702,7 +694,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Displays",
         spec: "Half-pallet, Halloween wrap",
@@ -713,7 +705,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "3 case",
         spec: "3-case stack, $9.99 feature price",
@@ -729,7 +721,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
           "Allocation was never confirmed in phase 4; stacks cannot be built without stock in the warehouse.",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Cold box",
         spec: "4 facings, Mendocino Rosé",
@@ -740,7 +732,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Secondary placement",
         spec: "Produce department cross-merch bin",
@@ -750,7 +742,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         status: "not_started",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Features",
         spec: "2 ad features, weeks of 10/12 and 10/26",
@@ -762,7 +754,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         informedPersonIds: ["ken"],
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Brand Mktg Support",
         name: "Geo-target ads",
         spec: "5-mile radius around each of the 20 stores",
@@ -773,7 +765,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "priya",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Brand Mktg Support",
         name: "Social media",
         spec: "3 posts + 1 reel on the Fetzer handle",
@@ -784,7 +776,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "priya",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Distributor",
         name: "Sales rep training",
         spec: "Rep deck + 30-minute session for the Safeway team",
@@ -797,7 +789,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         informedPersonIds: ["alicia"],
       },
       {
-        phase: 6,
+        phase: 5,
         category: "Retail Mktg Mechanics",
         name: "Photo audit setup",
         spec: "GPS-tagged photo audit template for 20 stores",
@@ -816,11 +808,11 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
     startDate: "2026-08-03",
     endDate: "2026-09-07",
     storeCount: 30,
-    currentPhase: 6,
+    currentPhase: 5,
     notes: "30-store endcap program, currently in market.",
     tasks: [
       {
-        phase: 5,
+        phase: 4,
         category: "Stores list",
         name: "Stores list",
         quantity: 30,
@@ -831,7 +823,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Displays",
         spec: "Endcap kit, 4-shelf",
@@ -844,7 +836,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Shelf talkers",
         spec: "24 in",
@@ -855,7 +847,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 6,
+        phase: 5,
         category: "Retail Mktg Mechanics",
         name: "Sell-in & CWD check",
         spec: "Target 90% CWD across 30 stores",
@@ -868,7 +860,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         notes: "At 71% CWD; nine stores have not built the endcap yet.",
       },
       {
-        phase: 6,
+        phase: 5,
         category: "Retail Mktg Mechanics",
         name: "Store photo audit — week 2",
         spec: "GPS photo per store",
@@ -879,7 +871,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 6,
+        phase: 5,
         category: "Retail Mktg Mechanics",
         name: "Price compliance check",
         spec: "Verify $12.99 feature price is live",
@@ -898,15 +890,15 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
     startDate: "2026-05-25",
     endDate: "2026-07-06",
     storeCount: 45,
-    currentPhase: 7,
+    currentPhase: 6,
     notes:
-      "Completed in market. Numbers are in and the retro is written up; the phase 7-8 tasks behind them were never closed out.",
+      "Completed in market. Numbers are in and the retro is written up; the phase 6-7 tasks behind them were never closed out.",
     // The one promotion far enough along to have a filled KPI grid and a retro.
     kpis: SUMMER_ROSE_KPIS,
     retro: SUMMER_ROSE_RETRO,
     tasks: [
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Displays",
         spec: "Quarter-pallet, summer creative",
@@ -917,7 +909,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 6,
+        phase: 5,
         category: "Retail Mktg Mechanics",
         name: "Execution audit",
         quantity: 45,
@@ -928,7 +920,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "marisol",
       },
       {
-        phase: 7,
+        phase: 6,
         name: "Post-promo depletion pull",
         spec: "Baseline vs. promotional period vs. uplift",
         eta: "2026-07-31",
@@ -938,7 +930,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "hana",
       },
       {
-        phase: 7,
+        phase: 6,
         name: "POS / scan data pull",
         spec: "Circana, 45 stores, 6-week window",
         eta: "2026-08-07",
@@ -948,7 +940,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "hana",
       },
       {
-        phase: 7,
+        phase: 6,
         name: "Spend ROI summary",
         spec: "$ investment vs. incremental cases",
         eta: "2026-08-21",
@@ -957,7 +949,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "hana",
       },
       {
-        phase: 8,
+        phase: 7,
         name: "Post-promo retro",
         spec: "Worked / didn't / repeat next year",
         eta: "2026-09-04",
@@ -976,11 +968,11 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
     startDate: "2026-11-09",
     endDate: "2026-11-29",
     storeCount: 60,
-    currentPhase: 5,
+    currentPhase: 4,
     notes: "Approved at the June JBP; activation planning has not really begun.",
     tasks: [
       {
-        phase: 5,
+        phase: 4,
         category: "Stores list",
         name: "Stores list",
         quantity: 60,
@@ -990,7 +982,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Displays",
         spec: "Wine rack, 6-bottle capacity",
@@ -1000,7 +992,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         status: "not_started",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Retail Mktg Mechanics",
         name: "Shelf talkers",
         spec: "Spec TBC — chain has not confirmed size",
@@ -1011,7 +1003,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "alicia",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Brand Mktg Support",
         name: "Social media",
         spec: "Thanksgiving pairing content",
@@ -1021,7 +1013,7 @@ export const PROMOTIONS: readonly PromotionSeed[] = [
         accountablePersonId: "priya",
       },
       {
-        phase: 5,
+        phase: 4,
         category: "Distributor",
         name: "Sales rep training",
         eta: "2026-10-23",

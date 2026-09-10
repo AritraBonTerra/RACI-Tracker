@@ -11,17 +11,17 @@ conversation.
   company-wide phase 0 work (targets, portfolio strategy, brand calendar, trade
   budget).
 - **Chain** — a retail account: Safeway, Albertsons, Ralphs, Kroger, …
-- **Chain Plan** — one Chain × one Plan Year. Carries phases 1–4: internal
-  alignment → distributor alignment → JBP & negotiation → agreement.
+- **Chain Plan** — one Chain × one Plan Year. Carries phases 1–3: internal
+  alignment → distributor alignment → JBP Cycle, including agreed terms.
 - **Promotion** — an approved program under a Chain Plan: one Chain, one or more
-  Brands, a date window, a program name. Carries phases 5–8: activation
+  Brands, a date window, a program name. Carries phases 4–7: activation
   planning → retail execution → tracking & measurement → review.
 - **Brand** — what is being promoted (e.g. Fetzer, the Mendocino line). A
   maintained list; placeholder entries until real data is loaded.
-- **Phase** — one of the nine steps (0–8) of the Integrated Commercial Cycle.
+- **Phase** — one of the eight steps (0–7) of the Integrated Commercial Cycle.
 - **Task** — a unit of work on a phase checklist ("shelf talkers, 32 in,
   qty 20"). Has a spec, an optional quantity, an ETA, RACI assignments, and a
-  status. The deck's slide 11 rows are the seed menu.
+  status. The approved activity list provides the default menu.
 - **Task Template** — the default checklist for a phase: one global menu (not
   chain-specific), editable in-app, stamped onto a new Plan Year, Chain Plan,
   or Promotion at creation.
@@ -92,7 +92,7 @@ conversation.
   by dates that already exist (a Promotion's start/end window, a Chain Plan's
   JBP date) and refined by the min→max ETAs of the phase's tasks. A phase with
   neither anchor nor ETAs is *unscheduled*, not guessed.
-- **KPI entry** — manually typed phase-7 numbers per promotion: Depletions, POS
+- **KPI entry** — manually typed phase-6 numbers per promotion: Depletions, POS
   data, CWD, $/Store/Wk, $ investment × Baseline / Promotional period / Uplift.
-- **Retro** — the phase-8 review on a promotion: worked / didn't / repeat next
+- **Retro** — the phase-7 review on a promotion: worked / didn't / repeat next
   year, feeding the next Plan Year's plan.

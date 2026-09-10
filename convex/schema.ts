@@ -1,8 +1,8 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
-// The nine phases of the Integrated Commercial Cycle (CONTEXT.md: Phase).
-// 0 lives on a Season, 1-4 on a Chain Plan, 5-8 on a Promotion.
+// The eight phases of the Integrated Commercial Cycle (CONTEXT.md: Phase).
+// 0 lives on a Season, 1-3 on a Chain Plan, 4-7 on a Promotion.
 export const phase = v.union(
   v.literal(0),
   v.literal(1),
@@ -12,7 +12,6 @@ export const phase = v.union(
   v.literal(5),
   v.literal(6),
   v.literal(7),
-  v.literal(8),
 );
 
 // Task lifecycle (CONTEXT.md: Status). "Overdue" is *not* here: it is derived
@@ -82,12 +81,12 @@ export const lastModified = {
   lastModifiedAt: v.optional(v.number()),
 };
 
-// --- Phase 7-8 measurement (detachable feature, #14) ----------------------
+// --- Phase 6-7 measurement (detachable feature, #14) ----------------------
 // The two validators and the two tables at the bottom of the schema are the
 // whole storage footprint of the KPI table and the retro. Removing the feature
 // means deleting these four blocks plus `convex/kpi.ts`.
 
-// The slide-14 rows of the phase-7 KPI table. A closed set: the grid is the
+// The slide-14 rows of the phase-6 KPI table. A closed set: the grid is the
 // deck's grid, and a promotion the sales team cannot compare to last year's is
 // worth less than one with five agreed metrics.
 export const kpiMetric = v.union(
@@ -98,7 +97,7 @@ export const kpiMetric = v.union(
   v.literal("investment"),
 );
 
-// The phase-8 verdict. "Maybe" is a real answer — most retros land there.
+// The phase-7 verdict. "Maybe" is a real answer — most retros land there.
 export const repeatVerdict = v.union(v.literal("yes"), v.literal("no"), v.literal("maybe"));
 
 // Dates are ISO calendar days ("2026-10-31"), not timestamps: an ETA is a day a
@@ -241,7 +240,7 @@ export default defineSchema({
     detail: v.optional(v.string()),
   }).index("by_subject", ["subjectUserId"]),
 
-  // One Chain x one Season. Carries phases 1-4.
+  // One Chain x one Season. Carries phases 1-3.
   chainPlans: defineTable({
     seasonId: v.id("seasons"),
     chainId: v.id("chains"),
@@ -254,7 +253,7 @@ export default defineSchema({
     .index("by_chain", ["chainId"])
     .index("by_season_and_chain", ["seasonId", "chainId"]),
 
-  // An approved program under a Chain Plan. Carries phases 5-8.
+  // An approved program under a Chain Plan. Carries phases 4-7.
   // `chainId` and `seasonId` are copied from the plan at creation so a
   // promotion can name its chain and plan year without loading the plan first
   // (seasons.contextFor, model.ts: placeResolver). They never change: a
@@ -276,8 +275,8 @@ export default defineSchema({
   // A unit of work on a phase checklist.
   //
   // Ownership: exactly one of `seasonId` / `chainPlanId` / `promotionId` is set,
-  // matching where the task's phase lives (0 -> season, 1-4 -> chain plan,
-  // 5-8 -> promotion). Three nullable columns rather than a union because index
+  // matching where the task's phase lives (0 -> season, 1-3 -> chain plan,
+  // 4-7 -> promotion). Three nullable columns rather than a union because index
   // lookups ("tasks of this promotion") need a flat field to point at.
   //
   // RACI: only the Responsible list decides assigned vs. unassigned — at least
@@ -355,9 +354,9 @@ export default defineSchema({
     note: v.optional(v.string()),
   }).index("by_phase", ["phase"]),
 
-  // --- Phase 7-8 measurement (detachable feature, #14) --------------------
+  // --- Phase 6-7 measurement (detachable feature, #14) --------------------
 
-  // One row of the phase-7 KPI grid: a metric measured across the baseline and
+  // One row of the phase-6 KPI grid: a metric measured across the baseline and
   // the promotional period. Every number is typed by a human — there are no
   // data integrations, so a value is present only because someone entered it,
   // and an absent value is left absent rather than defaulted to zero.
@@ -378,7 +377,7 @@ export default defineSchema({
     .index("by_promotion", ["promotionId"])
     .index("by_promotion_and_metric", ["promotionId", "metric"]),
 
-  // The phase-8 review: at most one per promotion. Every field is optional
+  // The phase-7 review: at most one per promotion. Every field is optional
   // because a retro gets written in the order the room talks, not top to bottom.
   retros: defineTable({
     promotionId: v.id("promotions"),

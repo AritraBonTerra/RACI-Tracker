@@ -7,7 +7,7 @@ import { ALL_PHASES, raciDefaults } from "./model";
 // it can put them at the top of the list.
 
 /**
- * Function-level defaults for all nine phases. These are guidance: a task counts
+ * Function-level defaults for all eight phases. These are guidance: a task counts
  * as assigned only when a *named* person is Responsible (CONTEXT.md: Unassigned).
  */
 export const matrix = authedQuery({

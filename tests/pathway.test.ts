@@ -28,9 +28,9 @@ describe("buildPathway", () => {
   test("windows come from anchors and widen to task ETAs, never guessed", () => {
     const phases = buildPathway(
       PROMOTION_PHASES,
-      [task({ phase: 5, eta: "2026-10-20" }), task({ phase: 5, eta: "2026-11-05" })],
+      [task({ phase: 4, eta: "2026-10-20" }), task({ phase: 4, eta: "2026-11-05" })],
       anchors,
-      5,
+      4,
       TODAY,
     );
     const [planning, execution, , review] = phases;
@@ -51,33 +51,33 @@ describe("buildPathway", () => {
 
   test("red for overdue or blocked work, amber inside the last week, done when complete", () => {
     const overdue = buildPathway(
-      [5],
-      [task({ phase: 5, eta: "2026-10-01", status: "in_progress" })],
+      [4],
+      [task({ phase: 4, eta: "2026-10-01", status: "in_progress" })],
       {},
-      5,
+      4,
       TODAY,
     )[0];
     expect(overdue.state).toBe("red");
     expect(overdue.counts.overdue).toBe(1);
     expect(overdue.counts.worstLate).toBe(14);
 
-    const blocked = buildPathway([5], [task({ phase: 5, status: "blocked" })], {}, 5, TODAY)[0];
+    const blocked = buildPathway([4], [task({ phase: 4, status: "blocked" })], {}, 4, TODAY)[0];
     expect(blocked.state).toBe("red");
 
     const soon = buildPathway(
-      [5],
-      [task({ phase: 5, eta: "2026-10-20" })],
-      { 5: { start: "2026-10-01" } },
-      5,
+      [4],
+      [task({ phase: 4, eta: "2026-10-20" })],
+      { 4: { start: "2026-10-01" } },
+      4,
       TODAY,
     )[0];
     expect(soon.state).toBe("amber");
 
     const done = buildPathway(
-      [5],
-      [task({ phase: 5, status: "delivered", eta: "2026-09-01" })],
+      [4],
+      [task({ phase: 4, status: "delivered", eta: "2026-09-01" })],
       {},
-      5,
+      4,
       TODAY,
     )[0];
     expect(done.state).toBe("done");
@@ -85,18 +85,18 @@ describe("buildPathway", () => {
 
   test("a passed window only turns red when it was real, not inferred", () => {
     const real = buildPathway(
-      [5],
-      [task({ phase: 5 })],
-      { 5: { start: "2026-09-01", end: "2026-09-30" } },
-      5,
+      [4],
+      [task({ phase: 4 })],
+      { 4: { start: "2026-09-01", end: "2026-09-30" } },
+      4,
       TODAY,
     )[0];
     expect(real.state).toBe("red");
     const inferred = buildPathway(
-      [5],
-      [task({ phase: 5 })],
-      { 5: { end: "2026-09-30" } },
-      5,
+      [4],
+      [task({ phase: 4 })],
+      { 4: { end: "2026-09-30" } },
+      4,
       TODAY,
     )[0];
     expect(inferred.window?.inferred).toBe(true);
@@ -109,11 +109,11 @@ describe("pathwayHeadline", () => {
     const phases = buildPathway(
       PROMOTION_PHASES,
       [
-        task({ phase: 5, eta: "2026-10-01", status: "in_progress" }),
-        task({ phase: 6, status: "blocked" }),
+        task({ phase: 4, eta: "2026-10-01", status: "in_progress" }),
+        task({ phase: 5, status: "blocked" }),
       ],
       anchors,
-      5,
+      4,
       TODAY,
     );
     const headline = pathwayHeadline(phases, TODAY);
@@ -124,10 +124,10 @@ describe("pathwayHeadline", () => {
 
   test("a passed real window prints a formatted day, not an ISO string", () => {
     const phases = buildPathway(
-      [5],
-      [task({ phase: 5 })],
-      { 5: { start: "2026-09-01", end: "2026-09-30" } },
-      5,
+      [4],
+      [task({ phase: 4 })],
+      { 4: { start: "2026-09-01", end: "2026-09-30" } },
+      4,
       TODAY,
     );
     const headline = pathwayHeadline(phases, TODAY);
@@ -137,7 +137,7 @@ describe("pathwayHeadline", () => {
   });
 
   test("all clear when nothing is late, blocked or closing in", () => {
-    const phases = buildPathway([5], [task({ phase: 5, eta: "2026-12-01" })], {}, 5, TODAY);
+    const phases = buildPathway([4], [task({ phase: 4, eta: "2026-12-01" })], {}, 4, TODAY);
     expect(pathwayHeadline(phases, TODAY)).toEqual({ tone: "ok", text: "All phases on track." });
   });
 });

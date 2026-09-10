@@ -62,7 +62,7 @@ test("chain grants include future plans and promotions without exposing year wor
   expect(await owner.query(api.seasons.overview, { seasonId, today: TODAY })).toBeNull();
   const taskId = await owner.mutation(api.tasks.create, {
     owner: { tier: "promotion", promotionId },
-    phase: 6,
+    phase: 5,
     name: "Future task",
   });
   await owner.mutation(api.tasks.setStatus, { taskId, status: "delivered" });

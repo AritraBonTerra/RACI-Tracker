@@ -373,7 +373,7 @@ export async function readableSeason(
   return visible?.reach === "full" ? visible.season : null;
 }
 
-/** A Chain Plan whose phases 1-4 the viewer may read. */
+/** A Chain Plan whose phases 1-3 the viewer may read. */
 export async function readableChainPlan(
   ctx: QueryCtx,
   scope: Scope,
@@ -384,7 +384,7 @@ export async function readableChainPlan(
   return scope.chainPlan(plan) === "full" ? plan : null;
 }
 
-/** A Promotion whose phases 5-8, KPI entries and Retro the viewer may read. */
+/** A Promotion whose phases 4-7, KPI entries and Retro the viewer may read. */
 export async function readablePromotion(
   ctx: QueryCtx,
   scope: Scope,
@@ -465,7 +465,7 @@ export async function writableSeason(
   return season;
 }
 
-/** A Chain Plan whose own fields and phase 1-4 checklist the viewer may write. */
+/** A Chain Plan whose own fields and phase 1-3 checklist the viewer may write. */
 export async function writableChainPlan(
   ctx: QueryCtx,
   scope: Scope,
@@ -477,8 +477,8 @@ export async function writableChainPlan(
 }
 
 /**
- * A Promotion whose own fields, phase 5-8 checklist, KPI entries and Retro the
- * viewer may write — phase 7-8 work happens where the promotion lives (#22).
+ * A Promotion whose own fields, phase 4-7 checklist, KPI entries and Retro the
+ * viewer may write — phase 6-7 work happens where the promotion lives (#22).
  */
 export async function writablePromotion(
   ctx: QueryCtx,

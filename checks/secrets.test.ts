@@ -135,10 +135,10 @@ test("the scan recognises the things it is looking for", () => {
 
 test("local environment files stay untracked", () => {
   // The other half of the same rule: `.env.local` is where a developer's own
-  // keys live, and `.env.example` is the only one of its family in the repo.
+  // keys live; only the two credential-free setup templates belong in the repo.
   const gitignore = readFileSync(`${ROOT}.gitignore`, "utf8");
   expect(gitignore).toMatch(/^\.env\*$/m);
 
   const envFiles = trackedFiles().filter((path) => path.split("/").pop()?.startsWith(".env"));
-  expect(envFiles).toEqual([".env.example"]);
+  expect(envFiles).toEqual([".env.example", ".env.staging.example"]);
 });

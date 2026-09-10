@@ -36,7 +36,7 @@ import { DEFAULT_TASK_TEMPLATES } from "./templateDefaults";
 const SEEDED_TABLES = [
   "tasks",
   "taskTemplates",
-  // Detachable phase-7/8 feature (#14).
+  // Detachable phase-6/7 feature (#14).
   "kpiEntries",
   "retros",
   "phaseRaciDefaults",
@@ -223,7 +223,7 @@ export const run = internalMutation({
         brandIds: brandIds.map((key) => brands[key]),
       });
 
-      // Detachable phase-7/8 feature (#14).
+      // Detachable phase-6/7 feature (#14).
       for (const entry of kpis ?? []) {
         await ctx.db.insert("kpiEntries", { promotionId, ...entry });
         kpiEntries += 1;
@@ -236,6 +236,17 @@ export const run = internalMutation({
       taskCount += await insertChecklist(ctx, { promotionId }, tasks, people);
     }
 
+    if (
+      !(await ctx.db
+        .query("dataMigrations")
+        .withIndex("by_key", (q) => q.eq("key", "eight-phase-workflow-2026-09"))
+        .first())
+    ) {
+      await ctx.db.insert("dataMigrations", {
+        key: "eight-phase-workflow-2026-09",
+        appliedAt: Date.now(),
+      });
+    }
     return {
       today: TODAY,
       deletedBeforeSeed: deleted,

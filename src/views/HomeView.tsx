@@ -81,7 +81,7 @@ export function HomeView({
             <section className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40">
               <EmptyState title="No chain plans in this year yet">
                 A chain plan is one account for one year — Safeway 2026, Kroger 2026. Start one from
-                the chain list in the sidebar and phases 1–4 appear underneath it.
+                the chain list in the sidebar and phases 1–3 appear underneath it.
               </EmptyState>
             </section>
           )}
@@ -253,7 +253,7 @@ function SeasonCard({
 }
 
 /**
- * One chain: its plan (phases 1–4) and every promotion under it (5–8).
+ * One chain: its plan (phases 1–3) and every promotion under it (4–7).
  *
  * A plan the viewer reaches only as the parent of a granted promotion is a
  * heading and nothing more — no link, no phase track, no counts. It is here so
@@ -301,7 +301,7 @@ function ChainSection({ group, today }: { group: ChainGroup; today: string }) {
 
       {group.promotions.length === 0 ? (
         <EmptyState title="No promotions yet">
-          Phases 5–8 belong to a promotion, and this plan does not have one — it is still working
+          Phases 4–7 belong to a promotion, and this plan does not have one — it is still working
           towards an agreement. Open the plan to add the first program.
         </EmptyState>
       ) : (
