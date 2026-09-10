@@ -17,10 +17,16 @@ Season → Chain Plan → Promotion lifecycle.
 
 ```sh
 bun install
-cp .env.example .env.local   # then fill in VITE_CLERK_PUBLISHABLE_KEY
+test -f .env.local || cp .env.example .env.local
+# Fill in VITE_CLERK_PUBLISHABLE_KEY and select the local backend as described below.
 bun run convex   # Convex dev server: pushes functions on change, writes .env.local
 bun run dev      # Vite dev server (separate terminal)
 ```
+
+These scripts also work with `npm run convex` and `npm run dev`. The frontend
+uses the backend URL in `.env.local`; the Git branch does not select it.
+See [environment setup and release branches](docs/runbooks/environments.md)
+for local backend selection and staging configuration.
 
 Sign-in needs a Clerk development instance and one Convex environment variable.
 `docs/runbooks/clerk-setup.md` walks through both, and ends with the

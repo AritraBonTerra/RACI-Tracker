@@ -11,6 +11,22 @@ access assignments. Local and staging were initialized with sample data, not a
 copy of production. Sign in and bootstrap an Administrator separately in each
 new environment using the access-administration runbook.
 
+## Configuration files
+
+- `.env.local`: local backend selection and frontend settings. Used by
+  `npm run dev` and `npm run convex`. Start both in separate terminals.
+- `.env.staging.local`: optional staging deploy credential and frontend settings.
+  Used only when explicitly passed with `--env-file .env.staging.local`.
+- `.env.example` and `.env.staging.example`: tracked templates with no secrets.
+- Vercel: staging variables are scoped to Preview / branch `staging`;
+  production credentials stay scoped to Production.
+- Convex backend settings: the Clerk issuer and optional email-domain gate live
+  separately on each backend, not in the frontend environment files.
+
+Do not copy staging's deploy key into `.env.local`. Changing Git branches does
+not change the local backend. Restart Vite after changing frontend settings.
+The CLI-created local name and ports in `.env.local` are authoritative.
+
 ## Local development
 
 This worktree's ignored `.env.local` selects the local backend and the existing
@@ -58,7 +74,31 @@ bunx convex deploy --env-file .env.staging.local --cmd 'bun run build' --cmd-url
 commit it. On another machine, create a separate key scoped to staging or use
 the Vercel branch deployment. Never use the production key for staging.
 
+## Signing in
+
+There is no shared Administrator password. Sign in with your own work email
+and its verification code, or Google. Roles are separate in each database.
+To bootstrap an account after its first sign-in:
+
+```sh
+# Local backend must be running.
+bunx convex run bootstrap:grantAdmin '{"email":"you@company.com"}' --deployment local
+# Staging, using its explicit credentials file.
+bunx convex run bootstrap:grantAdmin '{"email":"you@company.com"}' --env-file .env.staging.local
+```
+
+The staging frontend is at
+<https://raci-tracker-git-staging-bon-organic.vercel.app> and also requires
+Vercel preview access before reaching the app's sign-in screen.
+
 ## Promoting a release
+
+`staging` is a separate branch in
+[GitHub](https://github.com/AritraBonTerra/RACI-Tracker/tree/staging).
+From a feature branch, open a pull request with `staging` as its base and merge
+it when ready. Vercel then updates the staging URL and staging backend.
+GitHub runs the same checks on pushes to both `staging` and `main`, and on pull
+requests. CI and Vercel dependency installation both use Bun 1.4.0.
 
 Test locally, push the candidate code to `staging`, gather feedback, then merge
 the approved code into `main`. Promote code, not the staging database. Changes
