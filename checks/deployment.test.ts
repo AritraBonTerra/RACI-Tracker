@@ -14,7 +14,7 @@ test("only production and staging builds deploy the backend, and both require a 
     const env = {
       ...process.env,
       PATH: `${dir}:${process.env.PATH}`,
-      CONVEX_DEPLOY_KEY: "test-key",
+      CONVEX_DEPLOY_KEY: "prod:flippant-jaguar-524|test-key",
     };
     for (const [target, branch, deploys] of [
       ["production", "main", true],
@@ -28,6 +28,14 @@ test("only production and staging builds deploy the backend, and both require a 
         encoding: "utf8",
       });
       expect(output.startsWith("bunx\nconvex\ndeploy\n")).toBe(deploys);
+      if (target === "preview" && branch === "staging") {
+        expect(output).toContain("--check-build-environment\ndisable");
+        expect(
+          spawnSync("bash", ["scripts/vercel-build.sh"], {
+            env: { ...selected, CONVEX_DEPLOY_KEY: "prod:actual-production|wrong-key" },
+          }).status,
+        ).not.toBe(0);
+      }
       if (deploys) {
         expect(output).toContain("VITE_CONVEX_URL");
         expect(

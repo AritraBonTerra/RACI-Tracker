@@ -42,7 +42,10 @@ development environment. App access still requires explicit grants.
 
 `scripts/vercel-build.sh` deploys the backend only for Production builds or
 Preview builds from `staging`. Convex supplies the matching backend URL during
-the frontend build. Other feature previews keep their configured backend and do
+the frontend build. The staging path verifies the key targets
+`flippant-jaguar-524` before allowing a production-type backend in a Preview
+build. The install command pins Bun 1.4.0 and requires the committed lockfile.
+Other feature previews keep their configured backend and do
 not deploy backend code. They are not independent backend environments.
 
 For a manual staging deployment from this worktree:
