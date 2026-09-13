@@ -68,7 +68,7 @@ export function NewChainPlanModal({
               const next = planless.find((chain) => chain._id === event.target.value);
               setChainId(next?._id ?? "");
             }}
-            className="h-9 w-full cursor-pointer rounded-md border border-ink-700 bg-ink-950 px-2 text-sm text-ink-100 transition hover:border-ink-500 focus:border-sand-500 focus:outline-none disabled:opacity-40"
+            className="h-9 w-full cursor-pointer rounded-md border border-ink-700 bg-ink-950 px-2 text-sm text-ink-100 transition hover:border-ink-500 focus:border-accent focus:outline-none disabled:opacity-40"
           >
             {planless.map((chain) => (
               <option key={chain._id} value={chain._id}>

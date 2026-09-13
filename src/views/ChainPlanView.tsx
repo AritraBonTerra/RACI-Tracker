@@ -6,6 +6,7 @@ import { useIsAdministrator } from "../components/AuthGate";
 import { BrandToggles } from "../components/BrandToggles";
 import { InlineDate, InlineSelect, InlineText } from "../components/inline";
 import { Pathway } from "../components/Pathway";
+import { PhaseBadge, PhaseTitle } from "../components/Phase";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import {
   Breadcrumb,
@@ -103,6 +104,7 @@ export function ChainPlanView({
         meta={
           <>
             <MetaItem label="Current phase">
+              <PhaseBadge phase={data.plan.currentPhase} size="xs" />
               <InlineSelect
                 value={String(data.plan.currentPhase)}
                 options={CHAIN_PLAN_PHASES.map((phase) => ({
@@ -194,8 +196,9 @@ export function ChainPlanView({
                   {node.promotion.storeCount !== undefined &&
                     ` · ${node.promotion.storeCount} stores`}
                 </p>
-                <p className="mt-3 text-2xs text-ink-500">
-                  Phase {node.promotion.currentPhase} · {PHASES[node.promotion.currentPhase].title}
+                <p className="mt-3 flex items-center gap-1.5 text-2xs">
+                  <PhaseBadge phase={node.promotion.currentPhase} size="xs" />
+                  <PhaseTitle phase={node.promotion.currentPhase} />
                 </p>
               </a>
             ))}

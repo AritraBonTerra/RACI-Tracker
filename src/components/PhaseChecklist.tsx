@@ -8,6 +8,7 @@ import { PHASES, type PhaseNumber, roleLetters } from "../lib/domain";
 import type { PeopleDirectory } from "../lib/people";
 import { useReportedMutation } from "../lib/toast";
 import { useCanEditWork } from "./AuthGate";
+import { PhaseBadge, phaseStyle } from "./Phase";
 import type { Editors } from "./page";
 import { TaskRow } from "./TaskRow";
 import { Button, EmptyState, inputClass } from "./ui";
@@ -56,22 +57,24 @@ export function PhaseChecklist({
   const [adding, setAdding] = useState(false);
 
   return (
-    <section className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/50">
-      <header className="border-b border-ink-800 bg-ink-900/80 px-4 py-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h3 className="flex items-baseline gap-2 text-sm font-semibold text-ink-100">
-            <span className="rounded bg-ink-800 px-1.5 py-0.5 font-mono text-2xs text-ink-400">
-              Phase {phase}
-            </span>
-            {meta.title}
-          </h3>
+    <section
+      style={phaseStyle(phase)}
+      className="overflow-hidden rounded-xl border border-ink-800 border-t-[3px] border-t-(--phase) bg-ink-900/50"
+    >
+      <header className="border-b border-ink-800 bg-ink-900/80 px-4 py-3.5">
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-2">
+          <PhaseBadge phase={phase} size="lg" />
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold tracking-tight text-ink-50">{meta.title}</h3>
+            <p className="text-xs text-ink-500">{meta.summary}</p>
+          </div>
           <div className="flex items-center gap-3 text-2xs">
             {blocked > 0 && <span className="font-semibold text-rose-300">{blocked} blocked</span>}
             {overdue > 0 && <span className="font-semibold text-amber-300">{overdue} overdue</span>}
-            <span className="text-ink-500">
+            <span className="text-ink-500 tabular-nums">
               {delivered}/{rows.length} delivered
             </span>
-            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-ink-800">
+            <div className="h-1.5 w-24 overflow-hidden rounded-full bg-(--phase)/20">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all"
                 style={{ width: `${progress}%` }}
@@ -79,13 +82,12 @@ export function PhaseChecklist({
             </div>
           </div>
         </div>
-        <p className="mt-1 text-xs text-ink-500">{meta.summary}</p>
         {raciDefault !== undefined && raciDefault.cells.length > 0 && (
-          <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-ink-600">
-            <span className="font-semibold tracking-wider uppercase">Default RACI</span>
+          <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-ink-600">
+            <span className="font-semibold text-ink-500">Default RACI</span>
             {raciDefault.cells.map((cell) => (
               <span key={cell.functionName} title={cell.note}>
-                <span className="font-mono text-ink-400">{roleLetters(cell.roles) || "—"}</span>{" "}
+                <span className="font-semibold text-ink-400">{roleLetters(cell.roles) || "—"}</span>{" "}
                 {cell.functionName}
                 {cell.note !== undefined && <span className="text-ink-500"> *</span>}
               </span>

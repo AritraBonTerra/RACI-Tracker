@@ -477,7 +477,7 @@ const REACH_ROW = {
 } as const;
 
 const REACH_TAG = {
-  full: { label: "full", className: "text-sand-300" },
+  full: { label: "full", className: "text-accent" },
   context: { label: "label only", className: "text-ink-500" },
   none: { label: "hidden", className: "text-ink-700" },
 } as const;

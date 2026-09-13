@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prototype 3 · Harvest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<script src="shared.js"></script>
+<style>
+/* HARVEST. Grounded in the client's business: wine. Phase colour follows the
+   grape to the glass (vine leaf, straw, copper, carmenère, plum, lavender,
+   cobalt, sea, sage). A serif does the headings; the checklist stays in a sans.
+   Light mode is linen paper; dark mode is the cellar. */
+:root {
+  --serif: "Fraunces", Georgia, serif; --sans: "Source Sans 3", system-ui, sans-serif;
+  --p0: #5c6b5e; --p1: #b8901c; --p2: #b55e2a; --p3: #8b1e3f; --p4: #5e2750;
+  --p5: #6f56a8; --p6: #2b5da8; --p7: #1f8585; --p8: #6b7b6e;
+  --brand: #8b1e3f;
+  --red: #d8433a; --amber: #d48a12; --green: #3c8d5a;
+  --bg: #f4f2ee; --surface: #fcfbf9; --raised: #f0ede7; --line: #e2ddd5; --line-2: #ebe7e0;
+  --text: #1e1417; --text-2: #5a4e52; --text-3: #8f8387; --tint: 10%;
+}
+html[data-theme="dark"] {
+  --p0: #8a9c8c; --p1: #d9ad35; --p2: #d67a45; --p3: #c94a6e; --p4: #a0578f;
+  --p5: #9a83d8; --p6: #5f8fe0; --p7: #3fb0ae; --p8: #93a596;
+  --brand: #c94a6e;
+  --red: #f0655c; --amber: #f0a933; --green: #5cb87b;
+  --bg: #17090f; --surface: #221219; --raised: #2b1922; --line: #3a2731; --line-2: #31202a;
+  --text: #f3ebee; --text-2: #c2b3b9; --text-3: #82737a; --tint: 16%;
+}
+body { font-family: var(--sans); background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.45; }
+.wrap { max-width: 1320px; margin: 0 auto; padding: 0 32px 72px; }
+.mast { display: flex; align-items: baseline; gap: 26px; padding: 22px 0 16px; border-bottom: 2px solid var(--text); }
+.mast .brand { font-family: var(--serif); font-size: 21px; font-weight: 700; }
+.mast .brand em { color: var(--brand); font-style: italic; font-weight: 500; }
+.mast nav { display: flex; gap: 18px; font-size: 14px; color: var(--text-2); }
+.mast nav a.on { color: var(--text); font-weight: 600; }
+.mast .today { margin-left: auto; font-size: 14px; color: var(--text-2); }
+
+.lede { display: grid; grid-template-columns: 1.5fr 1fr; gap: 40px; padding: 30px 0 24px; align-items: end; }
+.lede h1 { font-family: var(--serif); font-size: 56px; font-weight: 500; line-height: 1; letter-spacing: -.02em; }
+.lede h1 span { display: block; font-size: 20px; margin-top: 10px; color: var(--text-2); font-style: italic; font-weight: 500; }
+.ledger { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--line); }
+.ledger > div { padding: 12px 10px 10px 0; border-right: 1px solid var(--line); margin-right: 12px; }
+.ledger > div:last-child { border-right: 0; margin-right: 0; }
+.ledger .v { font-family: var(--serif); font-size: 40px; font-weight: 700; line-height: 1; }
+.ledger .l { font-size: 13px; font-weight: 600; margin-top: 6px; }
+.ledger .d { font-size: 12px; color: var(--text-3); }
+.ledger .red .v, .ledger .red .l { color: var(--red); }
+.ledger .amber .v, .ledger .amber .l { color: var(--amber); }
+.ledger .green .v { color: var(--green); }
+
+.cycle { display: flex; gap: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 14px 0; margin-bottom: 26px; }
+.cycle div { flex: 1; padding: 0 12px 0 0; border-left: 3px solid var(--c); padding-left: 10px; margin-right: 10px; }
+.cycle .n { font-family: var(--serif); font-size: 26px; font-weight: 700; color: var(--c); line-height: 1; }
+.cycle .t { font-size: 12.5px; color: var(--text-2); margin-top: 3px; line-height: 1.2; }
+.cycle .w { font-size: 12px; font-weight: 600; margin-top: 4px; color: var(--c); }
+.cycle .w.none { color: var(--text-3); font-weight: 400; }
+
+.body { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.chain { padding: 22px 0; border-top: 1px solid var(--line); }
+.chain:first-child { border-top: 0; padding-top: 0; }
+.chain .hd { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.chain h2 { font-family: var(--serif); font-size: 30px; font-weight: 700; letter-spacing: -.01em; }
+.chain .ph { font-family: var(--serif); font-size: 22px; font-style: italic; font-weight: 500; color: var(--c); }
+.chain .ph b { font-style: normal; font-weight: 700; margin-right: 6px; }
+.chain .meta { width: 100%; font-size: 13.5px; color: var(--text-3); margin-top: 2px; }
+.chain .chips { margin-left: auto; display: flex; gap: 6px; }
+.pill { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
+.pill.red { background: var(--red); color: #fff; } .pill.red-soft { color: var(--red); border: 1px solid var(--red); }
+.pill.amber { color: var(--amber); border: 1px solid var(--amber); } .pill.green { color: var(--green); border: 1px solid var(--green); }
+.steps { display: flex; gap: 8px; margin-top: 12px; }
+.step { flex: 1; }
+.step .lab { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-3); }
+.step .lab b { font-weight: 700; color: var(--c); }
+.step .tr { height: 5px; margin-top: 4px; background: color-mix(in oklab, var(--c) 22%, var(--surface)); }
+.step .tr i { display: block; height: 100%; background: var(--c); }
+.step.now .tr { height: 9px; margin-top: 0; }
+.promos { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; margin-top: 16px; }
+.promo { background: var(--surface); border: 1px solid var(--line); padding: 14px 16px; border-left: 5px solid var(--c); border-radius: 0 6px 6px 0; }
+.promo h3 { font-family: var(--serif); font-size: 19px; font-weight: 700; }
+.promo .ph { font-size: 14px; font-style: italic; font-family: var(--serif); color: var(--c); }
+.promo .ph b { font-style: normal; font-weight: 700; margin-right: 4px; }
+.promo .meta { font-size: 13px; color: var(--text-3); margin-top: 4px; }
+.promo .chips { display: flex; gap: 5px; margin-top: 10px; }
+.empty { font-size: 13.5px; color: var(--text-3); margin-top: 12px; font-style: italic; }
+
+.attn { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; position: sticky; top: 20px; }
+.attn > header { padding: 14px 18px 10px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; justify-content: space-between; }
+.attn h2 { font-family: var(--serif); font-size: 22px; font-weight: 700; }
+.attn .cnt { font-size: 13px; color: var(--text-3); }
+.grp header { display: flex; align-items: baseline; gap: 8px; padding: 10px 18px 6px; }
+.grp header .t { font-family: var(--serif); font-size: 17px; font-weight: 700; }
+.grp header .why { font-size: 12.5px; color: var(--text-3); }
+.grp header .k { margin-left: auto; font-family: var(--serif); font-size: 22px; font-weight: 700; }
+.grp.red header .t, .grp.red header .k { color: var(--red); }
+.grp.amber header .t, .grp.amber header .k { color: var(--amber); }
+.row { display: flex; gap: 12px; padding: 9px 18px; border-top: 1px solid var(--line-2); align-items: flex-start; }
+.row .pn { flex: none; font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--c); width: 18px; line-height: 1.2; }
+.row .name { font-size: 14px; font-weight: 600; } .row .where { font-size: 12.5px; color: var(--text-3); }
+.row .eta { font-size: 12.5px; margin-top: 2px; color: var(--text-2); } .row .eta.late { color: var(--amber); font-weight: 600; }
+.row .quote { font-size: 13px; color: var(--red); font-style: italic; margin-top: 2px; }
+.row .btn { margin-left: auto; flex: none; font-size: 12.5px; font-weight: 600; padding: 4px 10px; border-radius: 4px; background: var(--brand); color: #fff; }
+@media (max-width: 1100px) { .lede, .body { grid-template-columns: 1fr; } .cycle { flex-wrap: wrap; } .cycle div { flex: 1 1 30%; margin-bottom: 10px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="mast"><span class="brand">RACI <em>Tracker</em></span>
+    <nav><a class="on" href="#">Dashboard</a><a href="#">Year 2026</a><a href="#">People</a><a href="#">Manage</a><a href="#">Directory</a></nav>
+    <span class="today">Thursday, September 10, 2026</span></header>
+
+  <section class="lede">
+    <h1>Year 2026 <span>4 chain plans, 3 promotions, 112 tasks on the checklists</span></h1>
+    <div class="ledger">
+      <div class="red"><div class="v num">4</div><div class="l">Unassigned</div><div class="d">No named Responsible</div></div>
+      <div class="red"><div class="v num">1</div><div class="l">Blocked</div><div class="d">With a stated reason</div></div>
+      <div class="amber"><div class="v num">3</div><div class="l">Overdue</div><div class="d">Past ETA, still open</div></div>
+      <div class="green"><div class="v num">61</div><div class="l">of 112 delivered</div><div class="d">54% of the year</div></div>
+    </div>
+  </section>
+
+  <section class="cycle">
+    <div style="--c:var(--p0)"><div class="n">0</div><div class="t">Strategic foundation</div><div class="w">Year 2026</div></div>
+    <div style="--c:var(--p1)"><div class="n">1</div><div class="t">Internal alignment</div><div class="w">Ralphs</div></div>
+    <div style="--c:var(--p2)"><div class="n">2</div><div class="t">Distributor alignment</div><div class="w">Albertsons</div></div>
+    <div style="--c:var(--p3)"><div class="n">3</div><div class="t">JBP &amp; negotiation</div><div class="w">Safeway</div></div>
+    <div style="--c:var(--p4)"><div class="n">4</div><div class="t">Agreement</div><div class="w">Kroger</div></div>
+    <div style="--c:var(--p5)"><div class="n">5</div><div class="t">Activation planning</div><div class="w">Holiday Gift Sets</div></div>
+    <div style="--c:var(--p6)"><div class="n">6</div><div class="t">Retail execution</div><div class="w">Fall Harvest</div></div>
+    <div style="--c:var(--p7)"><div class="n">7</div><div class="t">Tracking &amp; measurement</div><div class="w none">nothing here</div></div>
+    <div style="--c:var(--p8)"><div class="n">8</div><div class="t">Review</div><div class="w">Summer BBQ</div></div>
+  </section>
+
+  <div class="body">
+    <div>
+      <section class="chain" style="--c:var(--p3)">
+        <div class="hd"><h2>Safeway</h2><span class="ph"><b>3</b>JBP &amp; negotiation</span><div class="chips"><span class="pill red">2 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div><div class="meta">JBP on October 14, in 34 days</div></div>
+        <div class="steps"><div class="step" style="--c:var(--p1)"><div class="lab"><b>1</b>7/7</div><div class="tr"><i style="width:100%"></i></div></div><div class="step" style="--c:var(--p2)"><div class="lab"><b>2</b>6/6</div><div class="tr"><i style="width:100%"></i></div></div><div class="step now" style="--c:var(--p3)"><div class="lab"><b>3</b>5/12</div><div class="tr"><i style="width:42%"></i></div></div><div class="step" style="--c:var(--p4)"><div class="lab"><b>4</b>0/6</div><div class="tr"><i></i></div></div></div>
+        <div class="promos">
+          <a class="promo" href="#" style="--c:var(--p5)"><h3>Holiday Gift Sets</h3><div class="ph"><b>5</b>Activation planning</div><div class="meta">Nov 15 to Dec 31, 240 stores, 3 of 14 delivered</div><div class="chips"><span class="pill red">1 unassigned</span></div></a>
+          <a class="promo" href="#" style="--c:var(--p6)"><h3>Fetzer Fall Harvest</h3><div class="ph"><b>6</b>Retail execution</div><div class="meta">Sep 1 to Oct 15, 180 stores, 9 of 16 delivered</div><div class="chips"><span class="pill red">1 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div></a>
+        </div>
+      </section>
+      <section class="chain" style="--c:var(--p4)">
+        <div class="hd"><h2>Kroger</h2><span class="ph"><b>4</b>Agreement</span><div class="chips"><span class="pill green">Plan complete</span></div><div class="meta">JBP was August 20</div></div>
+        <div class="steps"><div class="step" style="--c:var(--p1)"><div class="lab"><b>1</b>3/3</div><div class="tr"><i style="width:100%"></i></div></div><div class="step" style="--c:var(--p2)"><div class="lab"><b>2</b>3/3</div><div class="tr"><i style="width:100%"></i></div></div><div class="step" style="--c:var(--p3)"><div class="lab"><b>3</b>4/4</div><div class="tr"><i style="width:100%"></i></div></div><div class="step now" style="--c:var(--p4)"><div class="lab"><b>4</b>2/2</div><div class="tr"><i style="width:100%"></i></div></div></div>
+        <div class="promos"><a class="promo" href="#" style="--c:var(--p8)"><h3>Summer BBQ</h3><div class="ph"><b>8</b>Review</div><div class="meta">Jun 1 to Jul 31, 310 stores, 15 of 17 delivered</div><div class="chips"><span class="pill red">1 unassigned</span></div></a></div>
+      </section>
+      <section class="chain" style="--c:var(--p2)">
+        <div class="hd"><h2>Albertsons</h2><span class="ph"><b>2</b>Distributor alignment</span><div class="chips"><span class="pill red">1 unassigned</span><span class="pill amber">1 overdue</span></div><div class="meta">JBP on November 3</div></div>
+        <div class="steps"><div class="step" style="--c:var(--p1)"><div class="lab"><b>1</b>4/4</div><div class="tr"><i style="width:100%"></i></div></div><div class="step now" style="--c:var(--p2)"><div class="lab"><b>2</b>0/4</div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p3)"><div class="lab"><b>3</b>0/3</div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p4)"><div class="lab"><b>4</b>0/0</div><div class="tr"><i></i></div></div></div>
+        <div class="empty">No promotions yet. This plan is still working towards an agreement.</div>
+      </section>
+      <section class="chain" style="--c:var(--p1)">
+        <div class="hd"><h2>Ralphs</h2><span class="ph"><b>1</b>Internal alignment</span><div class="chips"><span class="pill amber">1 overdue</span></div><div class="meta">JBP not scheduled</div></div>
+        <div class="steps"><div class="step now" style="--c:var(--p1)"><div class="lab"><b>1</b>2/5</div><div class="tr"><i style="width:40%"></i></div></div><div class="step" style="--c:var(--p2)"><div class="lab"><b>2</b>0/4</div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p3)"><div class="lab"><b>3</b>0/0</div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p4)"><div class="lab"><b>4</b>0/0</div><div class="tr"><i></i></div></div></div>
+        <div class="empty">No promotions yet. This plan is still working towards an agreement.</div>
+      </section>
+    </div>
+
+    <aside class="attn">
+      <header><h2>Needs attention</h2><span class="cnt">8 items</span></header>
+      <div class="grp red"><header><span class="t">Unassigned</span><span class="why">nobody is doing this</span><span class="k num">4</span></header>
+        <div class="row" style="--c:var(--p5)"><span class="pn">5</span><div><div class="name">Shelf talkers, 32 in, qty 20</div><div class="where">Safeway, Holiday Gift Sets</div><div class="eta">ETA Oct 20</div></div><button class="btn">Assign</button></div>
+        <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Case display wrap, half pallet</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta">ETA Sep 18</div></div><button class="btn">Assign</button></div>
+        <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Distributor incentive memo</div><div class="where">Albertsons</div><div class="eta">No ETA</div></div><button class="btn">Assign</button></div>
+        <div class="row" style="--c:var(--p8)"><span class="pn">8</span><div><div class="name">Retro: what to repeat next year</div><div class="where">Kroger, Summer BBQ</div><div class="eta">ETA Sep 30</div></div><button class="btn">Assign</button></div></div>
+      <div class="grp red"><header><span class="t">Blocked</span><span class="why">stopped, and why</span><span class="k num">1</span></header>
+        <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Endcap allocation, 180 stores</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="quote">“No inventory at distributor”</div><div class="eta">ETA Sep 12, R Maria Ortega</div></div></div></div>
+      <div class="grp amber"><header><span class="t">Overdue</span><span class="why">past ETA, still open</span><span class="k num">3</span></header>
+        <div class="row" style="--c:var(--p1)"><span class="pn">1</span><div><div class="name">Spend envelope sign-off</div><div class="where">Ralphs</div><div class="eta late">Sep 3, 7 days late, R Dan Kim</div></div></div>
+        <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Buyer meeting deck</div><div class="where">Albertsons</div><div class="eta late">Sep 5, 5 days late, R Priya Nair</div></div></div>
+        <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Proof of execution photos</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta late">Sep 8, 2 days late, R Maria Ortega</div></div></div></div>
+    </aside>
+  </div>
+</div>
+</body>
+</html>
