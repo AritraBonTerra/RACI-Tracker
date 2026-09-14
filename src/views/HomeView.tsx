@@ -20,6 +20,7 @@ import {
 import { monthTicks } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { href, placeRoute } from "../lib/router";
+import { assignLanes } from "../lib/timeline";
 
 // The dashboard. Everything Emmanuel asked to see on one screen: every promotion
 // grouped by chain with how far through its phases it is, and — louder than
@@ -800,17 +801,9 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
           const width = Math.max(x(window.end) - left, 3);
           return [{ stat, window, left, width }];
         });
-        // Phases 6 and 7 both start when the promotion ends, so without ETAs
-        // their inferred windows coincide. A segment that overlaps an earlier
-        // one takes the next lane down rather than painting over it.
-        const laneEnds: number[] = [];
-        const placed = segments.map((segment) => {
-          const free = laneEnds.findIndex((end) => end <= segment.left);
-          const lane = free === -1 ? laneEnds.length : free;
-          laneEnds[lane] = segment.left + segment.width;
-          return { ...segment, lane };
-        });
-        const lanes = Math.max(laneEnds.length, 1);
+        // Overlapping segments (phases 6 and 7 with no ETAs) take separate
+        // lanes rather than painting over each other.
+        const { placed, lanes } = assignLanes(segments);
         const unscheduled = row.phases.filter((stat) => (stat.window ?? null) === null);
         const tailX = segments.reduce((best, seg) => Math.max(best, seg.left + seg.width), 0);
         const headX = segments.reduce((best, seg) => Math.min(best, seg.left), 100);
