@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 // Hand-rolled primitives. Small enough to read in one sitting, and they keep the
 // ops-tool look (dense rows, quiet chrome, loud problems) consistent everywhere.
@@ -236,7 +237,10 @@ export function Modal({
     }
   };
 
-  return (
+  // Rendered at the body, not where it was opened: a modal opened from inside
+  // the sticky sidebar would otherwise be trapped in that stacking context and
+  // painted beneath positioned elements of the page it is meant to cover.
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-6">
       <div
         ref={dialog}
@@ -260,7 +264,8 @@ export function Modal({
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
