@@ -11,12 +11,25 @@
 export function assignLanes<T extends { left: number; width: number }>(
   segments: readonly T[],
 ): { placed: Array<T & { lane: number }>; lanes: number } {
+  // Greedy allocation only stays minimal when segments are visited in start
+  // order, and a late ETA can push an earlier phase after a later one; so
+  // allocate in start order but hand the segments back in the order given.
+  const order = segments
+    .map((_, index) => index)
+    .sort((a, b) => {
+      const s = segments[a] as T;
+      const t = segments[b] as T;
+      return s.left - t.left || a - b;
+    });
   const laneEnds: number[] = [];
-  const placed = segments.map((segment) => {
+  const laneOf = new Map<number, number>();
+  for (const index of order) {
+    const segment = segments[index] as T;
     const free = laneEnds.findIndex((end) => end <= segment.left);
     const lane = free === -1 ? laneEnds.length : free;
     laneEnds[lane] = segment.left + segment.width;
-    return { ...segment, lane };
-  });
+    laneOf.set(index, lane);
+  }
+  const placed = segments.map((segment, index) => ({ ...segment, lane: laneOf.get(index) ?? 0 }));
   return { placed, lanes: Math.max(laneEnds.length, 1) };
 }
