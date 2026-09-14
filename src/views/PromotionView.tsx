@@ -7,6 +7,7 @@ import { BrandToggles } from "../components/BrandToggles";
 import { InlineDate, InlineNumber, InlineSelect, InlineText } from "../components/inline";
 import { KpiTable, RetroPanel } from "../components/KpiAndRetro";
 import { Pathway } from "../components/Pathway";
+import { PhaseBadge } from "../components/Phase";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import {
   Breadcrumb,
@@ -136,6 +137,7 @@ export function PromotionView({
               />
             </MetaItem>
             <MetaItem label="Current phase">
+              <PhaseBadge phase={data.promotion.currentPhase} size="xs" />
               <InlineSelect
                 value={String(data.promotion.currentPhase)}
                 options={PROMOTION_PHASES.map((phase) => ({

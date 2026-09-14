@@ -1,4 +1,10 @@
 import { v } from "convex/values";
+import {
+  chainPlanAnchors,
+  type PhaseAnchors,
+  phaseWindow,
+  promotionAnchors,
+} from "../src/lib/pathway";
 import type { Doc } from "./_generated/dataModel";
 import { authedQuery, visibleSeason } from "./access";
 import {
@@ -27,15 +33,21 @@ import {
 
 type Attention = { task: Doc<"tasks">; place: TaskPlace };
 
-/** Delivered-vs-total per phase, so a promotion can be drawn as a progress track. */
-function phaseTrack(tasks: readonly Doc<"tasks">[], phases: readonly PhaseNumber[], today: string) {
-  return phases.map((value) => ({
-    phase: value,
-    ...rollup(
-      tasks.filter((task) => task.phase === value),
-      today,
-    ),
-  }));
+/**
+ * Per phase: the health counts, so a promotion can be drawn as a progress
+ * track, and the phase window, so the timeline view can draw it on the year.
+ * The window comes from the same model the Pathway uses (src/lib/pathway.ts).
+ */
+function phaseTrack(
+  tasks: readonly Doc<"tasks">[],
+  phases: readonly PhaseNumber[],
+  anchors: PhaseAnchors,
+  today: string,
+) {
+  return phases.map((value) => {
+    const own = tasks.filter((task) => task.phase === value);
+    return { phase: value, ...rollup(own, today), window: phaseWindow(own, anchors[value]) };
+  });
 }
 
 export const dashboard = authedQuery({
@@ -94,7 +106,12 @@ export const dashboard = authedQuery({
                 return {
                   promotion,
                   rollup: rollup(tasks, args.today),
-                  phases: phaseTrack(tasks, PROMOTION_PHASES, args.today),
+                  phases: phaseTrack(
+                    tasks,
+                    PROMOTION_PHASES,
+                    promotionAnchors(promotion),
+                    args.today,
+                  ),
                 };
               }),
           );
@@ -131,7 +148,7 @@ export const dashboard = authedQuery({
               chain,
               plan,
               rollup: rollup(planTasks, args.today),
-              phases: phaseTrack(planTasks, CHAIN_PLAN_PHASES, args.today),
+              phases: phaseTrack(planTasks, CHAIN_PLAN_PHASES, chainPlanAnchors(plan), args.today),
               promotions: promotionCards,
             },
           ];
@@ -160,7 +177,7 @@ export const dashboard = authedQuery({
         reach === "full"
           ? {
               rollup: rollup(seasonTasks, args.today),
-              phases: phaseTrack(seasonTasks, SEASON_PHASES, args.today),
+              phases: phaseTrack(seasonTasks, SEASON_PHASES, {}, args.today),
             }
           : null,
       chains: chainGroups,

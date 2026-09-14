@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prototype 1 · Spectrum</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<script src="shared.js"></script>
+<style>
+/* SPECTRUM. The nine phases are a sweep of hue you walk along, warm to cool,
+   grey at the very start. Phase colour lives on the number and the header
+   stripe; status colour (red / amber / green) lives only in pills with an icon,
+   so the two never share a shape. */
+:root {
+  --font: "Sora", system-ui, sans-serif;
+  --p0: #6f7280; --p1: #c9970a; --p2: #e8731b; --p3: #d93a78; --p4: #9b3fbf;
+  --p5: #5b5bd6; --p6: #2f7fe0; --p7: #0e9ab8; --p8: #1a9e8a;
+  --red: #e5484d; --amber: #f5a524; --green: #30a46c;
+  --bg: #f4f4f6; --surface: #ffffff; --raised: #fafafb;
+  --line: #e4e4ea; --line-2: #eeeef2;
+  --text: #17171c; --text-2: #55555f; --text-3: #8b8b96;
+  --tint: 12%; --tint-2: 22%;
+  --shadow: 0 1px 2px rgba(20,20,30,.05), 0 4px 16px rgba(20,20,30,.05);
+}
+html[data-theme="dark"] {
+  --bg: #121215; --surface: #1a1a1f; --raised: #202026;
+  --line: #2b2b33; --line-2: #24242b;
+  --text: #ececf1; --text-2: #b1b1bb; --text-3: #7c7c88;
+  --tint: 18%; --tint-2: 32%;
+  --shadow: none;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45; }
+
+.shell { display: grid; grid-template-columns: 248px 1fr; min-height: 100vh; }
+.side { border-right: 1px solid var(--line); background: var(--surface); padding: 18px 14px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; padding: 0 6px 18px; }
+.brand i { width: 26px; height: 26px; border-radius: 8px; background: conic-gradient(var(--p1), var(--p3), var(--p5), var(--p7), var(--p1)); }
+.nav-h { font-size: 11px; color: var(--text-3); padding: 14px 8px 6px; }
+.nav a { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; font-size: 13px; color: var(--text-2); }
+.nav a.on { background: var(--raised); color: var(--text); font-weight: 600; }
+.nav a .ph { margin-left: auto; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 6px; color: #fff; }
+.nav a.sub { padding-left: 26px; }
+
+main { padding: 26px 32px 60px; max-width: 1360px; }
+.top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.top h1 { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+.top .sub { color: var(--text-3); font-size: 13px; margin-top: 4px; }
+.top .today { font-size: 13px; color: var(--text-2); }
+
+/* The hero: the cycle itself, nine blocks, each carrying whatever sits in it. */
+.cycle { display: grid; grid-template-columns: 1fr 3px repeat(4, 1fr) 3px repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+.cycle .gap { width: 3px; }
+.ph-block { position: relative; border-radius: 12px; padding: 12px 12px 10px; min-height: 118px; background: color-mix(in oklab, var(--c) var(--tint), var(--surface)); border: 1px solid color-mix(in oklab, var(--c) 30%, var(--line)); display: flex; flex-direction: column; }
+.ph-block .n { font-size: 34px; font-weight: 800; line-height: 1; color: var(--c); letter-spacing: -.03em; }
+.ph-block .t { font-size: 12px; font-weight: 600; margin-top: 6px; color: var(--text); line-height: 1.25; }
+.ph-block .who { margin-top: auto; padding-top: 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+.ph-block .who span { font-size: 11px; font-weight: 600; padding: 2px 7px; border-radius: 999px; background: var(--c); color: #fff; }
+.ph-block.empty { opacity: .55; }
+.ph-block .tier { position: absolute; top: -9px; left: 10px; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); color: var(--text-3); }
+
+.stats { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 10px; margin-bottom: 22px; }
+.stat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: var(--shadow); }
+.stat .v { font-size: 30px; font-weight: 800; letter-spacing: -.03em; line-height: 1; }
+.stat .l { font-size: 12px; font-weight: 600; margin-left: 8px; }
+.stat .d { font-size: 12px; color: var(--text-3); margin-top: 8px; }
+.stat.hot { border-color: var(--red); background: color-mix(in oklab, var(--red) 10%, var(--surface)); }
+.stat.hot .v, .stat.hot .l { color: var(--red); }
+.stat .bar { height: 6px; border-radius: 3px; background: var(--line); margin-top: 10px; overflow: hidden; }
+.stat .bar i { display: block; height: 100%; width: 54%; background: var(--green); }
+
+.cols { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+
+.chain { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; margin-bottom: 14px; }
+.chain > header { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-bottom: 1px solid var(--line-2); }
+.badge { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--c); color: #fff; font-size: 24px; font-weight: 800; flex: none; }
+.badge.sm { width: 32px; height: 32px; font-size: 17px; border-radius: 9px; }
+.chain h2 { font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.chain .phase { font-size: 13px; font-weight: 600; color: var(--c); margin-top: 1px; }
+.chain .meta { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.chain .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px; display: inline-flex; gap: 4px; align-items: center; }
+.pill.red { background: var(--red); color: #fff; }
+.pill.red-soft { background: color-mix(in oklab, var(--red) 16%, transparent); color: var(--red); }
+.pill.amber { background: color-mix(in oklab, var(--amber) 18%, transparent); color: color-mix(in oklab, var(--amber) 80%, var(--text)); }
+.pill.green { background: color-mix(in oklab, var(--green) 16%, transparent); color: var(--green); }
+.pill.grey { background: var(--raised); color: var(--text-2); border: 1px solid var(--line); }
+
+.steps { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; }
+.step .lab { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: var(--c); }
+.step .lab b { color: var(--text-3); font-weight: 500; }
+.step .tr { height: 7px; border-radius: 4px; margin-top: 4px; background: color-mix(in oklab, var(--c) var(--tint-2), var(--surface)); overflow: hidden; }
+.step .tr i { display: block; height: 100%; background: var(--c); }
+.step.now .tr { outline: 2px solid var(--c); outline-offset: 1px; }
+.chain .track { padding: 12px 16px; border-bottom: 1px solid var(--line-2); background: var(--raised); }
+.promos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; padding: 12px; }
+.promo { border: 1px solid var(--line); border-radius: 10px; padding: 12px; background: var(--surface); }
+.promo header { display: flex; align-items: center; gap: 10px; }
+.promo h3 { font-size: 14px; font-weight: 700; }
+.promo .phase { font-size: 12px; font-weight: 600; color: var(--c); }
+.promo .meta { font-size: 12px; color: var(--text-3); margin-top: 6px; }
+.promo .steps { margin-top: 10px; }
+.promo .chips { display: flex; gap: 5px; margin-top: 10px; }
+.empty { padding: 16px; font-size: 13px; color: var(--text-3); }
+
+.attn { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; position: sticky; top: 20px; }
+.attn > header { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 16px; border-bottom: 1px solid var(--line-2); }
+.attn h2 { font-size: 15px; font-weight: 700; }
+.attn .cnt { font-size: 12px; color: var(--text-3); }
+.grp { border-bottom: 1px solid var(--line-2); }
+.grp:last-child { border-bottom: 0; }
+.grp header { display: flex; align-items: center; gap: 8px; padding: 9px 16px; font-size: 12px; font-weight: 700; }
+.grp header .k { margin-left: auto; font-size: 15px; font-weight: 800; }
+.grp header .why { font-weight: 500; color: var(--text-3); }
+.grp.red header { color: var(--red); background: color-mix(in oklab, var(--red) 8%, var(--surface)); }
+.grp.amber header { color: color-mix(in oklab, var(--amber) 75%, var(--text)); background: color-mix(in oklab, var(--amber) 12%, var(--surface)); }
+.row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 16px; border-top: 1px solid var(--line-2); }
+.row .pn { flex: none; width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: var(--c); }
+.row .name { font-size: 13px; font-weight: 600; }
+.row .where { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.row .eta { font-size: 11.5px; margin-top: 4px; color: var(--text-2); }
+.row .eta.late { color: color-mix(in oklab, var(--amber) 75%, var(--text)); font-weight: 600; }
+.row .quote { font-size: 12px; margin-top: 5px; padding: 4px 8px; border-radius: 6px; background: color-mix(in oklab, var(--red) 10%, transparent); color: var(--red); }
+.row .btn { margin-left: auto; flex: none; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 8px; background: var(--red); color: #fff; }
+.row .btn.ghost { background: var(--raised); color: var(--text-2); border: 1px solid var(--line); }
+.clear { padding: 10px 16px; font-size: 12px; color: var(--text-3); }
+.clear b { color: var(--green); font-weight: 700; }
+@media (max-width: 1100px) { .shell { grid-template-columns: 1fr; } .side { display: none; } .cols { grid-template-columns: 1fr; } .cycle { grid-template-columns: repeat(5, 1fr); } .cycle .gap { display: none; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><i></i> RACI Tracker</div>
+    <nav class="nav">
+      <a class="on" href="#">Dashboard</a>
+      <div class="nav-h">Plan year</div>
+      <a href="#">Year 2026 <span class="ph" style="background:var(--p0)">0</span></a>
+      <div class="nav-h">Chain plans</div>
+      <a href="#">Safeway <span class="ph" style="background:var(--p3)">3</span></a>
+      <a class="sub" href="#">Holiday Gift Sets <span class="ph" style="background:var(--p5)">5</span></a>
+      <a class="sub" href="#">Fetzer Fall Harvest <span class="ph" style="background:var(--p6)">6</span></a>
+      <a href="#">Kroger <span class="ph" style="background:var(--p4)">4</span></a>
+      <a class="sub" href="#">Summer BBQ <span class="ph" style="background:var(--p8)">8</span></a>
+      <a href="#">Albertsons <span class="ph" style="background:var(--p2)">2</span></a>
+      <a href="#">Ralphs <span class="ph" style="background:var(--p1)">1</span></a>
+      <div class="nav-h">Reference</div>
+      <a href="#">People</a><a href="#">Manage</a><a href="#">Directory</a>
+    </nav>
+  </aside>
+
+  <main>
+    <div class="top">
+      <div>
+        <h1>Year 2026</h1>
+        <div class="sub">4 chain plans, 3 promotions, 112 tasks on the checklists</div>
+      </div>
+      <div class="today">Today, Thursday Sep 10</div>
+    </div>
+
+    <section class="cycle" aria-label="The commercial cycle">
+      <div class="ph-block" style="--c:var(--p0)"><span class="tier">Plan year</span><span class="n">0</span><span class="t">Strategic foundation</span><span class="who"><span>Year 2026</span></span></div>
+      <span class="gap"></span>
+      <div class="ph-block" style="--c:var(--p1)"><span class="tier">Chain plans</span><span class="n">1</span><span class="t">Internal alignment</span><span class="who"><span>Ralphs</span></span></div>
+      <div class="ph-block" style="--c:var(--p2)"><span class="n">2</span><span class="t">Distributor alignment</span><span class="who"><span>Albertsons</span></span></div>
+      <div class="ph-block" style="--c:var(--p3)"><span class="n">3</span><span class="t">JBP &amp; negotiation</span><span class="who"><span>Safeway</span></span></div>
+      <div class="ph-block" style="--c:var(--p4)"><span class="n">4</span><span class="t">Agreement</span><span class="who"><span>Kroger</span></span></div>
+      <span class="gap"></span>
+      <div class="ph-block" style="--c:var(--p5)"><span class="tier">Promotions</span><span class="n">5</span><span class="t">Activation planning</span><span class="who"><span>Holiday Gift Sets</span></span></div>
+      <div class="ph-block" style="--c:var(--p6)"><span class="n">6</span><span class="t">Retail execution</span><span class="who"><span>Fall Harvest</span></span></div>
+      <div class="ph-block empty" style="--c:var(--p7)"><span class="n">7</span><span class="t">Tracking &amp; measurement</span></div>
+      <div class="ph-block" style="--c:var(--p8)"><span class="n">8</span><span class="t">Review</span><span class="who"><span>Summer BBQ</span></span></div>
+    </section>
+
+    <section class="stats">
+      <div class="stat hot"><span class="v num">4</span><span class="l">Unassigned</span><div class="d">No named Responsible. A function default is not a person.</div></div>
+      <div class="stat"><span class="v num" style="color:var(--amber)">3</span><span class="l" style="color:var(--amber)">Overdue</span><div class="d">Past ETA and not delivered.</div></div>
+      <div class="stat"><span class="v num" style="color:var(--red)">1</span><span class="l" style="color:var(--red)">Blocked</span><div class="d">Stopped, with a stated reason.</div></div>
+      <div class="stat"><span class="v num" style="color:var(--green)">61</span><span class="l" style="color:var(--text-3)">of 112 delivered</span><div class="bar"><i></i></div><div class="d">8 items need attention</div></div>
+    </section>
+
+    <div class="cols">
+      <div>
+        <section class="chain" style="--c:var(--p3)">
+          <header><span class="badge">3</span><div><h2>Safeway</h2><div class="phase">JBP &amp; negotiation</div><div class="meta">JBP on Oct 14, in 34 days</div></div>
+            <div class="right"><span class="pill red">2 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div></header>
+          <div class="track"><div class="steps">
+            <div class="step" style="--c:var(--p1)"><div class="lab">1 <b>7/7</b></div><div class="tr"><i style="width:100%"></i></div></div>
+            <div class="step" style="--c:var(--p2)"><div class="lab">2 <b>6/6</b></div><div class="tr"><i style="width:100%"></i></div></div>
+            <div class="step now" style="--c:var(--p3)"><div class="lab">3 <b>5/12</b></div><div class="tr"><i style="width:42%"></i></div></div>
+            <div class="step" style="--c:var(--p4)"><div class="lab">4 <b>0/6</b></div><div class="tr"><i style="width:0"></i></div></div>
+          </div></div>
+          <div class="promos">
+            <a class="promo" href="#" style="--c:var(--p5)"><header><span class="badge sm">5</span><div><h3>Holiday Gift Sets</h3><div class="phase">Activation planning</div></div></header>
+              <div class="meta">Nov 15 to Dec 31, 240 stores</div>
+              <div class="steps"><div class="step now" style="--c:var(--p5)"><div class="lab">5 <b>3/8</b></div><div class="tr"><i style="width:38%"></i></div></div><div class="step" style="--c:var(--p6)"><div class="lab">6 <b>0/3</b></div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p7)"><div class="lab">7 <b>0/2</b></div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p8)"><div class="lab">8 <b>0/1</b></div><div class="tr"><i></i></div></div></div>
+              <div class="chips"><span class="pill red">1 unassigned</span></div></a>
+            <a class="promo" href="#" style="--c:var(--p6)"><header><span class="badge sm">6</span><div><h3>Fetzer Fall Harvest</h3><div class="phase">Retail execution</div></div></header>
+              <div class="meta">Sep 1 to Oct 15, 180 stores</div>
+              <div class="steps"><div class="step" style="--c:var(--p5)"><div class="lab">5 <b>7/7</b></div><div class="tr"><i style="width:100%"></i></div></div><div class="step now" style="--c:var(--p6)"><div class="lab">6 <b>2/6</b></div><div class="tr"><i style="width:33%"></i></div></div><div class="step" style="--c:var(--p7)"><div class="lab">7 <b>0/2</b></div><div class="tr"><i></i></div></div><div class="step" style="--c:var(--p8)"><div class="lab">8 <b>0/1</b></div><div class="tr"><i></i></div></div></div>
+              <div class="chips"><span class="pill red">1 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div></a>
+          </div>
+        </section>
+
+        <section class="chain" style="--c:var(--p4)">
+          <header><span class="badge">4</span><div><h2>Kroger</h2><div class="phase">Agreement</div><div class="meta">JBP was Aug 20</div></div>
+            <div class="right"><span class="pill green">Plan complete</span></div></header>
+          <div class="track"><div class="steps">
+            <div class="step" style="--c:var(--p1)"><div class="lab">1 <b>3/3</b></div><div class="tr"><i style="width:100%"></i></div></div>
+            <div class="step" style="--c:var(--p2)"><div class="lab">2 <b>3/3</b></div><div class="tr"><i style="width:100%"></i></div></div>
+            <div class="step" style="--c:var(--p3)"><div class="lab">3 <b>4/4</b></div><div class="tr"><i style="width:100%"></i></div></div>
+            <div class="step now" style="--c:var(--p4)"><div class="lab">4 <b>2/2</b></div><div class="tr"><i style="width:100%"></i></div></div>
+          </div></div>
+          <div class="promos">
+            <a class="promo" href="#" style="--c:var(--p8)"><header><span class="badge sm">8</span><div><h3>Summer BBQ</h3><div class="phase">Review</div></div></header>
+              <div class="meta">Jun 1 to Jul 31, 310 stores</div>
+              <div class="steps"><div class="step" style="--c:var(--p5)"><div class="lab">5 <b>6/6</b></div><div class="tr"><i style="width:100%"></i></div></div><div class="step" style="--c:var(--p6)"><div class="lab">6 <b>5/5</b></div><div class="tr"><i style="width:100%"></i></div></div><div class="step" style="--c:var(--p7)"><div class="lab">7 <b>3/4</b></div><div class="tr"><i style="width:75%"></i></div></div><div class="step now" style="--c:var(--p8)"><div class="lab">8 <b>1/2</b></div><div class="tr"><i style="width:50%"></i></div></div></div>
+              <div class="chips"><span class="pill red">1 unassigned</span></div></a>
+          </div>
+        </section>
+
+        <section class="chain" style="--c:var(--p2)">
+          <header><span class="badge">2</span><div><h2>Albertsons</h2><div class="phase">Distributor alignment</div><div class="meta">JBP on Nov 3</div></div>
+            <div class="right"><span class="pill red">1 unassigned</span><span class="pill amber">1 overdue</span></div></header>
+          <div class="track"><div class="steps">
+            <div class="step" style="--c:var(--p1)"><div class="lab">1 <b>4/4</b></div><div class="tr"><i style="width:100%"></i></div></div>
+            <div class="step now" style="--c:var(--p2)"><div class="lab">2 <b>0/4</b></div><div class="tr"><i style="width:0"></i></div></div>
+            <div class="step" style="--c:var(--p3)"><div class="lab">3 <b>0/3</b></div><div class="tr"><i></i></div></div>
+            <div class="step" style="--c:var(--p4)"><div class="lab">4 <b>0/0</b></div><div class="tr"><i></i></div></div>
+          </div></div>
+          <div class="empty">No promotions yet. This plan is still working towards an agreement.</div>
+        </section>
+
+        <section class="chain" style="--c:var(--p1)">
+          <header><span class="badge">1</span><div><h2>Ralphs</h2><div class="phase">Internal alignment</div><div class="meta">JBP not scheduled</div></div>
+            <div class="right"><span class="pill amber">1 overdue</span></div></header>
+          <div class="track"><div class="steps">
+            <div class="step now" style="--c:var(--p1)"><div class="lab">1 <b>2/5</b></div><div class="tr"><i style="width:40%"></i></div></div>
+            <div class="step" style="--c:var(--p2)"><div class="lab">2 <b>0/4</b></div><div class="tr"><i></i></div></div>
+            <div class="step" style="--c:var(--p3)"><div class="lab">3 <b>0/0</b></div><div class="tr"><i></i></div></div>
+            <div class="step" style="--c:var(--p4)"><div class="lab">4 <b>0/0</b></div><div class="tr"><i></i></div></div>
+          </div></div>
+          <div class="empty">No promotions yet. This plan is still working towards an agreement.</div>
+        </section>
+      </div>
+
+      <aside class="attn">
+        <header><h2>Needs attention</h2><span class="cnt">8 items</span></header>
+        <div class="grp red"><header>Unassigned <span class="why">nobody is doing this</span><span class="k num">4</span></header>
+          <div class="row" style="--c:var(--p5)"><span class="pn">5</span><div><div class="name">Shelf talkers, 32 in, qty 20</div><div class="where">Safeway, Holiday Gift Sets</div><div class="eta">ETA Oct 20</div></div><button class="btn">Assign</button></div>
+          <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Case display wrap, half pallet</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta">ETA Sep 18</div></div><button class="btn">Assign</button></div>
+          <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Distributor incentive memo</div><div class="where">Albertsons</div><div class="eta">No ETA</div></div><button class="btn">Assign</button></div>
+          <div class="row" style="--c:var(--p8)"><span class="pn">8</span><div><div class="name">Retro: what to repeat next year</div><div class="where">Kroger, Summer BBQ</div><div class="eta">ETA Sep 30</div></div><button class="btn">Assign</button></div>
+        </div>
+        <div class="grp red"><header>Blocked <span class="why">stopped, and why</span><span class="k num">1</span></header>
+          <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Endcap allocation, 180 stores</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="quote">“No inventory at distributor”</div><div class="eta">ETA Sep 12, R Maria Ortega</div></div></div>
+        </div>
+        <div class="grp amber"><header>Overdue <span class="why">past ETA, still open</span><span class="k num">3</span></header>
+          <div class="row" style="--c:var(--p1)"><span class="pn">1</span><div><div class="name">Spend envelope sign-off</div><div class="where">Ralphs</div><div class="eta late">Sep 3, 7 days late, R Dan Kim</div></div></div>
+          <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Buyer meeting deck</div><div class="where">Albertsons</div><div class="eta late">Sep 5, 5 days late, R Priya Nair</div></div></div>
+          <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Proof of execution photos</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta late">Sep 8, 2 days late, R Maria Ortega</div></div></div>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</body>
+</html>

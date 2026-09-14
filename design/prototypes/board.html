@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prototype 4 · Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<script src="shared.js"></script>
+<style>
+/* BOARD. The dashboard is the cycle laid out as columns: nine phases across,
+   and every plan and promotion sits under the phase it is in. Where things
+   are is the first thing you see; what is wrong sits underneath. */
+:root {
+  --font: "Manrope", system-ui, sans-serif;
+  --p0: #7b8190; --p1: #e0a52a; --p2: #ee7a3c; --p3: #e8567e; --p4: #a76ae6;
+  --p5: #6f7ff0; --p6: #3d9be8; --p7: #25b5cf; --p8: #2fae9c;
+  --red: #e5484d; --amber: #ee9d1c; --green: #2ea56f;
+  --bg: #f6f6f8; --surface: #fff; --raised: #f1f1f4; --line: #e3e3e9; --line-2: #ebebf0;
+  --text: #1a1b21; --text-2: #575a66; --text-3: #8f92a0;
+  --col: 9%; --head: 100%;
+}
+html[data-theme="dark"] {
+  --bg: #101116; --surface: #191a21; --raised: #21222b; --line: #2c2d38; --line-2: #262733;
+  --text: #ecedf3; --text-2: #b3b6c4; --text-3: #767a8a; --col: 12%;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45; }
+.top { height: 54px; display: flex; align-items: center; gap: 14px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .brand { font-weight: 800; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.top .brand i { width: 22px; height: 22px; border-radius: 50%; background: conic-gradient(var(--p1), var(--p2), var(--p3), var(--p4), var(--p5), var(--p6), var(--p7), var(--p8), var(--p1)); }
+.top nav { display: flex; gap: 2px; margin-left: 10px; }
+.top nav a { padding: 6px 10px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.top nav a.on { background: var(--raised); color: var(--text); }
+.top .today { margin-left: auto; font-size: 13px; font-weight: 600; color: var(--text-2); }
+main { padding: 22px 24px 60px; }
+.head { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 16px; }
+.head h1 { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.head .sub { font-size: 13px; color: var(--text-3); font-weight: 500; }
+.signals { margin-left: auto; display: flex; gap: 8px; }
+.sig { display: flex; align-items: center; gap: 8px; padding: 8px 12px 8px 10px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-weight: 700; font-size: 13px; }
+.sig .v { font-size: 22px; font-weight: 800; line-height: 1; }
+.sig.red { border-color: var(--red); background: color-mix(in oklab, var(--red) 9%, var(--surface)); color: var(--red); }
+.sig.amber { color: var(--amber); } .sig.green { color: var(--green); }
+.sig .d { font-size: 11.5px; font-weight: 600; color: var(--text-3); }
+
+.board { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+.col { border-radius: 14px; background: color-mix(in oklab, var(--c) var(--col), var(--bg)); padding: 8px; min-height: 250px; display: flex; flex-direction: column; gap: 8px; }
+.col > header { border-radius: 10px; background: var(--c); color: #fff; padding: 10px 12px; }
+.col .n { font-size: 30px; font-weight: 800; line-height: 1; letter-spacing: -.03em; }
+.col .t { font-size: 12px; font-weight: 700; line-height: 1.2; margin-top: 4px; }
+.col .tier { font-size: 10.5px; font-weight: 700; opacity: .8; margin-top: 4px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 11px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+.card .kind { font-size: 10.5px; font-weight: 700; color: var(--c); }
+.card h3 { font-size: 13.5px; font-weight: 800; line-height: 1.2; margin-top: 2px; }
+.card .meta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; font-weight: 500; }
+.card .bar { height: 5px; border-radius: 3px; background: var(--raised); margin-top: 8px; overflow: hidden; }
+.card .bar i { display: block; height: 100%; background: var(--c); }
+.card .k { font-size: 11px; color: var(--text-2); margin-top: 4px; font-weight: 600; display: flex; justify-content: space-between; }
+.card .chips { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 7px; }
+.pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.pill.red { background: var(--red); color: #fff; }
+.pill.red-soft { background: color-mix(in oklab, var(--red) 15%, transparent); color: var(--red); }
+.pill.amber { background: color-mix(in oklab, var(--amber) 16%, transparent); color: var(--amber); }
+.pill.green { background: color-mix(in oklab, var(--green) 15%, transparent); color: var(--green); }
+.col .none { font-size: 11.5px; color: var(--text-3); text-align: center; padding: 18px 6px; font-weight: 500; margin-top: auto; margin-bottom: auto; }
+
+.attn { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.grp { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.grp header { display: flex; align-items: center; gap: 8px; padding: 11px 14px; font-size: 13px; font-weight: 800; }
+.grp header .why { font-weight: 500; color: var(--text-3); font-size: 12px; }
+.grp header .k { margin-left: auto; font-size: 20px; }
+.grp.red header { color: var(--red); background: color-mix(in oklab, var(--red) 8%, var(--surface)); }
+.grp.amber header { color: var(--amber); background: color-mix(in oklab, var(--amber) 12%, var(--surface)); }
+.row { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line-2); align-items: flex-start; }
+.row .pn { flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; font-weight: 800; color: #fff; background: var(--c); }
+.row .name { font-size: 13px; font-weight: 700; } .row .where { font-size: 11.5px; color: var(--text-3); font-weight: 500; }
+.row .eta { font-size: 11.5px; margin-top: 3px; color: var(--text-2); font-weight: 600; } .row .eta.late { color: var(--amber); }
+.row .quote { font-size: 12px; color: var(--red); margin-top: 3px; font-weight: 600; }
+.row .btn { margin-left: auto; flex: none; font-size: 12px; font-weight: 700; padding: 5px 10px; border-radius: 8px; background: var(--red); color: #fff; }
+@media (max-width: 1200px) { .board { grid-template-columns: repeat(5, 1fr); } .attn { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="brand"><i></i> RACI Tracker</div>
+  <nav><a class="on" href="#">Dashboard</a><a href="#">Year 2026</a><a href="#">People</a><a href="#">Manage</a><a href="#">Directory</a></nav>
+  <span class="today">Thu Sep 10, 2026</span></div>
+<main>
+  <div class="head"><div><h1>Year 2026</h1><div class="sub">4 chain plans and 3 promotions, placed on the cycle where they are today</div></div>
+    <div class="signals">
+      <div class="sig red"><span class="v num">4</span><span>Unassigned</span></div>
+      <div class="sig red"><span class="v num">1</span><span>Blocked</span></div>
+      <div class="sig amber"><span class="v num">3</span><span>Overdue</span></div>
+      <div class="sig green"><span class="v num">61</span><span>delivered <span class="d">of 112</span></span></div>
+    </div></div>
+
+  <section class="board">
+    <div class="col" style="--c:var(--p0)"><header><div class="n">0</div><div class="t">Strategic foundation</div><div class="tier">Plan year</div></header>
+      <a class="card" href="#"><div class="kind">Plan year</div><h3>Year 2026</h3><div class="meta">Targets, calendar, trade budget</div><div class="bar"><i style="width:75%"></i></div><div class="k"><span>6 of 8</span><span>75%</span></div></a></div>
+    <div class="col" style="--c:var(--p1)"><header><div class="n">1</div><div class="t">Internal alignment</div><div class="tier">Chain plan</div></header>
+      <a class="card" href="#"><div class="kind">Chain plan</div><h3>Ralphs</h3><div class="meta">JBP not scheduled</div><div class="bar"><i style="width:40%"></i></div><div class="k"><span>2 of 5</span><span>40%</span></div><div class="chips"><span class="pill amber">1 overdue</span></div></a></div>
+    <div class="col" style="--c:var(--p2)"><header><div class="n">2</div><div class="t">Distributor alignment</div><div class="tier">Chain plan</div></header>
+      <a class="card" href="#"><div class="kind">Chain plan</div><h3>Albertsons</h3><div class="meta">JBP Nov 3</div><div class="bar"><i style="width:0"></i></div><div class="k"><span>0 of 4</span><span>0%</span></div><div class="chips"><span class="pill red">1 unassigned</span><span class="pill amber">1 overdue</span></div></a></div>
+    <div class="col" style="--c:var(--p3)"><header><div class="n">3</div><div class="t">JBP &amp; negotiation</div><div class="tier">Chain plan</div></header>
+      <a class="card" href="#"><div class="kind">Chain plan</div><h3>Safeway</h3><div class="meta">JBP Oct 14, in 34 days</div><div class="bar"><i style="width:42%"></i></div><div class="k"><span>5 of 12</span><span>42%</span></div><div class="chips"><span class="pill red">2 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div></a></div>
+    <div class="col" style="--c:var(--p4)"><header><div class="n">4</div><div class="t">Agreement</div><div class="tier">Chain plan</div></header>
+      <a class="card" href="#"><div class="kind">Chain plan</div><h3>Kroger</h3><div class="meta">JBP was Aug 20</div><div class="bar"><i style="width:100%"></i></div><div class="k"><span>2 of 2</span><span>100%</span></div><div class="chips"><span class="pill green">Complete</span></div></a></div>
+    <div class="col" style="--c:var(--p5)"><header><div class="n">5</div><div class="t">Activation planning</div><div class="tier">Promotion</div></header>
+      <a class="card" href="#"><div class="kind">Safeway</div><h3>Holiday Gift Sets</h3><div class="meta">Nov 15 to Dec 31, 240 stores</div><div class="bar"><i style="width:38%"></i></div><div class="k"><span>3 of 8</span><span>38%</span></div><div class="chips"><span class="pill red">1 unassigned</span></div></a></div>
+    <div class="col" style="--c:var(--p6)"><header><div class="n">6</div><div class="t">Retail execution</div><div class="tier">Promotion</div></header>
+      <a class="card" href="#"><div class="kind">Safeway</div><h3>Fetzer Fall Harvest</h3><div class="meta">Sep 1 to Oct 15, in market</div><div class="bar"><i style="width:33%"></i></div><div class="k"><span>2 of 6</span><span>33%</span></div><div class="chips"><span class="pill red">1 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div></a></div>
+    <div class="col" style="--c:var(--p7)"><header><div class="n">7</div><div class="t">Tracking &amp; measurement</div><div class="tier">Promotion</div></header><div class="none">Nothing is being measured right now</div></div>
+    <div class="col" style="--c:var(--p8)"><header><div class="n">8</div><div class="t">Review</div><div class="tier">Promotion</div></header>
+      <a class="card" href="#"><div class="kind">Kroger</div><h3>Summer BBQ</h3><div class="meta">Jun 1 to Jul 31, 310 stores</div><div class="bar"><i style="width:50%"></i></div><div class="k"><span>1 of 2</span><span>50%</span></div><div class="chips"><span class="pill red">1 unassigned</span></div></a></div>
+  </section>
+
+  <section class="attn">
+    <div class="grp red"><header>Unassigned <span class="why">nobody is doing this</span><span class="k num">4</span></header>
+      <div class="row" style="--c:var(--p5)"><span class="pn">5</span><div><div class="name">Shelf talkers, 32 in, qty 20</div><div class="where">Safeway, Holiday Gift Sets</div><div class="eta">ETA Oct 20</div></div><button class="btn">Assign</button></div>
+      <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Case display wrap, half pallet</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta">ETA Sep 18</div></div><button class="btn">Assign</button></div>
+      <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Distributor incentive memo</div><div class="where">Albertsons</div><div class="eta">No ETA</div></div><button class="btn">Assign</button></div>
+      <div class="row" style="--c:var(--p8)"><span class="pn">8</span><div><div class="name">Retro: what to repeat next year</div><div class="where">Kroger, Summer BBQ</div><div class="eta">ETA Sep 30</div></div><button class="btn">Assign</button></div></div>
+    <div class="grp red"><header>Blocked <span class="why">stopped, and why</span><span class="k num">1</span></header>
+      <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Endcap allocation, 180 stores</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="quote">“No inventory at distributor”</div><div class="eta">ETA Sep 12, R Maria Ortega</div></div></div></div>
+    <div class="grp amber"><header>Overdue <span class="why">past ETA, still open</span><span class="k num">3</span></header>
+      <div class="row" style="--c:var(--p1)"><span class="pn">1</span><div><div class="name">Spend envelope sign-off</div><div class="where">Ralphs</div><div class="eta late">Sep 3, 7 days late, R Dan Kim</div></div></div>
+      <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Buyer meeting deck</div><div class="where">Albertsons</div><div class="eta late">Sep 5, 5 days late, R Priya Nair</div></div></div>
+      <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Proof of execution photos</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta late">Sep 8, 2 days late, R Maria Ortega</div></div></div></div>
+  </section>
+</main>
+</body>
+</html>

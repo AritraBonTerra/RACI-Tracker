@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { daysBetween, formatDay, MONTHS } from "../lib/dates";
 import type { PathwayHeadline, PathwayPhase } from "../lib/pathway";
 import { pathwayHeadline } from "../lib/pathway";
+import { phaseStyle } from "./Phase";
 
 // The Pathway (CONTEXT.md): phase chips for *what's done*, a thin time rail for
 // *when*, one headline call to action. It sits at the top of every tier view so
@@ -90,21 +91,27 @@ function PhaseChip({ phase, today }: { phase: PathwayPhase; today: string }) {
   return (
     <div
       title={tip}
-      className={`relative min-w-28 flex-1 rounded-lg border bg-ink-950/60 px-2.5 py-2 ${
-        phase.current ? "border-sand-500" : "border-ink-800"
+      style={phaseStyle(phase.phase)}
+      className={`relative min-w-32 flex-1 rounded-xl border px-3 pt-3 pb-2.5 ${
+        phase.current
+          ? "border-(--phase) bg-(--phase)/10 ring-2 ring-(--phase)/35"
+          : "border-ink-800 bg-ink-950/60"
       }`}
     >
       {phase.current && (
-        <span className="absolute -top-2 left-2 rounded-full bg-sand-500 px-1.5 text-3xs font-bold tracking-wide text-ink-fixed uppercase">
-          Here
+        <span className="absolute -top-2.5 left-3 rounded-full bg-(--phase) px-2 text-3xs font-bold text-white">
+          You are here
         </span>
       )}
-      <p className="truncate text-2xs font-semibold text-ink-100">
-        P{phase.phase} · {phase.title}
+      <p className="flex items-baseline gap-2">
+        <span className="text-2xl leading-none font-extrabold text-(--phase) tabular-nums">
+          {phase.phase}
+        </span>
+        <span className="truncate text-xs font-semibold text-ink-100">{phase.title}</span>
       </p>
       {/* Delivered / in-progress / blocked composition; the track is the rest.
           Colour never changes the math (CONTEXT.md: Pathway). */}
-      <div className="mt-1.5 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-ink-800">
+      <div className="mt-2.5 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-(--phase)/20">
         {counts.delivered > 0 && (
           <i className="h-full bg-emerald-500" style={{ flex: counts.delivered }} />
         )}
@@ -116,7 +123,7 @@ function PhaseChip({ phase, today }: { phase: PathwayPhase; today: string }) {
         )}
         {rest > 0 && <i className="h-full" style={{ flex: rest }} />}
       </div>
-      <p className="mt-1 flex items-baseline justify-between gap-2 text-2xs text-ink-400">
+      <p className="mt-1.5 flex items-baseline justify-between gap-2 text-2xs text-ink-400">
         <span className="tabular-nums">
           {counts.total === 0 ? "—" : `${counts.delivered}/${counts.total}`}
         </span>
@@ -195,17 +202,22 @@ function Rail({ phases, today }: { phases: readonly PathwayPhase[]; today: strin
       {segments.map(({ phase, window, left, width, lane: ownLane, pct }) => (
         <span key={phase.phase}>
           <span
-            className="absolute -translate-x-full pr-1 text-3xs text-ink-500"
-            style={{ left: `${left}%`, top: ownLane === 0 ? "0.35rem" : "1.1rem" }}
+            className="absolute -translate-x-full pr-1 text-3xs font-bold text-(--phase)"
+            style={{
+              ...phaseStyle(phase.phase),
+              left: `${left}%`,
+              top: ownLane === 0 ? "0.35rem" : "1.1rem",
+            }}
           >
-            P{phase.phase}
+            {phase.phase}
           </span>
           <span
             title={`Phase ${phase.phase} · ${phase.title} — ${formatDay(window.start, today)} – ${formatDay(window.end, today)}`}
-            className={`absolute h-2 overflow-hidden rounded-full bg-ink-800 ${
-              phase.current ? "ring-2 ring-sand-500/80" : ""
+            className={`absolute h-2 overflow-hidden rounded-full bg-(--phase)/25 ${
+              phase.current ? "ring-2 ring-(--phase)/70" : ""
             }`}
             style={{
+              ...phaseStyle(phase.phase),
               left: `${left}%`,
               width: `${width}%`,
               top: ownLane === 0 ? "0.45rem" : "1.2rem",
@@ -221,11 +233,11 @@ function Rail({ phases, today }: { phases: readonly PathwayPhase[]; today: strin
       {todayX >= 0 && todayX <= 100 && (
         <>
           <span
-            className="absolute top-0 bottom-2.5 w-px bg-sand-400"
+            className="absolute top-0 bottom-2.5 w-px bg-accent"
             style={{ left: `${todayX}%` }}
           />
           <span
-            className="absolute bottom-0 -translate-x-1/2 text-3xs font-bold tracking-wide text-sand-300 uppercase"
+            className="absolute bottom-0 -translate-x-1/2 text-3xs font-bold text-accent"
             style={{ left: `${todayX}%` }}
           >
             Today

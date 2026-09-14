@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prototype 5 · Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<script src="shared.js"></script>
+<style>
+/* TIMELINE. The year is the canvas. Every plan and promotion is a bar across
+   the calendar, segmented by phase, with today drawn down the page. Phase
+   colours are muted jewel tones so nine of them can sit on one row without
+   shouting; the current segment is the only one at full strength. */
+:root {
+  --font: "Geist", system-ui, sans-serif;
+  --p0: #7a7f87; --p1: #b58a2e; --p2: #c2643b; --p3: #b3406b; --p4: #7e4fa8;
+  --p5: #4f62b0; --p6: #3878a8; --p7: #2a8e96; --p8: #3c8f7c;
+  --red: #dc3d43; --amber: #d98a16; --green: #2f9e63;
+  --bg: #f2f3f5; --surface: #fff; --raised: #f7f7f9; --line: #e1e3e8; --line-2: #eceef1;
+  --text: #15181d; --text-2: #4f5561; --text-3: #8b909b; --mute: 30%;
+}
+html[data-theme="dark"] {
+  --p0: #8e939b; --p1: #d1a344; --p2: #dd7a4f; --p3: #d05580; --p4: #9b6fc9;
+  --p5: #6b7fd4; --p6: #4d95cc; --p7: #3aa9b2; --p8: #4faa95;
+  --red: #f06066; --amber: #f2a33a; --green: #45b87a;
+  --bg: #0b0e14; --surface: #12161e; --raised: #181d27; --line: #262c38; --line-2: #1f2530;
+  --text: #e9ecf1; --text-2: #aab0bc; --text-3: #6d7482; --mute: 35%;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45; }
+.top { height: 52px; display: flex; align-items: center; gap: 14px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.top .brand { font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.top .brand i { width: 20px; height: 20px; border-radius: 5px; background: linear-gradient(90deg, var(--p1), var(--p3), var(--p5), var(--p8)); }
+.top nav { display: flex; gap: 2px; margin-left: 10px; }
+.top nav a { padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--text-2); }
+.top nav a.on { background: var(--raised); color: var(--text); font-weight: 600; }
+.top .today { margin-left: auto; font-size: 13px; color: var(--text-2); }
+main { padding: 22px 24px 60px; max-width: 1400px; margin: 0 auto; }
+.head { display: flex; align-items: flex-end; gap: 18px; margin-bottom: 14px; }
+.head h1 { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.head .sub { font-size: 13px; color: var(--text-3); }
+.stats { margin-left: auto; display: flex; gap: 22px; }
+.stat { display: flex; align-items: baseline; gap: 6px; }
+.stat .v { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+.stat .l { font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+.stat.red .v { color: var(--red); } .stat.amber .v { color: var(--amber); } .stat.green .v { color: var(--green); }
+
+.gantt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 16px; }
+.g-row { display: grid; grid-template-columns: 280px 1fr; border-top: 1px solid var(--line-2); }
+.g-row:first-child { border-top: 0; }
+.g-head { background: var(--raised); }
+.g-head .lab { padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--text-3); }
+.months { position: relative; display: grid; grid-template-columns: repeat(12, 1fr); }
+.months span { padding: 8px 0 8px 8px; font-size: 11.5px; color: var(--text-3); border-left: 1px solid var(--line-2); }
+.g-lab { padding: 12px 14px; display: flex; align-items: center; gap: 12px; }
+.g-lab .pn { flex: none; width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-size: 22px; font-weight: 800; color: #fff; background: var(--c); }
+.g-lab.sub { padding-left: 28px; } .g-lab.sub .pn { width: 32px; height: 32px; font-size: 17px; border-radius: 8px; }
+.g-lab h2 { font-size: 15px; font-weight: 700; } .g-lab.sub h2 { font-size: 13.5px; }
+.g-lab .ph { font-size: 12.5px; font-weight: 600; color: var(--c); }
+.g-lab .meta { font-size: 11.5px; color: var(--text-3); margin-top: 1px; }
+.lane { position: relative; background-image: repeating-linear-gradient(90deg, var(--line-2) 0 1px, transparent 1px calc(100% / 12)); }
+.lane .bar { position: absolute; top: 50%; height: 22px; transform: translateY(-50%); display: flex; border-radius: 6px; overflow: hidden; }
+.lane .seg { display: flex; align-items: center; padding: 0 8px; font-size: 11.5px; font-weight: 700; color: #fff; background: color-mix(in oklab, var(--c) var(--mute), var(--surface)); color: var(--c); border-right: 1px solid var(--surface); white-space: nowrap; overflow: hidden; }
+.lane .seg.done { background: var(--c); color: #fff; opacity: .85; }
+.lane .seg.now { background: var(--c); color: #fff; box-shadow: inset 0 0 0 2px #fff4; }
+.lane .chips { position: absolute; top: 50%; transform: translateY(-50%); display: flex; gap: 4px; }
+.lane .mark { position: absolute; top: 4px; bottom: 4px; width: 1px; background: var(--text-3); }
+.lane .mark i { position: absolute; top: -2px; left: 4px; font-size: 10.5px; font-style: normal; color: var(--text-3); white-space: nowrap; }
+.today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--red); left: 69.2%; z-index: 2; }
+.today-line i { position: absolute; top: 4px; left: 5px; font-style: normal; font-size: 10.5px; font-weight: 700; color: var(--red); }
+.gantt { position: relative; }
+.pill { font-size: 10.5px; font-weight: 700; padding: 2px 7px; border-radius: 999px; }
+.pill.red { background: var(--red); color: #fff; }
+.pill.red-soft { background: color-mix(in oklab, var(--red) 15%, var(--surface)); color: var(--red); }
+.pill.amber { background: color-mix(in oklab, var(--amber) 16%, var(--surface)); color: var(--amber); }
+.pill.green { background: color-mix(in oklab, var(--green) 15%, var(--surface)); color: var(--green); }
+
+.below { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grp { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.grp header { display: flex; gap: 8px; align-items: center; padding: 10px 14px; font-size: 13px; font-weight: 700; border-bottom: 1px solid var(--line-2); }
+.grp header .why { font-weight: 400; color: var(--text-3); font-size: 12px; } .grp header .k { margin-left: auto; font-size: 18px; }
+.grp.red header { color: var(--red); } .grp.amber header { color: var(--amber); }
+.row { display: flex; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line-2); align-items: flex-start; }
+.row:first-of-type { border-top: 0; }
+.row .pn { flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 11.5px; font-weight: 800; color: #fff; background: var(--c); }
+.row .name { font-size: 13px; font-weight: 600; } .row .where { font-size: 11.5px; color: var(--text-3); }
+.row .eta { font-size: 11.5px; margin-top: 3px; color: var(--text-2); } .row .eta.late { color: var(--amber); font-weight: 600; }
+.row .quote { font-size: 12px; color: var(--red); margin-top: 3px; }
+.row .btn { margin-left: auto; flex: none; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px; background: var(--red); color: #fff; }
+@media (max-width: 1100px) { .below { grid-template-columns: 1fr; } .g-row { grid-template-columns: 200px 1fr; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="brand"><i></i> RACI Tracker</div>
+  <nav><a class="on" href="#">Dashboard</a><a href="#">Year 2026</a><a href="#">People</a><a href="#">Manage</a><a href="#">Directory</a></nav>
+  <span class="today">Today, Thu Sep 10, 2026</span></div>
+<main>
+  <div class="head"><div><h1>Year 2026</h1><div class="sub">4 chain plans, 3 promotions, 112 tasks, on the calendar</div></div>
+    <div class="stats"><div class="stat red"><span class="v num">4</span><span class="l">unassigned</span></div><div class="stat red"><span class="v num">1</span><span class="l">blocked</span></div><div class="stat amber"><span class="v num">3</span><span class="l">overdue</span></div><div class="stat green"><span class="v num">61</span><span class="l">of 112 delivered</span></div></div></div>
+
+  <section class="gantt">
+    <div class="today-line"><i>Today</i></div>
+    <div class="g-row g-head"><div class="lab">Plan, promotion</div><div class="months"><span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span><span>Nov</span><span>Dec</span></div></div>
+
+    <div class="g-row" style="--c:var(--p0)"><div class="g-lab"><span class="pn">0</span><div><h2>Year 2026</h2><div class="ph">Strategic foundation</div><div class="meta">6 of 8 delivered</div></div></div>
+      <div class="lane"><div class="bar" style="left:0%;width:16%"><span class="seg now" style="--c:var(--p0);flex:1">0 · 6/8</span></div></div></div>
+
+    <div class="g-row" style="--c:var(--p3)"><div class="g-lab"><span class="pn">3</span><div><h2>Safeway</h2><div class="ph">JBP &amp; negotiation</div><div class="meta">JBP Oct 14, in 34 days</div></div></div>
+      <div class="lane"><div class="bar" style="left:25%;width:58%"><span class="seg done" style="--c:var(--p1);flex:2">1 · 7/7</span><span class="seg done" style="--c:var(--p2);flex:2">2 · 6/6</span><span class="seg now" style="--c:var(--p3);flex:3">3 · 5/12</span><span class="seg" style="--c:var(--p4);flex:1.5">4</span></div><div class="mark" style="left:78.5%"><i>JBP</i></div><div class="chips" style="left:84%"><span class="pill red">2</span><span class="pill red-soft">1</span><span class="pill amber">1</span></div></div></div>
+    <div class="g-row" style="--c:var(--p5)"><div class="g-lab sub"><span class="pn">5</span><div><h2>Holiday Gift Sets</h2><div class="ph">Activation planning</div><div class="meta">Nov 15 to Dec 31, 240 stores</div></div></div>
+      <div class="lane"><div class="bar" style="left:66%;width:34%"><span class="seg now" style="--c:var(--p5);flex:2.6">5 · 3/8</span><span class="seg" style="--c:var(--p6);flex:2.4">6</span><span class="seg" style="--c:var(--p7);flex:1">7</span><span class="seg" style="--c:var(--p8);flex:.8">8</span></div><div class="chips" style="left:58%"><span class="pill red">1</span></div></div></div>
+    <div class="g-row" style="--c:var(--p6)"><div class="g-lab sub"><span class="pn">6</span><div><h2>Fetzer Fall Harvest</h2><div class="ph">Retail execution</div><div class="meta">Sep 1 to Oct 15, 180 stores, in market</div></div></div>
+      <div class="lane"><div class="bar" style="left:56%;width:34%"><span class="seg done" style="--c:var(--p5);flex:2.5">5 · 7/7</span><span class="seg now" style="--c:var(--p6);flex:2.8">6 · 2/6</span><span class="seg" style="--c:var(--p7);flex:1.2">7</span><span class="seg" style="--c:var(--p8);flex:.8">8</span></div><div class="chips" style="left:91%"><span class="pill red">1</span><span class="pill red-soft">1</span><span class="pill amber">1</span></div></div></div>
+
+    <div class="g-row" style="--c:var(--p4)"><div class="g-lab"><span class="pn">4</span><div><h2>Kroger</h2><div class="ph">Agreement</div><div class="meta">JBP was Aug 20</div></div></div>
+      <div class="lane"><div class="bar" style="left:8%;width:60%"><span class="seg done" style="--c:var(--p1);flex:2">1 · 3/3</span><span class="seg done" style="--c:var(--p2);flex:2">2 · 3/3</span><span class="seg done" style="--c:var(--p3);flex:3">3 · 4/4</span><span class="seg now" style="--c:var(--p4);flex:1.5">4 · 2/2</span></div><div class="chips" style="left:70%"><span class="pill green">Complete</span></div></div></div>
+    <div class="g-row" style="--c:var(--p8)"><div class="g-lab sub"><span class="pn">8</span><div><h2>Summer BBQ</h2><div class="ph">Review</div><div class="meta">Jun 1 to Jul 31, 310 stores</div></div></div>
+      <div class="lane"><div class="bar" style="left:30%;width:50%"><span class="seg done" style="--c:var(--p5);flex:2">5 · 6/6</span><span class="seg done" style="--c:var(--p6);flex:2.6">6 · 5/5</span><span class="seg done" style="--c:var(--p7);flex:1.6">7 · 3/4</span><span class="seg now" style="--c:var(--p8);flex:1.4">8 · 1/2</span></div><div class="chips" style="left:82%"><span class="pill red">1</span></div></div></div>
+
+    <div class="g-row" style="--c:var(--p2)"><div class="g-lab"><span class="pn">2</span><div><h2>Albertsons</h2><div class="ph">Distributor alignment</div><div class="meta">JBP Nov 3</div></div></div>
+      <div class="lane"><div class="bar" style="left:50%;width:44%"><span class="seg done" style="--c:var(--p1);flex:2">1 · 4/4</span><span class="seg now" style="--c:var(--p2);flex:2.4">2 · 0/4</span><span class="seg" style="--c:var(--p3);flex:2">3</span><span class="seg" style="--c:var(--p4);flex:1.3">4</span></div><div class="mark" style="left:84%"><i>JBP</i></div><div class="chips" style="left:95%"><span class="pill red">1</span><span class="pill amber">1</span></div></div></div>
+    <div class="g-row" style="--c:var(--p1)"><div class="g-lab"><span class="pn">1</span><div><h2>Ralphs</h2><div class="ph">Internal alignment</div><div class="meta">JBP not scheduled</div></div></div>
+      <div class="lane"><div class="bar" style="left:62%;width:22%"><span class="seg now" style="--c:var(--p1);flex:2">1 · 2/5</span><span class="seg" style="--c:var(--p2);flex:1.6">2</span><span class="seg" style="--c:var(--p3);flex:1">3</span><span class="seg" style="--c:var(--p4);flex:.6">4</span></div><div class="chips" style="left:85%"><span class="pill amber">1</span></div></div></div>
+  </section>
+
+  <section class="below">
+    <div class="grp red"><header>Unassigned <span class="why">nobody is doing this</span><span class="k num">4</span></header>
+      <div class="row" style="--c:var(--p5)"><span class="pn">5</span><div><div class="name">Shelf talkers, 32 in, qty 20</div><div class="where">Safeway, Holiday Gift Sets</div><div class="eta">ETA Oct 20</div></div><button class="btn">Assign</button></div>
+      <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Case display wrap, half pallet</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta">ETA Sep 18</div></div><button class="btn">Assign</button></div>
+      <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Distributor incentive memo</div><div class="where">Albertsons</div><div class="eta">No ETA</div></div><button class="btn">Assign</button></div>
+      <div class="row" style="--c:var(--p8)"><span class="pn">8</span><div><div class="name">Retro: what to repeat next year</div><div class="where">Kroger, Summer BBQ</div><div class="eta">ETA Sep 30</div></div><button class="btn">Assign</button></div></div>
+    <div class="grp red"><header>Blocked <span class="why">stopped, and why</span><span class="k num">1</span></header>
+      <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Endcap allocation, 180 stores</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="quote">“No inventory at distributor”</div><div class="eta">ETA Sep 12, R Maria Ortega</div></div></div></div>
+    <div class="grp amber"><header>Overdue <span class="why">past ETA, still open</span><span class="k num">3</span></header>
+      <div class="row" style="--c:var(--p1)"><span class="pn">1</span><div><div class="name">Spend envelope sign-off</div><div class="where">Ralphs</div><div class="eta late">Sep 3, 7 days late, R Dan Kim</div></div></div>
+      <div class="row" style="--c:var(--p2)"><span class="pn">2</span><div><div class="name">Buyer meeting deck</div><div class="where">Albertsons</div><div class="eta late">Sep 5, 5 days late, R Priya Nair</div></div></div>
+      <div class="row" style="--c:var(--p6)"><span class="pn">6</span><div><div class="name">Proof of execution photos</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta late">Sep 8, 2 days late, R Maria Ortega</div></div></div></div>
+  </section>
+</main>
+</body>
+</html>

@@ -6,14 +6,15 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 // Hand-rolled primitives. Small enough to read in one sitting, and they keep the
 // ops-tool look (dense rows, quiet chrome, loud problems) consistent everywhere.
 
 const BUTTON_VARIANTS = {
-  // Tan, not green: green is Delivered everywhere else in the app. Fixed ink
-  // and a 500-step hover because sand 400/500 hold their value in both themes.
-  primary: "bg-sand-400 text-ink-fixed hover:bg-sand-500",
+  // Inverted neutral, not a hue: every hue in the app already means a phase
+  // or a status, so the one button that matters is the one in ink.
+  primary: "bg-ink-50 text-ink-950 hover:bg-ink-200",
   secondary: "bg-ink-800 text-ink-100 ring-1 ring-inset ring-ink-700 hover:bg-ink-700",
   ghost: "text-ink-400 hover:bg-ink-800 hover:text-ink-100",
   danger: "bg-rose-600 text-white hover:bg-rose-500",
@@ -180,11 +181,11 @@ export function Field({
 }
 
 export const inputClass =
-  "w-full rounded-md border border-ink-700 bg-ink-950 px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 focus:border-sand-500 focus:ring-0 focus:outline-none";
+  "w-full rounded-md border border-ink-700 bg-ink-950 px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-600 focus:border-accent focus:ring-0 focus:outline-none";
 
 /** The compact chrome-bar select (year, theme); form selects use `inputClass`. */
 export const selectClass =
-  "h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500 focus:border-sand-500 focus:outline-none";
+  "h-8 cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 text-xs text-ink-200 transition hover:border-ink-500 focus:border-accent focus:outline-none";
 
 export function Modal({
   title,
@@ -236,7 +237,10 @@ export function Modal({
     }
   };
 
-  return (
+  // Rendered at the body, not where it was opened: a modal opened from inside
+  // the sticky sidebar would otherwise be trapped in that stacking context and
+  // painted beneath positioned elements of the page it is meant to cover.
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-6">
       <div
         ref={dialog}
@@ -260,7 +264,8 @@ export function Modal({
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

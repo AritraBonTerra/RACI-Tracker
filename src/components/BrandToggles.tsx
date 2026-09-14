@@ -31,7 +31,7 @@ export function BrandToggles({
             onClick={() => onToggle(brand._id)}
             className={`rounded-full px-2.5 py-1 text-xs transition ${
               on
-                ? "bg-sand-400/20 text-sand-100 ring-1 ring-sand-400/60"
+                ? "bg-accent/15 text-accent ring-1 ring-accent/50"
                 : "bg-ink-800 text-ink-400 ring-1 ring-ink-700 hover:text-ink-200"
             }`}
           >

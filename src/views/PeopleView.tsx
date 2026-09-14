@@ -224,7 +224,7 @@ function PersonWorkload({ personId, today }: { personId: Id<"people">; today: st
               >
                 <span className="flex w-10 shrink-0 gap-1 font-mono text-3xs font-bold">
                   {isResponsible && (
-                    <span className="rounded bg-sand-400/20 px-1 text-sand-200">R</span>
+                    <span className="rounded bg-accent/15 px-1 text-accent">R</span>
                   )}
                   {isAccountable && (
                     <span className="rounded bg-sky-500/20 px-1 text-sky-300">A</span>

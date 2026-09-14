@@ -1,0 +1,21 @@
+/* Shared reset + the floating prototype switcher. Each prototype owns its own
+   tokens; nothing visual lives here. */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+a { color: inherit; text-decoration: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+ul { list-style: none; }
+.num { font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+.proto-bar {
+  position: fixed; right: 14px; bottom: 14px; z-index: 99;
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px; border-radius: 999px;
+  background: #111114; color: #f2f2f5; font: 500 12px/1 system-ui, sans-serif;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.proto-bar a, .proto-bar button { padding: 6px 10px; border-radius: 999px; }
+.proto-bar a:hover, .proto-bar button:hover { background: #2a2a30; }
+.proto-bar .name { padding: 6px 10px; opacity: .7; }
+.proto-bar button[aria-pressed="true"] { background: #f2f2f5; color: #111114; }

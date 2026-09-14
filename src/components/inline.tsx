@@ -10,7 +10,7 @@ import { useCanEditWork } from "./AuthGate";
 // Exported so a detachable editor elsewhere (the KPI grid) looks like these
 // without copying the strings.
 export const editorClass =
-  "w-full rounded border border-sand-500/70 bg-ink-950 px-1.5 py-0.5 text-sm text-ink-100 focus:outline-none";
+  "w-full rounded border border-accent/70 bg-ink-950 px-1.5 py-0.5 text-sm text-ink-100 focus:outline-none";
 
 export const displayClass =
   "-mx-1.5 block w-full cursor-text rounded px-1.5 py-0.5 hover:bg-ink-800/70 focus-visible:bg-ink-800 focus-visible:outline-none";
@@ -254,7 +254,7 @@ export function InlineSelect<Value extends string>({
         const next = options.find((option) => option.value === event.target.value);
         if (next !== undefined) onChange(next.value);
       }}
-      className={`cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-200 hover:border-ink-500 focus:border-sand-500 focus:outline-none ${className}`}
+      className={`cursor-pointer rounded-md border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-200 hover:border-ink-500 focus:border-accent focus:outline-none ${className}`}
     >
       {options.map((option) => (
         <option key={option.value} value={option.value}>

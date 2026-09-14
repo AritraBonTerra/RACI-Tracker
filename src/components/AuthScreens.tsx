@@ -316,7 +316,7 @@ export function AccountMenu({
         aria-label="Account"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="flex h-8 w-8 items-center justify-center rounded-full bg-sand-400 text-xs font-semibold text-ink-fixed transition hover:bg-sand-500"
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white transition hover:bg-accent/85"
       >
         {initials}
       </button>

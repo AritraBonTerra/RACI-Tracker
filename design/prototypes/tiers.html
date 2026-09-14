@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Prototype 2 · Tiers</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="shared.css" />
+<script src="shared.js"></script>
+<style>
+/* TIERS. Colour says which tier you are in (year = ochre, chain plan = blues,
+   promotion = plums); the shade deepens as the phase advances. Status keeps
+   red / amber / green to itself, uncontested. Layout is swimlanes: one chain
+   per lane, its plan on the left, its promotions running right. */
+:root {
+  --font: "IBM Plex Sans", system-ui, sans-serif;
+  --p0: #b7791f;
+  --p1: #63b3ed; --p2: #3b8ee0; --p3: #2166c4; --p4: #123f8f;
+  --p5: #d67dc2; --p6: #b94fa1; --p7: #93357f; --p8: #5f1f57;
+  --red: #dc2626; --amber: #d97706; --green: #059669;
+  --bg: #eef0f3; --surface: #fff; --raised: #f6f7f9; --line: #dfe3e8; --line-2: #eceef2;
+  --text: #14181e; --text-2: #4b5563; --text-3: #8a94a3;
+  --tint: 10%; --shadow: 0 1px 0 rgba(15,20,30,.04), 0 6px 20px rgba(15,20,30,.06);
+}
+html[data-theme="dark"] {
+  --p1: #7cc0f5; --p2: #4f9ae8; --p3: #2f7bd6; --p4: #2b62b8;
+  --p5: #e493d2; --p6: #cc63b4; --p7: #aa4a95; --p8: #85387a;
+  --red: #f26d6d; --amber: #f2a93b; --green: #34c38f;
+  --bg: #0f1115; --surface: #171a20; --raised: #1e222a; --line: #2a2f38; --line-2: #22262e;
+  --text: #edf0f4; --text-2: #b4bcc8; --text-3: #737d8c; --tint: 16%; --shadow: none;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45; }
+.topbar { height: 52px; display: flex; align-items: center; gap: 18px; padding: 0 24px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.topbar .brand { font-weight: 700; display: flex; align-items: center; gap: 9px; }
+.topbar .brand i { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--p0) 0 33%, var(--p3) 33% 66%, var(--p7) 66%); }
+.topbar nav { display: flex; gap: 4px; margin-left: 12px; }
+.topbar nav a { padding: 6px 10px; border-radius: 6px; font-size: 13px; color: var(--text-2); }
+.topbar nav a.on { background: var(--raised); color: var(--text); font-weight: 600; }
+.topbar .today { margin-left: auto; font-size: 13px; color: var(--text-2); }
+main { padding: 24px 24px 60px; max-width: 1400px; margin: 0 auto; }
+.head { display: flex; align-items: flex-end; gap: 20px; margin-bottom: 18px; }
+.head h1 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+.head .sub { font-size: 13px; color: var(--text-3); }
+.legend { margin-left: auto; display: flex; gap: 14px; font-size: 12px; color: var(--text-2); }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 3px; }
+
+.alerts { display: grid; grid-template-columns: repeat(3, 1fr) 1.3fr; gap: 10px; margin-bottom: 18px; }
+.alert { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.alert .v { font-size: 32px; font-weight: 700; line-height: 1; min-width: 40px; }
+.alert .l { font-weight: 600; font-size: 13px; }
+.alert .d { font-size: 12px; color: var(--text-3); }
+.alert.red { border-left: 4px solid var(--red); } .alert.red .v { color: var(--red); }
+.alert.amber { border-left: 4px solid var(--amber); } .alert.amber .v { color: var(--amber); }
+.alert.blk { border-left: 4px solid var(--red); } .alert.blk .v { color: var(--red); }
+.alert .bar { flex: 1; height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.alert .bar i { display: block; width: 54%; height: 100%; background: var(--green); }
+
+.year { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 10px; margin-bottom: 14px; background: color-mix(in oklab, var(--p0) var(--tint), var(--surface)); border: 1px solid color-mix(in oklab, var(--p0) 35%, var(--line)); }
+.year .big { font-size: 30px; font-weight: 700; color: var(--p0); line-height: 1; }
+.year .t { font-weight: 600; } .year .s { font-size: 12px; color: var(--text-2); }
+.year .bar { margin-left: auto; width: 220px; height: 8px; background: color-mix(in oklab, var(--p0) 25%, var(--surface)); border-radius: 4px; overflow: hidden; }
+.year .bar i { display: block; width: 75%; height: 100%; background: var(--p0); }
+.year .n { font-size: 12px; color: var(--text-2); }
+
+.lane { display: grid; grid-template-columns: 300px 1fr; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
+.plan { padding: 16px; border-right: 1px solid var(--line-2); background: color-mix(in oklab, var(--c) 6%, var(--surface)); }
+.plan h2 { font-size: 18px; font-weight: 700; }
+.plan .jbp { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.phase-card { margin-top: 12px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--c); color: #fff; }
+.phase-card .n { font-size: 36px; font-weight: 700; line-height: 1; }
+.phase-card .t { font-size: 14px; font-weight: 600; line-height: 1.2; }
+.phase-card .k { font-size: 11.5px; opacity: .85; }
+.stepper { display: flex; gap: 4px; margin-top: 10px; }
+.stepper span { flex: 1; height: 6px; border-radius: 3px; background: var(--s); opacity: .28; }
+.stepper span.done { opacity: 1; }
+.stepper span.now { opacity: 1; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--s); }
+.stepper.legend-row { margin-top: 4px; } .stepper.legend-row span { height: auto; background: none; opacity: 1; font-size: 11px; color: var(--text-3); text-align: center; box-shadow: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
+.pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
+.pill.red { background: var(--red); color: #fff; }
+.pill.red-soft { background: color-mix(in oklab, var(--red) 15%, transparent); color: var(--red); }
+.pill.amber { background: color-mix(in oklab, var(--amber) 15%, transparent); color: var(--amber); }
+.pill.green { background: color-mix(in oklab, var(--green) 15%, transparent); color: var(--green); }
+.promos { display: flex; gap: 12px; padding: 14px; overflow-x: auto; }
+.promo { flex: 1 1 260px; min-width: 250px; border-radius: 10px; border: 1px solid var(--line); background: var(--raised); padding: 12px 14px; }
+.promo .hd { display: flex; align-items: center; gap: 10px; }
+.promo .n { width: 40px; height: 40px; border-radius: 9px; background: var(--c); color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700; }
+.promo h3 { font-size: 14px; font-weight: 700; } .promo .ph { font-size: 12px; font-weight: 600; color: var(--c); }
+.promo .meta { margin-top: 8px; font-size: 12px; color: var(--text-3); }
+.promo .k { margin-top: 8px; display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); }
+.empty { padding: 14px; display: flex; align-items: center; font-size: 13px; color: var(--text-3); }
+
+.grid { display: grid; grid-template-columns: 1fr 380px; gap: 18px; align-items: start; }
+.attn { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; position: sticky; top: 16px; }
+.attn header.h { padding: 12px 16px; border-bottom: 1px solid var(--line-2); display: flex; justify-content: space-between; align-items: baseline; }
+.attn h2 { font-size: 15px; font-weight: 700; } .attn .cnt { font-size: 12px; color: var(--text-3); }
+.grp header { display: flex; gap: 8px; align-items: center; padding: 8px 16px; font-size: 12px; font-weight: 700; border-top: 1px solid var(--line-2); }
+.grp header .why { font-weight: 400; color: var(--text-3); } .grp header .k { margin-left: auto; font-size: 15px; }
+.grp.red header { color: var(--red); background: color-mix(in oklab, var(--red) 7%, var(--surface)); }
+.grp.amber header { color: var(--amber); background: color-mix(in oklab, var(--amber) 10%, var(--surface)); }
+.row { display: flex; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--line-2); align-items: flex-start; }
+.row .tag { flex: none; font-size: 11px; font-weight: 700; color: #fff; background: var(--c); padding: 2px 6px; border-radius: 4px; margin-top: 2px; }
+.row .name { font-size: 13px; font-weight: 600; } .row .where { font-size: 12px; color: var(--text-3); }
+.row .eta { font-size: 12px; margin-top: 3px; color: var(--text-2); } .row .eta.late { color: var(--amber); font-weight: 600; }
+.row .quote { font-size: 12px; color: var(--red); margin-top: 3px; }
+.row .btn { margin-left: auto; flex: none; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 6px; background: var(--red); color: #fff; }
+@media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } .lane { grid-template-columns: 1fr; } .plan { border-right: 0; border-bottom: 1px solid var(--line-2); } }
+</style>
+</head>
+<body>
+<div class="topbar"><div class="brand"><i></i> RACI Tracker</div>
+  <nav><a class="on" href="#">Dashboard</a><a href="#">Year 2026</a><a href="#">People</a><a href="#">Manage</a><a href="#">Directory</a></nav>
+  <span class="today">Today, Thu Sep 10 2026</span></div>
+<main>
+  <div class="head"><div><h1>Year 2026</h1><div class="sub">4 chain plans, 3 promotions, 112 tasks</div></div>
+    <div class="legend"><span><i style="background:var(--p0)"></i>Plan year, phase 0</span><span><i style="background:var(--p3)"></i>Chain plans, phases 1 to 4</span><span><i style="background:var(--p6)"></i>Promotions, phases 5 to 8</span></div></div>
+
+  <div class="alerts">
+    <div class="alert red"><span class="v num">4</span><div><div class="l">Unassigned</div><div class="d">No named Responsible</div></div></div>
+    <div class="alert blk"><span class="v num">1</span><div><div class="l">Blocked</div><div class="d">Stopped, with a reason</div></div></div>
+    <div class="alert amber"><span class="v num">3</span><div><div class="l">Overdue</div><div class="d">Past ETA, not delivered</div></div></div>
+    <div class="alert"><span class="v num" style="color:var(--green)">54%</span><div style="flex:1"><div class="l">61 of 112 delivered</div><div class="bar" style="margin-top:6px"><i></i></div></div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <a class="year" href="#"><span class="big">0</span><div><div class="t">Year 2026, Strategic foundation</div><div class="s">Targets, portfolio priorities, brand calendar, trade budget</div></div><div class="bar"><i></i></div><span class="n">6 of 8</span></a>
+
+      <section class="lane" style="--c:var(--p3)">
+        <div class="plan"><h2>Safeway</h2><div class="jbp">JBP on Oct 14, in 34 days</div>
+          <div class="phase-card"><span class="n">3</span><div><div class="t">JBP &amp; negotiation</div><div class="k">5 of 12 delivered</div></div></div>
+          <div class="stepper" style="--s:var(--p3)"><span class="done" style="--s:var(--p1)"></span><span class="done" style="--s:var(--p2)"></span><span class="now"></span><span style="--s:var(--p4)"></span></div>
+          <div class="stepper legend-row"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+          <div class="chips"><span class="pill red">2 unassigned</span><span class="pill red-soft">1 blocked</span><span class="pill amber">1 overdue</span></div></div>
+        <div class="promos">
+          <a class="promo" href="#" style="--c:var(--p5)"><div class="hd"><span class="n">5</span><div><h3>Holiday Gift Sets</h3><div class="ph">Activation planning</div></div></div>
+            <div class="meta">Nov 15 to Dec 31, 240 stores</div>
+            <div class="stepper" style="--s:var(--p5)"><span class="now"></span><span style="--s:var(--p6)"></span><span style="--s:var(--p7)"></span><span style="--s:var(--p8)"></span></div>
+            <div class="k"><span>3 of 14 delivered</span><span class="pill red">1 unassigned</span></div></a>
+          <a class="promo" href="#" style="--c:var(--p6)"><div class="hd"><span class="n">6</span><div><h3>Fetzer Fall Harvest</h3><div class="ph">Retail execution</div></div></div>
+            <div class="meta">Sep 1 to Oct 15, 180 stores, in market now</div>
+            <div class="stepper" style="--s:var(--p6)"><span class="done" style="--s:var(--p5)"></span><span class="now"></span><span style="--s:var(--p7)"></span><span style="--s:var(--p8)"></span></div>
+            <div class="k"><span>9 of 16 delivered</span><span><span class="pill red">1 unassigned</span> <span class="pill red-soft">1 blocked</span></span></div></a>
+        </div>
+      </section>
+
+      <section class="lane" style="--c:var(--p4)">
+        <div class="plan"><h2>Kroger</h2><div class="jbp">JBP was Aug 20</div>
+          <div class="phase-card"><span class="n">4</span><div><div class="t">Agreement</div><div class="k">12 of 12 delivered</div></div></div>
+          <div class="stepper" style="--s:var(--p4)"><span class="done" style="--s:var(--p1)"></span><span class="done" style="--s:var(--p2)"></span><span class="done" style="--s:var(--p3)"></span><span class="now"></span></div>
+          <div class="stepper legend-row"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+          <div class="chips"><span class="pill green">Plan complete</span></div></div>
+        <div class="promos">
+          <a class="promo" href="#" style="--c:var(--p8)"><div class="hd"><span class="n">8</span><div><h3>Summer BBQ</h3><div class="ph">Review</div></div></div>
+            <div class="meta">Jun 1 to Jul 31, 310 stores, ended 41 days ago</div>
+            <div class="stepper" style="--s:var(--p8)"><span class="done" style="--s:var(--p5)"></span><span class="done" style="--s:var(--p6)"></span><span class="done" style="--s:var(--p7)"></span><span class="now"></span></div>
+            <div class="k"><span>15 of 17 delivered</span><span class="pill red">1 unassigned</span></div></a>
+        </div>
+      </section>
+
+      <section class="lane" style="--c:var(--p2)">
+        <div class="plan"><h2>Albertsons</h2><div class="jbp">JBP on Nov 3</div>
+          <div class="phase-card"><span class="n">2</span><div><div class="t">Distributor alignment</div><div class="k">0 of 4 delivered</div></div></div>
+          <div class="stepper" style="--s:var(--p2)"><span class="done" style="--s:var(--p1)"></span><span class="now"></span><span style="--s:var(--p3)"></span><span style="--s:var(--p4)"></span></div>
+          <div class="stepper legend-row"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+          <div class="chips"><span class="pill red">1 unassigned</span><span class="pill amber">1 overdue</span></div></div>
+        <div class="empty">No promotions yet. Phases 5 to 8 appear once there is an agreement.</div>
+      </section>
+
+      <section class="lane" style="--c:var(--p1)">
+        <div class="plan"><h2>Ralphs</h2><div class="jbp">JBP not scheduled</div>
+          <div class="phase-card"><span class="n">1</span><div><div class="t">Internal alignment</div><div class="k">2 of 5 delivered</div></div></div>
+          <div class="stepper" style="--s:var(--p1)"><span class="now"></span><span style="--s:var(--p2)"></span><span style="--s:var(--p3)"></span><span style="--s:var(--p4)"></span></div>
+          <div class="stepper legend-row"><span>1</span><span>2</span><span>3</span><span>4</span></div>
+          <div class="chips"><span class="pill amber">1 overdue</span></div></div>
+        <div class="empty">No promotions yet. Phases 5 to 8 appear once there is an agreement.</div>
+      </section>
+    </div>
+
+    <aside class="attn">
+      <header class="h"><h2>Needs attention</h2><span class="cnt">8 items</span></header>
+      <div class="grp red"><header>Unassigned <span class="why">nobody is doing this</span><span class="k num">4</span></header>
+        <div class="row" style="--c:var(--p5)"><span class="tag">P5</span><div><div class="name">Shelf talkers, 32 in, qty 20</div><div class="where">Safeway, Holiday Gift Sets</div><div class="eta">ETA Oct 20</div></div><button class="btn">Assign</button></div>
+        <div class="row" style="--c:var(--p6)"><span class="tag">P6</span><div><div class="name">Case display wrap, half pallet</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta">ETA Sep 18</div></div><button class="btn">Assign</button></div>
+        <div class="row" style="--c:var(--p2)"><span class="tag">P2</span><div><div class="name">Distributor incentive memo</div><div class="where">Albertsons</div><div class="eta">No ETA</div></div><button class="btn">Assign</button></div>
+        <div class="row" style="--c:var(--p8)"><span class="tag">P8</span><div><div class="name">Retro: what to repeat next year</div><div class="where">Kroger, Summer BBQ</div><div class="eta">ETA Sep 30</div></div><button class="btn">Assign</button></div></div>
+      <div class="grp red"><header>Blocked <span class="why">stopped, and why</span><span class="k num">1</span></header>
+        <div class="row" style="--c:var(--p6)"><span class="tag">P6</span><div><div class="name">Endcap allocation, 180 stores</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="quote">“No inventory at distributor”</div><div class="eta">ETA Sep 12, R Maria Ortega</div></div></div></div>
+      <div class="grp amber"><header>Overdue <span class="why">past ETA, still open</span><span class="k num">3</span></header>
+        <div class="row" style="--c:var(--p1)"><span class="tag">P1</span><div><div class="name">Spend envelope sign-off</div><div class="where">Ralphs</div><div class="eta late">Sep 3, 7 days late, R Dan Kim</div></div></div>
+        <div class="row" style="--c:var(--p2)"><span class="tag">P2</span><div><div class="name">Buyer meeting deck</div><div class="where">Albertsons</div><div class="eta late">Sep 5, 5 days late, R Priya Nair</div></div></div>
+        <div class="row" style="--c:var(--p6)"><span class="tag">P6</span><div><div class="name">Proof of execution photos</div><div class="where">Safeway, Fetzer Fall Harvest</div><div class="eta late">Sep 8, 2 days late, R Maria Ortega</div></div></div></div>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

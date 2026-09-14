@@ -1,5 +1,5 @@
 import type { Doc } from "../../convex/_generated/dataModel";
-import { addDays, daysBetween, formatDay, isOverdue } from "./dates";
+import { addDays, daysBetween, formatDay, isOverdue, MONTHS } from "./dates";
 import { PHASES, type PhaseNumber } from "./domain";
 
 // The Pathway (CONTEXT.md): the derived model behind the strip at the top of
@@ -75,10 +75,17 @@ function countsOf(tasks: readonly Task[], today: string): PathwayPhase["counts"]
   return counts;
 }
 
-function windowOf(
+export type PhaseWindow = PathwayPhase["window"];
+
+/**
+ * One phase's window from its anchor and its tasks' ETAs. Shared with the
+ * dashboard query (convex/home.ts), which draws the same windows on the
+ * timeline view, so the two can never disagree about when a phase is.
+ */
+export function phaseWindow(
   tasks: readonly Task[],
   anchor: { start?: string; end?: string } | undefined,
-): PathwayPhase["window"] {
+): PhaseWindow {
   // ISO days sort lexicographically, so min/max are plain string compares.
   const etas = tasks.flatMap((task) => (task.eta === undefined ? [] : [task.eta]));
   const etaMin = etas.length > 0 ? etas.reduce((a, b) => (a < b ? a : b)) : undefined;
@@ -128,7 +135,7 @@ export function buildPathway(
   return phases.map((phase) => {
     const own = tasks.filter((task) => task.phase === phase);
     const counts = countsOf(own, today);
-    const window = windowOf(own, anchors[phase]);
+    const window = phaseWindow(own, anchors[phase]);
     return {
       phase,
       title: PHASES[phase].title,
@@ -138,6 +145,40 @@ export function buildPathway(
       state: stateOf(counts, window, today),
     };
   });
+}
+
+/**
+ * First-of-month gridlines across a span of ISO days, as percentages along it.
+ * The first month is included when the span starts on its first day, so a
+ * January-to-December ruler labels January too.
+ */
+export function monthTicks(
+  domainStart: string,
+  domainEnd: string,
+): Array<{ iso: string; left: number; label: string }> {
+  const span = Math.max(daysBetween(domainStart, domainEnd), 1);
+  const ticks: Array<{ iso: string; left: number; label: string }> = [];
+  let year = Number(domainStart.slice(0, 4));
+  let month = Number(domainStart.slice(5, 7));
+  if (domainStart.slice(8, 10) !== "01") month += 1;
+  if (month > 12) {
+    month = 1;
+    year += 1;
+  }
+  for (;;) {
+    const iso = `${year}-${String(month).padStart(2, "0")}-01`;
+    if (iso >= domainEnd) return ticks;
+    ticks.push({
+      iso,
+      left: (100 * daysBetween(domainStart, iso)) / span,
+      label: MONTHS[month - 1],
+    });
+    month += 1;
+    if (month > 12) {
+      month = 1;
+      year += 1;
+    }
+  }
 }
 
 export type PathwayHeadline = { tone: "red" | "amber" | "ok"; text: string };

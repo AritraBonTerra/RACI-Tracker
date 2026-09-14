@@ -292,7 +292,7 @@ function PickerPanel({
           onKeyDown={(event) => {
             if (event.key === "Enter" && first !== undefined) onPick(first._id);
           }}
-          className="min-w-0 flex-1 rounded border border-ink-700 bg-ink-950 px-1.5 py-0.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-sand-500 focus:outline-none"
+          className="min-w-0 flex-1 rounded border border-ink-700 bg-ink-950 px-1.5 py-0.5 text-xs text-ink-100 placeholder:text-ink-600 focus:border-accent focus:outline-none"
         />
       </div>
 
@@ -318,7 +318,7 @@ function PickerPanel({
               </p>
               <a
                 href={href({ name: "manage" })}
-                className="mt-1.5 inline-block text-2xs font-medium text-sand-300 hover:text-sand-200"
+                className="mt-1.5 inline-block text-2xs font-medium text-accent hover:underline"
               >
                 Open Manage →
               </a>
@@ -334,7 +334,7 @@ function PickerPanel({
             <p className="flex items-center justify-between gap-2 bg-ink-950/60 px-3 py-1 text-3xs font-semibold tracking-wider text-ink-500 uppercase">
               <span className="truncate">{group.name}</span>
               {group.expected && (
-                <span className="shrink-0 rounded bg-sand-400/15 px-1 font-mono text-3xs text-sand-300">
+                <span className="shrink-0 rounded bg-accent/15 px-1 text-3xs font-semibold text-accent">
                   phase {phase} default
                 </span>
               )}
@@ -356,9 +356,7 @@ function PickerPanel({
                     </span>
                   )}
                 </span>
-                {chosen.has(person._id) && (
-                  <span className="shrink-0 text-2xs text-sand-300">✓</span>
-                )}
+                {chosen.has(person._id) && <span className="shrink-0 text-2xs text-accent">✓</span>}
               </button>
             ))}
           </div>

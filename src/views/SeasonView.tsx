@@ -1,9 +1,13 @@
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
+import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { useIsAdministrator } from "../components/AuthGate";
 import { InlineText } from "../components/inline";
+import { NewChainPlanModal } from "../components/NewChainPlanModal";
 import { Pathway } from "../components/Pathway";
+import { PhaseBadge, PhaseTitle, phaseStyle } from "../components/Phase";
 import { PhaseChecklist } from "../components/PhaseChecklist";
 import {
   Breadcrumb,
@@ -16,9 +20,9 @@ import {
   TierSkeleton,
 } from "../components/page";
 import { RollupChips, RollupTiles } from "../components/Rollup";
-import { EmptyState, Panel } from "../components/ui";
+import { Button, EmptyState, Panel } from "../components/ui";
 import { formatDay } from "../lib/dates";
-import { CHAIN_PLAN_PHASES, PHASES, SEASON_PHASES } from "../lib/domain";
+import { CHAIN_PLAN_PHASES, SEASON_PHASES } from "../lib/domain";
 import { buildPathway } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
 import { href } from "../lib/router";
@@ -48,6 +52,10 @@ export function SeasonView({
 }) {
   const data = useQuery(api.seasons.overview, { seasonId, today });
   const update = useReportedMutation(api.seasons.update);
+  // Starting a chain plan is an Administrator's move (#22), same as in the
+  // sidebar; the modal here is the sidebar's, so both doors open the same room.
+  const isAdministrator = useIsAdministrator();
+  const [creating, setCreating] = useState(false);
 
   if (data === undefined) return <TierSkeleton panels={2} />;
   if (data === null) return <NotFound />;
@@ -59,6 +67,7 @@ export function SeasonView({
       node.reach === "full" ? [{ chainName: chain.chain.name, node }] : [],
     ),
   );
+  const planless = tree.chains.filter((chain) => chain.plans.length === 0).map((c) => c.chain);
 
   return (
     <div className="flex flex-col gap-6">
@@ -70,6 +79,13 @@ export function SeasonView({
             onCommit={(label) => void update({ seasonId, label })}
             className="text-2xl font-semibold tracking-tight"
           />
+        }
+        actions={
+          isAdministrator ? (
+            <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+              + Chain plan
+            </Button>
+          ) : undefined
         }
         meta={
           <>
@@ -112,13 +128,28 @@ export function SeasonView({
 
       <Panel
         title="Chain plans"
-        subtitle="Phases 1–3 live here. Start one from the sidebar for any chain without a plan."
+        subtitle="One per retail account. Phases 1–3 live here."
+        actions={
+          isAdministrator ? (
+            <Button size="sm" onClick={() => setCreating(true)}>
+              + Chain plan
+            </Button>
+          ) : undefined
+        }
       >
         {planCards.length === 0 ? (
-          <EmptyState title="No chain plans for this year yet">
-            One plan per retail account per year. Every chain in Manage is listed in the sidebar
-            with a <span className="text-ink-300">+ Plan</span> button beside it — starting one lays
-            down the phase 1–3 checklist.
+          <EmptyState
+            title="No chain plans for this year yet"
+            action={
+              isAdministrator ? (
+                <Button variant="primary" size="md" onClick={() => setCreating(true)}>
+                  + Chain plan
+                </Button>
+              ) : undefined
+            }
+          >
+            One plan per retail account per year — Safeway 2026, Kroger 2026. Starting one lays down
+            the phase 1–3 checklist.
           </EmptyState>
         ) : (
           <div className={cardGrid(planCards.length)}>
@@ -132,10 +163,12 @@ export function SeasonView({
                   <h3 className="text-sm font-semibold text-ink-100">{chainName}</h3>
                   <RollupChips rollup={node.rollup} />
                 </div>
-                <p className="mt-1 text-xs text-ink-500">
-                  Currently phase {node.plan.currentPhase}
-                  {node.plan.jbpDate !== undefined &&
-                    ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs">
+                  <PhaseBadge phase={node.plan.currentPhase} size="xs" />
+                  <PhaseTitle phase={node.plan.currentPhase} />
+                  {node.plan.jbpDate !== undefined && (
+                    <span className="text-ink-500">JBP {formatDay(node.plan.jbpDate, today)}</span>
+                  )}
                 </p>
                 <p className="mt-3 text-2xs text-ink-500">
                   {node.promotions.length} promotion
@@ -146,6 +179,15 @@ export function SeasonView({
           </div>
         )}
       </Panel>
+
+      {isAdministrator && creating && (
+        <NewChainPlanModal
+          seasonId={seasonId}
+          seasonLabel={data.season.label}
+          planless={planless}
+          onClose={() => setCreating(false)}
+        />
+      )}
     </div>
   );
 }
@@ -171,11 +213,12 @@ function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: s
                   key={phase}
                   className={`flex size-4 items-center justify-center rounded text-3xs ${
                     done
-                      ? "bg-emerald-500 font-bold text-ink-fixed"
+                      ? "bg-emerald-500 font-bold text-white"
                       : current
-                        ? "bg-ink-800 text-ink-100 ring-1 ring-sand-500"
+                        ? "bg-(--phase) font-bold text-white"
                         : "bg-ink-800 text-ink-500"
                   }`}
+                  style={phaseStyle(phase)}
                 >
                   {done ? "✓" : phase}
                 </span>
@@ -183,9 +226,9 @@ function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: s
             })}
           </span>
           <span className="truncate text-2xs text-ink-500">
-            phase {node.plan.currentPhase} · {PHASES[node.plan.currentPhase].title}
-            {node.plan.jbpDate !== undefined && ` · JBP ${formatDay(node.plan.jbpDate, today)}`}
-            {` · ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
+            <PhaseTitle phase={node.plan.currentPhase} />
+            {node.plan.jbpDate !== undefined && `, JBP ${formatDay(node.plan.jbpDate, today)}`}
+            {`, ${node.promotions.length} promotion${node.promotions.length === 1 ? "" : "s"}`}
           </span>
         </a>
       ))}

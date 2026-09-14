@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>RACI Tracker · dashboard prototypes</title>
+<link rel="stylesheet" href="shared.css" />
+<style>
+body { font-family: system-ui, sans-serif; background: #f4f4f6; color: #17171c; padding: 40px; }
+h1 { font-size: 24px; margin-bottom: 6px; }
+p { color: #55555f; margin-bottom: 24px; max-width: 60ch; }
+ol { display: grid; gap: 12px; max-width: 720px; padding-left: 0; list-style: none; counter-reset: p; }
+li { background: #fff; border: 1px solid #e4e4ea; border-radius: 12px; padding: 14px 16px; display: grid; grid-template-columns: 40px 1fr auto; gap: 14px; align-items: center; counter-increment: p; }
+li::before { content: counter(p); font-size: 24px; font-weight: 800; color: #8b8b96; }
+li b { display: block; font-size: 16px; }
+li span { color: #55555f; font-size: 13px; }
+li nav { display: flex; gap: 6px; }
+li nav a { padding: 6px 10px; border-radius: 8px; background: #17171c; color: #fff; font-size: 13px; }
+li nav a.l { background: #eeeef2; color: #17171c; }
+.sw { display: flex; gap: 3px; margin-top: 6px; }
+.sw i { width: 14px; height: 14px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<h1>Dashboard prototypes</h1>
+<p>Same year, same data, five directions. Each page has a Light / Dark switch at the bottom right.</p>
+<ol>
+  <li><div><b>Spectrum</b><span>Nine phases, nine hues, warm to cool. The cycle strip is the hero.</span><div class="sw"><i style="background:#6f7280"></i><i style="background:#c9970a"></i><i style="background:#e8731b"></i><i style="background:#d93a78"></i><i style="background:#9b3fbf"></i><i style="background:#5b5bd6"></i><i style="background:#2f7fe0"></i><i style="background:#0e9ab8"></i><i style="background:#1a9e8a"></i></div></div><nav><a class="l" href="spectrum.html?theme=light">Light</a><a href="spectrum.html?theme=dark">Dark</a></nav></li>
+  <li><div><b>Tiers</b><span>Colour by tier (ochre, blues, plums), shade by phase. Swimlanes per chain.</span><div class="sw"><i style="background:#b7791f"></i><i style="background:#63b3ed"></i><i style="background:#3b8ee0"></i><i style="background:#2166c4"></i><i style="background:#123f8f"></i><i style="background:#d67dc2"></i><i style="background:#b94fa1"></i><i style="background:#93357f"></i><i style="background:#5f1f57"></i></div></div><nav><a class="l" href="tiers.html?theme=light">Light</a><a href="tiers.html?theme=dark">Dark</a></nav></li>
+  <li><div><b>Harvest</b><span>Wine palette, serif headings, editorial layout. Linen by day, cellar by night.</span><div class="sw"><i style="background:#5c6b5e"></i><i style="background:#b8901c"></i><i style="background:#b55e2a"></i><i style="background:#8b1e3f"></i><i style="background:#5e2750"></i><i style="background:#6f56a8"></i><i style="background:#2b5da8"></i><i style="background:#1f8585"></i><i style="background:#6b7b6e"></i></div></div><nav><a class="l" href="harvest.html?theme=light">Light</a><a href="harvest.html?theme=dark">Dark</a></nav></li>
+  <li><div><b>Board</b><span>Nine phase columns; every plan and promotion sits under the phase it is in.</span><div class="sw"><i style="background:#7b8190"></i><i style="background:#e0a52a"></i><i style="background:#ee7a3c"></i><i style="background:#e8567e"></i><i style="background:#a76ae6"></i><i style="background:#6f7ff0"></i><i style="background:#3d9be8"></i><i style="background:#25b5cf"></i><i style="background:#2fae9c"></i></div></div><nav><a class="l" href="board.html?theme=light">Light</a><a href="board.html?theme=dark">Dark</a></nav></li>
+  <li><div><b>Timeline</b><span>The year as a calendar. Bars segmented by phase, today drawn down the page.</span><div class="sw"><i style="background:#7a7f87"></i><i style="background:#b58a2e"></i><i style="background:#c2643b"></i><i style="background:#b3406b"></i><i style="background:#7e4fa8"></i><i style="background:#4f62b0"></i><i style="background:#3878a8"></i><i style="background:#2a8e96"></i><i style="background:#3c8f7c"></i></div></div><nav><a class="l" href="timeline.html?theme=light">Light</a><a href="timeline.html?theme=dark">Dark</a></nav></li>
+</ol>
+</body>
+</html>

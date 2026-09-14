@@ -50,7 +50,7 @@ export function PageHeader({
   actions,
   children,
 }: {
-  eyebrow: ReactNode;
+  eyebrow?: ReactNode;
   title: ReactNode;
   meta?: ReactNode;
   actions?: ReactNode;

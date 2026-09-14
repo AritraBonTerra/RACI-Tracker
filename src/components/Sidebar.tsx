@@ -4,10 +4,11 @@ import { type ReactNode, useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { formatRange } from "../lib/dates";
-import { CONTEXT_HINT, PHASES } from "../lib/domain";
+import { CONTEXT_HINT, PHASES, type PhaseNumber } from "../lib/domain";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 import { NewChainPlanModal } from "./NewChainPlanModal";
+import { PhaseBadge } from "./Phase";
 import { mergeRollups, type Rollup, RollupChips } from "./Rollup";
 import { Button, Pill, Skeleton } from "./ui";
 
@@ -129,7 +130,8 @@ export function Sidebar({
             to={{ name: "season", seasonId: tree.season._id }}
             active={route.name === "season"}
             label={`Year ${tree.season.label}`}
-            meta={`Phase 0 · ${PHASES[0].title}`}
+            meta={PHASES[0].title}
+            phase={0}
             // Folded, the year answers for everything inside it.
             rollup={yearOpen ? (tree.seasonRollup ?? everything) : everything}
           />
@@ -243,7 +245,8 @@ function PlanBranch({
             to={{ name: "plan", chainPlanId: node.chainPlanId }}
             active={route.name === "plan" && route.chainPlanId === node.chainPlanId}
             label={chainName}
-            meta={`Phase ${node.plan.currentPhase} · ${PHASES[node.plan.currentPhase].title}`}
+            meta={PHASES[node.plan.currentPhase].title}
+            phase={node.plan.currentPhase}
             rollup={
               open || !hasPromotions
                 ? node.rollup
@@ -268,6 +271,7 @@ function PlanBranch({
               nested
               label={promotion.promotion.name}
               meta={formatRange(promotion.promotion.startDate, promotion.promotion.endDate, today)}
+              phase={promotion.promotion.currentPhase}
               rollup={promotion.rollup}
             />
           </TreeRow>
@@ -426,6 +430,7 @@ function NodeLink({
   nested = false,
   label,
   meta,
+  phase,
   rollup,
 }: {
   to: Route;
@@ -434,6 +439,8 @@ function NodeLink({
   nested?: boolean;
   label: string;
   meta: string;
+  /** The node's current phase, worn as a coloured badge beside its chips. */
+  phase?: PhaseNumber;
   rollup: Rollup;
 }) {
   return (
@@ -449,7 +456,10 @@ function NodeLink({
         </span>
         <span className="block truncate text-2xs text-ink-500">{meta}</span>
       </span>
-      <RollupChips rollup={rollup} />
+      <span className="flex shrink-0 items-center gap-1.5">
+        <RollupChips rollup={rollup} />
+        {phase !== undefined && <PhaseBadge phase={phase} size="xs" />}
+      </span>
     </a>
   );
 }
