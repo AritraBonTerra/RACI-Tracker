@@ -649,6 +649,12 @@ type TimelineRow = {
   phases: readonly PhaseStat[];
   /** A dated milestone drawn as a tick: a plan's JBP date. */
   mark?: { iso: string; label: string };
+  /**
+   * For a promotion reached without its plan: the chain's name, shown over the
+   * promotion but not linked, the same orientation the Cycle view's context
+   * heading gives (#22).
+   */
+  context?: string;
 };
 
 function timelineRows(data: Dashboard, today: string): TimelineRow[] {
@@ -690,6 +696,7 @@ function timelineRows(data: Dashboard, today: string): TimelineRow[] {
         }`,
         rollup: node.rollup,
         phases: node.phases,
+        context: group.reach === "full" ? undefined : (group.chain?.name ?? "Chain"),
       });
   }
   return rows;
@@ -793,6 +800,17 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
           const width = Math.max(x(window.end) - left, 3);
           return [{ stat, window, left, width }];
         });
+        // Phases 6 and 7 both start when the promotion ends, so without ETAs
+        // their inferred windows coincide. A segment that overlaps an earlier
+        // one takes the next lane down rather than painting over it.
+        const laneEnds: number[] = [];
+        const placed = segments.map((segment) => {
+          const free = laneEnds.findIndex((end) => end <= segment.left);
+          const lane = free === -1 ? laneEnds.length : free;
+          laneEnds[lane] = segment.left + segment.width;
+          return { ...segment, lane };
+        });
+        const lanes = Math.max(laneEnds.length, 1);
         const unscheduled = row.phases.filter((stat) => (stat.window ?? null) === null);
         const tailX = segments.reduce((best, seg) => Math.max(best, seg.left + seg.width), 0);
         const headX = segments.reduce((best, seg) => Math.min(best, seg.left), 100);
@@ -807,6 +825,14 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
             <div className={`flex items-center gap-3 py-3 pr-3 ${row.nested ? "pl-8" : "pl-4"}`}>
               <PhaseBadge phase={row.phase} size={row.nested ? "sm" : "md"} />
               <div className="min-w-0">
+                {row.context !== undefined && (
+                  <p
+                    title={CONTEXT_HINT}
+                    className="cursor-default truncate text-2xs font-semibold text-ink-400"
+                  >
+                    {row.context}
+                  </p>
+                )}
                 <span className="flex items-center gap-2">
                   <a
                     href={row.to}
@@ -823,7 +849,10 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
               </div>
             </div>
 
-            <div className="relative min-h-16">
+            <div
+              className="relative min-h-16"
+              style={lanes > 2 ? { minHeight: `${lanes * 1.75}rem` } : undefined}
+            >
               {grid}
               {row.mark !== undefined && (
                 <span
@@ -835,7 +864,7 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
                   </span>
                 </span>
               )}
-              {segments.map(({ stat, window, left, width }) => {
+              {placed.map(({ stat, window, left, width, lane }) => {
                 const now = stat.phase === row.phase;
                 const done = stat.total > 0 && stat.delivered === stat.total;
                 const title = [
@@ -852,8 +881,13 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
                     key={stat.phase}
                     href={row.to}
                     title={title}
-                    style={{ ...phaseStyle(stat.phase), left: `${left}%`, width: `${width}%` }}
-                    className={`absolute top-1/2 flex h-6 -translate-y-1/2 items-center overflow-hidden rounded-md px-2 text-2xs font-bold whitespace-nowrap ring-1 ring-ink-900 ${
+                    style={{
+                      ...phaseStyle(stat.phase),
+                      left: `${left}%`,
+                      width: `${width}%`,
+                      top: `${(100 * (lane + 0.5)) / lanes}%`,
+                    }}
+                    className={`absolute flex h-6 -translate-y-1/2 items-center overflow-hidden rounded-md px-2 text-2xs font-bold whitespace-nowrap ring-1 ring-ink-900 ${
                       now
                         ? "z-10 bg-(--phase) text-white"
                         : done
