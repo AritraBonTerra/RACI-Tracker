@@ -3,7 +3,7 @@ import type { FunctionReturnType } from "convex/server";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { useIsAdministrator } from "../components/AuthGate";
+import { useCanEditWork, useIsAdministrator } from "../components/AuthGate";
 import { InlineText } from "../components/inline";
 import { NewChainPlanModal } from "../components/NewChainPlanModal";
 import { Pathway } from "../components/Pathway";
@@ -52,9 +52,12 @@ export function SeasonView({
 }) {
   const data = useQuery(api.seasons.overview, { seasonId, today });
   const update = useReportedMutation(api.seasons.update);
-  // Starting a chain plan is an Administrator's move (#22), same as in the
-  // sidebar; the modal here is the sidebar's, so both doors open the same room.
+  // Starting a chain plan follows the sidebar (ADR 0004): anyone who can edit
+  // this year may start one, and the tree already lists which chains are open
+  // to them. Naming a brand-new chain stays an Administrator's move. The modal
+  // here is the sidebar's, so both doors open the same room.
   const isAdministrator = useIsAdministrator();
+  const canEdit = useCanEditWork();
   const [creating, setCreating] = useState(false);
 
   if (data === undefined) return <TierSkeleton panels={2} />;
@@ -68,6 +71,7 @@ export function SeasonView({
     ),
   );
   const planless = tree.chains.filter((chain) => chain.plans.length === 0).map((c) => c.chain);
+  const canStartPlan = isAdministrator || (canEdit && planless.length > 0);
 
   return (
     <div className="flex flex-col gap-6">
@@ -130,7 +134,7 @@ export function SeasonView({
         title="Chain plans"
         subtitle="One per retail account. Phases 1–3 live here."
         actions={
-          isAdministrator ? (
+          canStartPlan ? (
             <Button size="sm" onClick={() => setCreating(true)}>
               + Chain plan
             </Button>
@@ -141,7 +145,7 @@ export function SeasonView({
           <EmptyState
             title="No chain plans for this year yet"
             action={
-              isAdministrator ? (
+              canStartPlan ? (
                 <Button variant="primary" size="md" onClick={() => setCreating(true)}>
                   + Chain plan
                 </Button>
@@ -180,11 +184,12 @@ export function SeasonView({
         )}
       </Panel>
 
-      {isAdministrator && creating && (
+      {canStartPlan && creating && (
         <NewChainPlanModal
           seasonId={seasonId}
           seasonLabel={data.season.label}
           planless={planless}
+          allowNewChain={isAdministrator}
           onClose={() => setCreating(false)}
         />
       )}

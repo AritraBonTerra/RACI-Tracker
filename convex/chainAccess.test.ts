@@ -95,7 +95,9 @@ test("multiple chain grants form a union and deleted chain grants grant nothing"
   const second = { tier: "chain" as const, chainId };
   await admin.mutation(api.directory.grant, { userId, scope: second });
   expect((await owner.query(api.access.me, {})).state).toBe("active");
-  expect(await owner.query(api.seasons.list, {})).toEqual([]);
+  // A held chain with no plan yet still names every year (ADR 0004): the holder
+  // is the one who starts the plan, so the year has to be somewhere to go.
+  expect(await owner.query(api.seasons.list, {})).toMatchObject([{ year: 2026, reach: "context" }]);
   const chainPlanId = await admin.mutation(api.chainPlans.create, { seasonId, chainId });
   await admin.mutation(api.directory.grant, { userId, scope });
   expect((await owner.query(api.home.dashboard, { seasonId, today: TODAY }))?.chains).toHaveLength(
@@ -105,4 +107,54 @@ test("multiple chain grants form a union and deleted chain grants grant nothing"
   await admin.mutation(api.chains.remove, { chainId });
   expect((await admin.query(api.directory.account, { userId }))?.grants).toHaveLength(1);
   await expect(admin.mutation(api.directory.grant, { userId, scope: second })).rejects.toThrow();
+});
+
+test("a chain Editor starts the chain's plan in a new year and opens promotions under it", async () => {
+  const { admin, owner, userId, scope, chainId } = await setup();
+  // A new sign-in is an Editor; the Kroger grant is all they hold.
+  await admin.mutation(api.directory.grant, { userId, scope });
+  const seasonId = await admin.mutation(api.seasons.create, { year: 2027 });
+
+  // The new year is a name to them, and Kroger sits under it with no plan:
+  // their "start one here" (ADR 0004). No other chain is listed.
+  expect(await owner.query(api.seasons.list, {})).toMatchObject([
+    { year: 2027, reach: "context" },
+    { year: 2026, reach: "context" },
+  ]);
+  const tree = await owner.query(api.seasons.tree, { seasonId, today: TODAY });
+  expect(tree?.chains.map((node) => [node.chain.name, node.plans.length])).toEqual([["Kroger", 0]]);
+
+  // Another chain's slot is refused exactly as a deleted year would be.
+  const albertsons = (await admin.query(api.chains.list, {})).find(
+    (chain) => chain.name === "Albertsons",
+  );
+  if (albertsons === undefined) throw new Error("Missing Albertsons");
+  await expect(
+    owner.mutation(api.chainPlans.create, { seasonId, chainId: albertsons._id }),
+  ).rejects.toThrow(/season no longer exists/);
+
+  const chainPlanId = await owner.mutation(api.chainPlans.create, { seasonId, chainId });
+  const promotionId = await owner.mutation(api.promotions.create, {
+    chainPlanId,
+    name: "Spring reset",
+    startDate: "2027-03-01",
+    endDate: "2027-04-01",
+  });
+  expect(await owner.query(api.promotions.get, { promotionId, today: TODAY })).not.toBeNull();
+  expect(await owner.query(api.chainPlans.get, { chainPlanId, today: TODAY })).not.toBeNull();
+
+  // Still not the year's own work, and still not the plan's deletion.
+  expect(await owner.query(api.seasons.overview, { seasonId, today: TODAY })).toBeNull();
+  await expect(owner.mutation(api.chainPlans.remove, { chainPlanId })).rejects.toThrow();
+  await expect(owner.mutation(api.promotions.remove, { promotionId })).rejects.toThrow();
+
+  // The same grant on a Viewer lists no planless chain and opens nothing.
+  await admin.mutation(api.directory.setRole, { userId, role: "viewer" });
+  const later = await admin.mutation(api.seasons.create, { year: 2028 });
+  expect((await owner.query(api.seasons.tree, { seasonId: later, today: TODAY }))?.chains).toEqual(
+    [],
+  );
+  await expect(
+    owner.mutation(api.chainPlans.create, { seasonId: later, chainId }),
+  ).rejects.toThrow();
 });

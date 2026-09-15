@@ -7,18 +7,22 @@ import { Button, Field, inputClass, Modal } from "./ui";
 
 /**
  * The "+ New" behind the Chain plans group: pick a chain that has no plan this
- * year, or name a brand-new chain without the detour through Manage. Either
- * way the plan lands with the phase 1–3 template stamped on it.
+ * year, or — for an Administrator — name a brand-new chain without the detour
+ * through Manage. Either way the plan lands with the phase 1–3 template
+ * stamped on it. A Chain Editor sees only their held, planless chains, because
+ * the chain list itself is reference data (ADR 0004).
  */
 export function NewChainPlanModal({
   seasonId,
   seasonLabel,
   planless,
+  allowNewChain,
   onClose,
 }: {
   seasonId: Id<"seasons">;
   seasonLabel: string;
   planless: ReadonlyArray<{ _id: Id<"chains">; name: string }>;
+  allowNewChain: boolean;
   onClose: () => void;
 }) {
   const createChain = useReportedMutation(api.chains.create);
@@ -78,21 +82,23 @@ export function NewChainPlanModal({
           </select>
         </Field>
       )}
-      <Field
-        label={planless.length > 0 ? "…or a new chain" : "Chain name"}
-        hint="Typing a name here creates the chain and its plan together."
-      >
-        <input
-          autoFocus={planless.length === 0}
-          value={newName}
-          placeholder="Vons"
-          onChange={(event) => setNewName(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && ready) void submit();
-          }}
-          className={inputClass}
-        />
-      </Field>
+      {allowNewChain && (
+        <Field
+          label={planless.length > 0 ? "…or a new chain" : "Chain name"}
+          hint="Typing a name here creates the chain and its plan together."
+        >
+          <input
+            autoFocus={planless.length === 0}
+            value={newName}
+            placeholder="Vons"
+            onChange={(event) => setNewName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && ready) void submit();
+            }}
+            className={inputClass}
+          />
+        </Field>
+      )}
       <p className="text-2xs text-ink-500">
         One plan per chain per year. The new plan starts with the phase 1–3 template checklist —
         undated and unassigned until you say otherwise.

@@ -188,7 +188,15 @@ export const tree = authedQuery({
       season: { _id: season._id, year: season.year, label: season.label },
       reach,
       seasonRollup: reach === "full" ? rollup(seasonTasks, args.today) : null,
-      chains: chainNodes.filter((node) => node.plans.length > 0 || ctx.scope.isAdministrator),
+      chains: chainNodes.filter(
+        (node) =>
+          node.plans.length > 0 ||
+          ctx.scope.isAdministrator ||
+          // A planless chain is a "start one here" for whoever may start it
+          // (ADR 0004): an Editor holding this year, or holding the chain. For
+          // a Viewer the empty row would be a dead end, so they never see one.
+          (ctx.viewer.role !== "viewer" && (reach === "full" || ctx.scope.chain(node.chain._id))),
+      ),
     };
   },
 });

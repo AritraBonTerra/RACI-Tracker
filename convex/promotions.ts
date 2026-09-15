@@ -94,11 +94,12 @@ export const get = authedQuery({
 });
 
 /**
- * Approving a program under a plan is an Administrator's alone (#22, story 29).
- * The plan is loaded and its ancestry asked, so the id in the argument names a
- * parent and never claims one.
+ * Approving a program under a plan: an Administrator, or an Editor whose scope
+ * covers the plan in full (ADR 0004) — the Chain or Chain Plan holder runs the
+ * plan's promotions, so they open them too. The plan is loaded and its ancestry
+ * asked, so the id in the argument names a parent and never claims one.
  */
-export const create = adminMutation({
+export const create = authedMutation({
   args: {
     chainPlanId: v.id("chainPlans"),
     name: v.string(),

@@ -37,16 +37,18 @@ conversation.
 - **Administrator**: A User who manages all work, accounts, permissions,
   hierarchy, and reference data.
 - **Editor**: A User who reads and updates work within their Access Assignments,
-  including creating, assigning, and deleting tasks. Hierarchy and reference-data
-  management remain Administrator-only.
+  including creating, assigning, and deleting tasks, and who opens a Chain Plan
+  or Promotion wherever a Plan Year or Chain grant reaches (ADR 0004). Plan
+  Years, deletions and reference data remain Administrator-only.
   _Avoid_: Member.
 - **Viewer**: A User who reads all work details within their Access Assignments,
   including notes and KPIs, but cannot edit, assign, or delete work. Account
   administration and security audit history remain Administrator-only.
 - **Access Assignment**: A grant to an Editor or Viewer for one Chain, Plan Year,
   Chain Plan, or Promotion, flowing down to its descendants. A Chain assignment
-  covers its plans and promotions in all current and future Plan Years, but
-  does not grant the Plan Year’s own work. Access is the union
+  covers its plans and promotions in all current and future Plan Years, names
+  every Plan Year for orientation, and lets an Editor start the chain’s plan in
+  a year that has none yet, but does not grant the Plan Year’s own work. Access is the union
   of all assignments; changing a role preserves the assignments, and RACI
   assignments grant no access.
 - **Reach** — how far a viewer sees one record of the hierarchy, and the only

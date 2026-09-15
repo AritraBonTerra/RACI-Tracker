@@ -73,7 +73,10 @@ to update work should remain Editors.
 - **Administrator** manages all work, accounts, and permissions, including the
   hierarchy and reference data.
 - **Editor** reads and updates granted work, including creating, assigning, and
-  deleting tasks. Managing the hierarchy and reference data remains
+  deleting tasks. An Editor holding a Plan Year starts chain plans under it and
+  promotions under those; an Editor holding a Chain starts that chain's plan in
+  any year and promotions under it; an Editor holding a Chain Plan opens
+  promotions under it. Plan years, deletions and reference data remain
   Administrator-only.
 - **Viewer** reads all work details within granted scopes, including notes,
   RACI assignments, KPI values, and retros. Viewers cannot edit, assign, delete,

@@ -206,12 +206,15 @@ function everyWrite(caller: Caller, ids: Handles) {
   };
 }
 
-/** The writes only an Administrator may make (#22, story 29). */
+/**
+ * The writes only an Administrator may make (#22, story 29). Opening a chain
+ * plan or a promotion is not among them since ADR 0004: those follow the
+ * viewer's scope, and have their own test below.
+ */
 const ADMINISTRATOR_ONLY = [
   "brands.create",
   "brands.update",
   "brands.remove",
-  "chainPlans.create",
   "chainPlans.remove",
   "chains.create",
   "chains.update",
@@ -220,7 +223,6 @@ const ADMINISTRATOR_ONLY = [
   "people.update",
   "people.remove",
   "people.renameFunction",
-  "promotions.create",
   "promotions.remove",
   "seasons.create",
   "seasons.remove",
@@ -717,6 +719,60 @@ test("hierarchy, reference-data and People writes are refused for every Member",
     // not an Administrator" from any other refusal the app makes.
     expect(governed).toEqual(Object.fromEntries(ADMINISTRATOR_ONLY.map((name) => [name, DENIED])));
   }
+});
+
+test("an Editor opens chain plans and promotions exactly where a year or chain grant reaches", async () => {
+  const { t, as, seasonId, plans } = await stage();
+  // A chain nobody has planned yet, so a refused create is the gate's answer
+  // and never the duplicate check's.
+  const vons = await as.mutation(api.chains.create, { name: "Vons" });
+  const program = (chainPlanId: Id<"chainPlans">) => ({
+    chainPlanId,
+    name: "Probe",
+    startDate: "2026-11-01",
+    endDate: "2026-12-24",
+  });
+
+  const yolanda = t.withIdentity(YEAR_MEMBER); // holds the year
+  const marcus = t.withIdentity(PLAN_MEMBER); // holds the Kroger plan
+  const priya = t.withIdentity(PROMO_MEMBER); // holds one Albertsons promotion
+  const sam = t.withIdentity(NEWCOMER); // holds nothing
+
+  // The year holder starts plans and opens promotions anywhere under the year;
+  // the plan holder opens promotions under their plan (ADR 0004).
+  const inside = await outcomes({
+    yearHolderStartsPlan: () =>
+      yolanda.mutation(api.chainPlans.create, { seasonId, chainId: vons }),
+    yearHolderOpensPromotion: () =>
+      yolanda.mutation(api.promotions.create, program(plans.Albertsons)),
+    planHolderOpensOwnPromotion: () =>
+      marcus.mutation(api.promotions.create, program(plans.Kroger)),
+  });
+  expect(inside).toEqual(Object.fromEntries(Object.keys(inside).map((name) => [name, "allowed"])));
+
+  // Everything outside the grant fails as a missing record, never as a role
+  // refusal — the same sentence a deleted parent gives (#27, scenario 15).
+  expect(
+    await outcomes({
+      planHolderStartsPlan: () =>
+        marcus.mutation(api.chainPlans.create, { seasonId, chainId: vons }),
+      planHolderOpensSiblingPromotion: () =>
+        marcus.mutation(api.promotions.create, program(plans.Albertsons)),
+      promotionHolderStartsPlan: () =>
+        priya.mutation(api.chainPlans.create, { seasonId, chainId: vons }),
+      promotionHolderOpensPromotion: () =>
+        priya.mutation(api.promotions.create, program(plans.Albertsons)),
+      newcomerStartsPlan: () => sam.mutation(api.chainPlans.create, { seasonId, chainId: vons }),
+      newcomerOpensPromotion: () => sam.mutation(api.promotions.create, program(plans.Albertsons)),
+    }),
+  ).toEqual({
+    planHolderStartsPlan: "That season no longer exists.",
+    planHolderOpensSiblingPromotion: "That chain plan no longer exists.",
+    promotionHolderStartsPlan: "That season no longer exists.",
+    promotionHolderOpensPromotion: "That chain plan no longer exists.",
+    newcomerStartsPlan: "That season no longer exists.",
+    newcomerOpensPromotion: "That chain plan no longer exists.",
+  });
 });
 
 test("the same writes all succeed for an Administrator", async () => {
