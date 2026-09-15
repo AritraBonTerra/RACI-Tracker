@@ -238,8 +238,8 @@ function AccountPane({ userId, onGrant }: { userId: Id<"users">; onGrant: () => 
 /**
  * The tree above says what the account reaches; this opens the app as them
  * and shows it (CONTEXT.md: View as). Read-only, and it closes the Directory
- * along with everything else they cannot see — so the shell moves to the
- * dashboard first, and the floating bar is the way back.
+ * along with everything else they cannot see — so once it is on, the shell
+ * moves to the dashboard, and the floating bar is the way back.
  */
 function ViewAs({ detail }: { detail: Detail }) {
   const viewAs = useReportedMutation(api.access.viewAs);
@@ -248,10 +248,12 @@ function ViewAs({ detail }: { detail: Detail }) {
       <Button
         size="xs"
         className="self-start"
-        onClick={() => {
-          // Leave before the lens closes this page underneath us.
-          navigate({ name: "home" });
-          void viewAs({ userId: detail.userId });
+        onClick={async () => {
+          // The lens closes this page underneath us, so leave once it is on —
+          // and only then: a refusal (the account changed since the pane
+          // loaded) keeps the Administrator here, with the toast beside it.
+          const result = await viewAs({ userId: detail.userId });
+          if (result.ok) navigate({ name: "home" });
         }}
       >
         View the app as {detail.name}
