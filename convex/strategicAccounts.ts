@@ -196,16 +196,34 @@ async function stampDelivered(
 }
 
 /**
- * A template row exactly as `stampTemplates` wrote it: nobody's, not started.
- * Anything else — an owner, a status, a blocked reason — is somebody's work,
- * and the loader converges a checklist opened in the app, it never overwrites.
+ * Rows exactly as `stampTemplates` wrote them: a template's phase, name, spec,
+ * category and quantity, and nothing else — nobody's, not started, no notes,
+ * dates, proof or Consulted/Informed. Anything more is somebody's work, and
+ * the loader converges a checklist opened in the app, it never overwrites. A
+ * row added by hand that duplicates a template exactly is indistinguishable,
+ * and adopting it changes nothing the template row would not have carried.
  */
-function untouched(task: Doc<"tasks">) {
-  return (
-    responsiblesOf(task).length === 0 &&
-    task.accountablePersonId === undefined &&
-    task.status === "not_started"
-  );
+function untouchedBy(templates: readonly Doc<"taskTemplates">[]) {
+  const byKey = new Map(templates.map((row) => [`${row.phase}\u0000${row.name}`, row]));
+  return (task: Doc<"tasks">) => {
+    const template = byKey.get(`${task.phase}\u0000${task.name}`);
+    return (
+      template !== undefined &&
+      task.spec === template.spec &&
+      task.category === template.category &&
+      task.quantity === template.quantity &&
+      task.status === "not_started" &&
+      responsiblesOf(task).length === 0 &&
+      task.accountablePersonId === undefined &&
+      task.consultedPersonIds.length === 0 &&
+      task.informedPersonIds.length === 0 &&
+      task.blockedReason === undefined &&
+      task.eta === undefined &&
+      task.deliveredTo === undefined &&
+      task.proofOfExecution === undefined &&
+      task.notes === undefined
+    );
+  };
 }
 
 /**
@@ -218,6 +236,7 @@ const UNSTAMPED = { lastModifiedBy: undefined, lastModifiedAt: undefined };
 async function adoptUntouched(
   ctx: MutationCtx,
   tasks: readonly Doc<"tasks">[],
+  untouched: (task: Doc<"tasks">) => boolean,
   placeholder: Id<"people">,
 ) {
   const rows = tasks.filter(untouched);
@@ -296,12 +315,14 @@ export const seed2026 = internalMutation({
     // The year may have been opened in the app before this ran. Untouched
     // phase-0 rows are the placeholder's too, and done: the year is a
     // promotions-only year whichever door it came in by.
+    const untouched = untouchedBy(templates);
     const seasonTasksAdopted = await adoptUntouched(
       ctx,
       await ctx.db
         .query("tasks")
         .withIndex("by_season", (q) => q.eq("seasonId", seasonId))
         .collect(),
+      untouched,
       placeholder.id,
     );
 
@@ -329,7 +350,7 @@ export const seed2026 = internalMutation({
           remaining += 1;
           continue;
         }
-        planTasksAdopted += await adoptUntouched(ctx, tasks, placeholder.id);
+        planTasksAdopted += await adoptUntouched(ctx, tasks, untouched, placeholder.id);
         if (existing.currentPhase < 3) {
           await ctx.db.patch(existing._id, { ...UNSTAMPED, currentPhase: 3 });
         }
