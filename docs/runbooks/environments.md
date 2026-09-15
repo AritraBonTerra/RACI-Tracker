@@ -60,9 +60,12 @@ development environment. App access still requires explicit grants.
 Preview builds from `staging`. Convex supplies the matching backend URL during
 the frontend build. The staging path verifies the key targets
 `flippant-jaguar-524` before allowing a production-type backend in a Preview
-build. The install command requires the committed lockfile; Vercel picks Bun 1.4.x
-from `bun.lock` itself (an explicit `bunx bun@1.4.0` pin stopped launching on
-Vercel's build image on 2026-09-14).
+build. The install command installs Bun 1.4.0 with Bun's own installer and runs
+it against the committed lockfile. Vercel's build image ships whichever Bun its
+current CLI bundles, and on 2026-09-15 that rolled back from 1.4.1 to 1.3.14,
+which cannot read the version-2 `bun.lock`; `bunx bun@1.4.0` had already
+stopped launching there on 2026-09-14, so neither the platform Bun nor a
+bunx bootstrap is a stable pin.
 Other feature previews keep their configured backend and do
 not deploy backend code. They are not independent backend environments.
 
@@ -100,7 +103,7 @@ Vercel preview access before reaching the app's sign-in screen.
 From a feature branch, open a pull request with `staging` as its base and merge
 it when ready. Vercel then updates the staging URL and staging backend.
 GitHub runs the same checks on pushes to both `staging` and `main`, and on pull
-requests. CI pins Bun 1.4.0; Vercel selects Bun 1.4.x from the lockfile.
+requests. CI pins Bun 1.4.0; the Vercel install command installs the same.
 
 Test locally, push the candidate code to `staging`, gather feedback, then merge
 the approved code into `main`. Promote code, not the staging database. Changes

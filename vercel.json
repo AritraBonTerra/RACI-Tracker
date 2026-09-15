@@ -8,5 +8,5 @@
       "destination": "/index.html"
     }
   ],
-  "installCommand": "bun install --frozen-lockfile"
+  "installCommand": "curl -fsSL https://bun.sh/install | bash -s bun-v1.4.0 && ~/.bun/bin/bun install --frozen-lockfile"
 }
