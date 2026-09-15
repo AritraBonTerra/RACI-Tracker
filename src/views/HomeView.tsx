@@ -79,9 +79,12 @@ export function HomeView({
   if (data === null) return <NotFound />;
 
   const promotionCount = data.chains.reduce((count, group) => count + group.promotions.length, 0);
+  // Each view has its own fold size, so a list opened in one starts short in
+  // the other rather than carrying an "everything" over to the taller layout.
   const choose = (next: View) => {
     localStorage.setItem(VIEW_KEY, next);
     setView(next);
+    fold.collapse();
   };
 
   return (
@@ -132,7 +135,7 @@ export function HomeView({
       ) : (
         <>
           {chains.length > 1 && <ChainListBar count={chains.length} />}
-          <Timeline data={data} chains={fold.shown} today={today} />
+          <Timeline data={data} chains={chains} drawn={fold.shown.length} today={today} />
           <FoldButton
             hidden={fold.hidden}
             expanded={fold.expanded}
@@ -762,22 +765,27 @@ function timelineRows(
 function Timeline({
   data,
   chains,
+  drawn,
   today,
 }: {
   data: Dashboard;
-  /** The chains to draw: already sorted, and folded to the ones on show. */
+  /** Every chain, already sorted. All of them set the scale; only the first `drawn` are rows. */
   chains: readonly ChainGroup[];
+  drawn: number;
   today: string;
 }) {
-  const rows = timelineRows(data, chains, today);
+  const every = timelineRows(data, chains, today);
+  const rows = timelineRows(data, chains.slice(0, drawn), today);
 
   // The year is the canvas; anything that spills past it (a holiday promotion's
-  // review in January) stretches the canvas rather than getting cut off.
+  // review in January) stretches the canvas rather than getting cut off. The
+  // canvas is measured from every chain, folded or not, so opening the fold
+  // adds rows without moving the ones already drawn.
   const bounds = [
     `${data.season.year}-01-01`,
     `${data.season.year}-12-31`,
     today,
-    ...rows.flatMap((row) =>
+    ...every.flatMap((row) =>
       row.phases.flatMap((stat) => {
         const window = stat.window ?? null;
         return window === null ? [] : [window.start, window.end];

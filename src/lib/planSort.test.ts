@@ -62,3 +62,8 @@ test("the input list is left untouched", () => {
   sortPlans(plans, "name", same);
   expect(names(plans)).toEqual(["Kroger", "Aldi"]);
 });
+
+test("a JBP date that does not parse sorts with the unscheduled plans", () => {
+  const plans = [plan("Kroger", {}, "not-a-date"), plan("Aldi"), plan("HEB", {}, "2026-03-15")];
+  expect(names(sortPlans(plans, "jbp", same))).toEqual(["HEB", "Aldi", "Kroger"]);
+});

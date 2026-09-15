@@ -60,9 +60,14 @@ export const PLAN_SORTS = {
   jbp: {
     label: "JBP date",
     hint: "Soonest JBP first, unscheduled last",
-    // ISO dates order as numbers do once they are days; an epoch keeps the
-    // comparison numeric without a Date object per compare.
-    metric: (plan) => (plan.jbpDate === undefined ? null : Date.parse(plan.jbpDate)),
+    // An epoch keeps the comparison numeric. The field is free text on the
+    // server, so a date that does not parse counts as unscheduled rather than
+    // as NaN, which would compare equal to everything and float anywhere.
+    metric: (plan) => {
+      if (plan.jbpDate === undefined) return null;
+      const epoch = Date.parse(plan.jbpDate);
+      return Number.isFinite(epoch) ? epoch : null;
+    },
     direction: "asc",
   },
   progress: {

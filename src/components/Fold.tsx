@@ -19,6 +19,8 @@ export function useFold<T>(items: readonly T[], limit: number, pinned?: (item: T
     hidden: items.length - shown.length,
     expanded,
     toggle: () => setExpanded((current) => !current),
+    /** Back to the short list, for when the list behind the fold changes shape. */
+    collapse: () => setExpanded(false),
   };
 }
 
