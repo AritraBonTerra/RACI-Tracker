@@ -3,6 +3,7 @@ import type { FunctionReturnType } from "convex/server";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { FoldButton, useFold } from "../components/Fold";
 import { PhaseBadge, PhaseSteps, PhaseTitle, phaseStyle } from "../components/Phase";
 import { HeaderSkeleton, NotFound, PageHeader } from "../components/page";
 import { AssignButton } from "../components/RaciEditor";
@@ -19,6 +20,7 @@ import {
 } from "../lib/domain";
 import { monthTicks } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
+import { PlanSortSelect, sortPlans, usePlanSort } from "../lib/planSort";
 import { href, placeRoute } from "../lib/router";
 import { assignLanes } from "../lib/timeline";
 
@@ -32,6 +34,10 @@ import { assignLanes } from "../lib/timeline";
 // attention rail. "Timeline" lays the same plans and promotions across the
 // calendar year, one bar each, segmented by phase, with today drawn down the
 // page. The headline numbers and the attention lists are the same in both.
+//
+// The chains follow the saved sort (src/lib/planSort.tsx) and fold past the
+// first few in both views. The headline, the cycle strip and the attention rail
+// always count every chain — the fold hides sections, never numbers.
 
 type Dashboard = NonNullable<FunctionReturnType<typeof api.home.dashboard>>;
 type ChainGroup = Dashboard["chains"][number];
@@ -41,6 +47,10 @@ type AttentionItem = Attention["unassigned"][number];
 
 type View = "cycle" | "timeline";
 const VIEW_KEY = "raci.dashboard.view";
+
+/** Chain sections are tall in the Cycle view; timeline rows are one line each. */
+const CYCLE_FOLD = 5;
+const TIMELINE_FOLD = 12;
 
 function savedView(): View {
   return localStorage.getItem(VIEW_KEY) === "timeline" ? "timeline" : "cycle";
@@ -57,6 +67,13 @@ export function HomeView({
 }) {
   const data = useQuery(api.home.dashboard, { seasonId, today });
   const [view, setView] = useState<View>(savedView);
+  const sort = usePlanSort();
+  const chains = sortPlans(data?.chains ?? [], sort, (group) => ({
+    name: group.chain?.name ?? "Chain",
+    rollup: group.reach === "full" ? group.rollup : null,
+    jbpDate: group.reach === "full" ? group.plan.jbpDate : undefined,
+  }));
+  const fold = useFold(chains, view === "cycle" ? CYCLE_FOLD : TIMELINE_FOLD);
 
   if (data === undefined) return <DashboardSkeleton />;
   if (data === null) return <NotFound />;
@@ -97,19 +114,47 @@ export function HomeView({
             <NeedsAttention attention={data.attention} today={today} people={people} />
             <div className="flex flex-col gap-4 xl:-order-1">
               {data.phaseZero !== null && <SeasonCard data={data} phaseZero={data.phaseZero} />}
-              {data.chains.map((group) => (
+              {chains.length > 1 && <ChainListBar count={chains.length} />}
+              {fold.shown.map((group) => (
                 <ChainSection key={group.chainPlanId} group={group} today={today} />
               ))}
-              {data.chains.length === 0 && <NoChains />}
+              <FoldButton
+                hidden={fold.hidden}
+                expanded={fold.expanded}
+                noun="chain plans"
+                onToggle={fold.toggle}
+                className="border border-dashed border-ink-800 py-2.5"
+              />
+              {chains.length === 0 && <NoChains />}
             </div>
           </div>
         </>
       ) : (
         <>
-          <Timeline data={data} today={today} />
+          {chains.length > 1 && <ChainListBar count={chains.length} />}
+          <Timeline data={data} chains={fold.shown} today={today} />
+          <FoldButton
+            hidden={fold.hidden}
+            expanded={fold.expanded}
+            noun="chain plans"
+            onToggle={fold.toggle}
+            className="-mt-3 border border-dashed border-ink-800 py-2.5"
+          />
           <NeedsAttention attention={data.attention} today={today} people={people} wide />
         </>
       )}
+    </div>
+  );
+}
+
+/** The line over the chains: how many there are, and the order they are in. */
+function ChainListBar({ count }: { count: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-1">
+      <h2 className="text-xs font-semibold tracking-wider text-ink-500 uppercase">
+        {count} chain plans
+      </h2>
+      <PlanSortSelect />
     </div>
   );
 }
@@ -658,7 +703,11 @@ type TimelineRow = {
   context?: string;
 };
 
-function timelineRows(data: Dashboard, today: string): TimelineRow[] {
+function timelineRows(
+  data: Dashboard,
+  chains: readonly ChainGroup[],
+  today: string,
+): TimelineRow[] {
   const rows: TimelineRow[] = [];
   if (data.phaseZero !== null)
     rows.push({
@@ -671,7 +720,7 @@ function timelineRows(data: Dashboard, today: string): TimelineRow[] {
       rollup: data.phaseZero.rollup,
       phases: data.phaseZero.phases,
     });
-  for (const group of data.chains) {
+  for (const group of chains) {
     if (group.reach === "full")
       rows.push({
         key: group.chainPlanId,
@@ -710,8 +759,17 @@ function timelineRows(data: Dashboard, today: string): TimelineRow[] {
  * but quieter; the rest are washes. A phase with no window (no anchor, no
  * ETAs) is listed after the bar as a hollow chip rather than guessed at.
  */
-function Timeline({ data, today }: { data: Dashboard; today: string }) {
-  const rows = timelineRows(data, today);
+function Timeline({
+  data,
+  chains,
+  today,
+}: {
+  data: Dashboard;
+  /** The chains to draw: already sorted, and folded to the ones on show. */
+  chains: readonly ChainGroup[];
+  today: string;
+}) {
+  const rows = timelineRows(data, chains, today);
 
   // The year is the canvas; anything that spills past it (a holiday promotion's
   // review in January) stretches the canvas rather than getting cut off.
