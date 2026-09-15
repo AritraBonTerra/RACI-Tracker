@@ -9,7 +9,7 @@ import { HeaderSkeleton, NotFound, PageHeader } from "../components/page";
 import { AssignButton } from "../components/RaciEditor";
 import { type Rollup, RollupChips } from "../components/Rollup";
 import { EmptyState, Skeleton } from "../components/ui";
-import { daysBetween, dueLabel, formatDay, formatRange, isOverdue } from "../lib/dates";
+import { daysBetween, dueLabel, formatDay, formatRange, isIsoDay, isOverdue } from "../lib/dates";
 import {
   ALL_PHASES,
   CONTEXT_HINT,
@@ -780,7 +780,9 @@ function Timeline({
   // The year is the canvas; anything that spills past it (a holiday promotion's
   // review in January) stretches the canvas rather than getting cut off. The
   // canvas is measured from every chain, folded or not, so opening the fold
-  // adds rows without moving the ones already drawn.
+  // adds rows without moving the ones already drawn. A window built on a JBP
+  // date that is not a calendar day (the field is free text on the server)
+  // is left out, so one bad anchor cannot squash the whole scale.
   const bounds = [
     `${data.season.year}-01-01`,
     `${data.season.year}-12-31`,
@@ -788,7 +790,7 @@ function Timeline({
     ...every.flatMap((row) =>
       row.phases.flatMap((stat) => {
         const window = stat.window ?? null;
-        return window === null ? [] : [window.start, window.end];
+        return window === null ? [] : [window.start, window.end].filter(isIsoDay);
       }),
     ),
   ];
