@@ -243,12 +243,6 @@ export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]
       for (const plan of plans) {
         grantedPlans.add(plan._id);
       }
-      // A Chain grant covers the chain in every Plan Year, including the years
-      // where its plan has not been started yet — the holder is the one who
-      // starts it (ADR 0004). So every year is a name to them, never content.
-      for (const season of await ctx.db.query("seasons").collect()) {
-        contextSeasons.add(season._id);
-      }
     } else if (scope.tier === "season") {
       const season = await ctx.db.get(scope.seasonId);
       if (season !== null) grantedSeasons.add(season._id);
@@ -265,6 +259,16 @@ export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]
         contextPlans.add(promotion.chainPlanId);
         contextSeasons.add(promotion.seasonId);
       }
+    }
+  }
+
+  // A Chain grant covers the chain in every Plan Year, including the years
+  // where its plan has not been started yet — the holder is the one who starts
+  // it (ADR 0004). So every year is a name to them, never content. One scan
+  // however many chains are held: every grant would add the same years.
+  if (heldChains.size > 0) {
+    for (const season of await ctx.db.query("seasons").collect()) {
+      contextSeasons.add(season._id);
     }
   }
 

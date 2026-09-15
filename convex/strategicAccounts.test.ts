@@ -1,5 +1,6 @@
 import { expect, test } from "vitest";
 import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { harness } from "./world.fixture";
 
 // The production loader for the strategic-accounts world. Run against the demo
@@ -34,6 +35,7 @@ test("seed2026 opens every chain's plan, pre-delivered, and is idempotent across
     seasonCreated: false,
     seasonTasksAdopted: 0,
     plansCreated: 0,
+    planTasksAdopted: 0,
     remaining: 0,
   });
 
@@ -110,6 +112,86 @@ test("seed2026 adopts unowned phase-0 work of a year opened in the app first", a
           task.status === "delivered" &&
           task.accountablePersonId === placeholder?._id &&
           task.responsiblePersonIds?.[0] === placeholder?._id,
+      ),
+    ).toBe(true);
+  });
+});
+
+test("seed2026 converges a plan an Editor opened in the app first, keeping owned work", async () => {
+  const t = harness();
+  await t.mutation(internal.seed.run, {});
+  await t.mutation(internal.migrations.clearDemoContent, {});
+
+  // Kroger's 2026 plan already exists at phase 1 with its checklist stamped —
+  // as it is when a chain Editor clicked "start one here" before the loader
+  // ran — and one row is already somebody's.
+  const { chainPlanId, ownedTaskId } = await t.run(async (ctx) => {
+    const seasonId = await ctx.db.insert("seasons", { year: 2026, label: "2026" });
+    const chainId = await ctx.db.insert("chains", { name: "Kroger" });
+    const chainPlanId = await ctx.db.insert("chainPlans", { seasonId, chainId, currentPhase: 1 });
+    const fn = await ctx.db.query("functions").first();
+    if (fn === null) throw new Error("No functions");
+    const someone = await ctx.db.insert("people", { name: "Someone Real", functionId: fn._id });
+    const templates = (await ctx.db.query("taskTemplates").collect()).filter(
+      (r) => r.phase >= 1 && r.phase <= 3,
+    );
+    let ownedTaskId: Id<"tasks"> | undefined;
+    for (const [order, template] of templates.entries()) {
+      const id = await ctx.db.insert("tasks", {
+        chainPlanId,
+        phase: template.phase,
+        name: template.name,
+        status: order === 0 ? "in_progress" : "not_started",
+        responsiblePersonIds: order === 0 ? [someone] : [],
+        consultedPersonIds: [],
+        informedPersonIds: [],
+        order,
+      });
+      if (order === 0) ownedTaskId = id;
+    }
+    if (ownedTaskId === undefined) throw new Error("No templates");
+    return { chainPlanId, ownedTaskId };
+  });
+
+  const result = await t.mutation(internal.strategicAccounts.seed2026, { batch: 60 });
+  const perPlan = await t.run(
+    async (ctx) =>
+      (await ctx.db.query("taskTemplates").collect()).filter((r) => r.phase >= 1 && r.phase <= 3)
+        .length,
+  );
+  expect(result).toMatchObject({
+    chainsCreated: 52,
+    seasonCreated: false,
+    plansCreated: 52,
+    planTasksAdopted: perPlan - 1,
+    remaining: 0,
+  });
+
+  // Idempotent: a second pass finds nothing left to adopt.
+  expect(await t.mutation(internal.strategicAccounts.seed2026, {})).toMatchObject({
+    plansCreated: 0,
+    planTasksAdopted: 0,
+    remaining: 0,
+  });
+
+  await t.run(async (ctx) => {
+    expect((await ctx.db.get(chainPlanId))?.currentPhase).toBe(3);
+    const owned = await ctx.db.get(ownedTaskId);
+    expect(owned?.status).toBe("in_progress");
+    expect(owned?.accountablePersonId).toBeUndefined();
+    const placeholder = (await ctx.db.query("people").collect()).find(
+      (person) => person.name === "Admin (placeholder)",
+    );
+    const rest = (
+      await ctx.db
+        .query("tasks")
+        .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", chainPlanId))
+        .collect()
+    ).filter((task) => task._id !== ownedTaskId);
+    expect(rest).toHaveLength(perPlan - 1);
+    expect(
+      rest.every(
+        (task) => task.status === "delivered" && task.accountablePersonId === placeholder?._id,
       ),
     ).toBe(true);
   });

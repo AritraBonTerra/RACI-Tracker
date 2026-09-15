@@ -195,6 +195,31 @@ async function stampDelivered(
   return rows.length;
 }
 
+/**
+ * Hands every row nobody owns to the placeholder, delivered, and reports how
+ * many. Rows a real person already holds are left exactly as they are: the
+ * loader converges a checklist opened in the app, it does not overwrite work.
+ */
+async function adoptUnowned(
+  ctx: MutationCtx,
+  tasks: readonly Doc<"tasks">[],
+  placeholder: Id<"people">,
+) {
+  let adopted = 0;
+  for (const task of tasks) {
+    if (responsiblesOf(task).length > 0 || task.accountablePersonId !== undefined) continue;
+    await ctx.db.patch(task._id, {
+      responsiblePersonIds: [placeholder],
+      responsiblePersonId: undefined,
+      accountablePersonId: placeholder,
+      status: "delivered",
+      blockedReason: undefined,
+    });
+    adopted += 1;
+  }
+  return adopted;
+}
+
 // --- Entry point ------------------------------------------------------------
 
 /**
@@ -256,32 +281,39 @@ export const seed2026 = internalMutation({
 
     // The year may have been opened in the app before this ran. Phase-0 rows
     // nobody owns are the placeholder's too, and done: the year is a
-    // promotions-only year whichever door it came in by. Rows a real person
-    // already holds are left exactly as they are.
-    let seasonTasksAdopted = 0;
-    for (const task of await ctx.db
-      .query("tasks")
-      .withIndex("by_season", (q) => q.eq("seasonId", seasonId))
-      .collect()) {
-      if (responsiblesOf(task).length > 0 || task.accountablePersonId !== undefined) continue;
-      await ctx.db.patch(task._id, {
-        responsiblePersonIds: [placeholder.id],
-        responsiblePersonId: undefined,
-        accountablePersonId: placeholder.id,
-        status: "delivered",
-        blockedReason: undefined,
-      });
-      seasonTasksAdopted += 1;
-    }
+    // promotions-only year whichever door it came in by.
+    const seasonTasksAdopted = await adoptUnowned(
+      ctx,
+      await ctx.db
+        .query("tasks")
+        .withIndex("by_season", (q) => q.eq("seasonId", seasonId))
+        .collect(),
+      placeholder.id,
+    );
 
     let plansCreated = 0;
+    let planTasksAdopted = 0;
     let remaining = 0;
     for (const chainId of chainIds) {
       const existing = await ctx.db
         .query("chainPlans")
         .withIndex("by_season_and_chain", (q) => q.eq("seasonId", seasonId).eq("chainId", chainId))
         .first();
-      if (existing !== null) continue;
+      if (existing !== null) {
+        // Same convergence for a plan an Editor opened in the app first: its
+        // unowned phase 1-3 rows are delivered, and the plan stands at phase 3
+        // like the ones this loader opens. Work a real person holds is kept.
+        planTasksAdopted += await adoptUnowned(
+          ctx,
+          await ctx.db
+            .query("tasks")
+            .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", existing._id))
+            .collect(),
+          placeholder.id,
+        );
+        if (existing.currentPhase < 3) await ctx.db.patch(existing._id, { currentPhase: 3 });
+        continue;
+      }
       if (plansCreated >= batch) {
         remaining += 1;
         continue;
@@ -298,6 +330,7 @@ export const seed2026 = internalMutation({
       seasonCreated,
       seasonTasksAdopted,
       plansCreated,
+      planTasksAdopted,
       remaining,
     };
   },

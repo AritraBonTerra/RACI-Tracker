@@ -38,8 +38,9 @@ conversation.
   hierarchy, and reference data.
 - **Editor**: A User who reads and updates work within their Access Assignments,
   including creating, assigning, and deleting tasks, and who opens a Chain Plan
-  or Promotion wherever a Plan Year or Chain grant reaches (ADR 0004). Plan
-  Years, deletions and reference data remain Administrator-only.
+  or Promotion wherever their grant reaches in full (ADR 0004). Plan Years,
+  deleting a Chain Plan or Promotion, and reference data remain
+  Administrator-only.
   _Avoid_: Member.
 - **Viewer**: A User who reads all work details within their Access Assignments,
   including notes and KPIs, but cannot edit, assign, or delete work. Account

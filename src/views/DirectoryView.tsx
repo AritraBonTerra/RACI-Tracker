@@ -333,7 +333,7 @@ function RoleSection({ detail }: { detail: Detail }) {
   const descriptions: Record<UserRole, string> = {
     administrator: "Manages all work, accounts, and permissions.",
     member:
-      "Reads and edits work in granted scopes, and opens chain plans and promotions where a Chain or Plan Year grant reaches. Reference data and deletions are managed by Administrators.",
+      "Reads and edits work in granted scopes, including deleting tasks, and opens chain plans and promotions wherever their grant reaches in full. Reference data and deleting plans or promotions are managed by Administrators.",
     viewer:
       "Reads all work details in granted scopes, including notes and KPIs. Cannot edit, assign, or delete work.",
   };
