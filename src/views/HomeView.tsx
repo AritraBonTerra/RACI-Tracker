@@ -735,7 +735,9 @@ function timelineRows(
         rollup: group.rollup,
         phases: group.phases,
         mark:
-          group.plan.jbpDate === undefined ? undefined : { iso: group.plan.jbpDate, label: "JBP" },
+          group.plan.jbpDate !== undefined && isIsoDay(group.plan.jbpDate)
+            ? { iso: group.plan.jbpDate, label: "JBP" }
+            : undefined,
       });
     for (const node of group.promotions)
       rows.push({
@@ -753,6 +755,18 @@ function timelineRows(
       });
   }
   return rows;
+}
+
+/**
+ * A phase's window, or null when it has none — or when one end is not a
+ * calendar day. The JBP date is free text on the server, so a plan can carry
+ * an anchor that never parses; drawn, it would sit on the left edge at zero
+ * width, so it is listed as unscheduled instead. `?? null` because a dashboard
+ * served by a deployment that predates windows arrives without the field.
+ */
+function windowOf(stat: PhaseStat) {
+  const window = stat.window ?? null;
+  return window !== null && isIsoDay(window.start) && isIsoDay(window.end) ? window : null;
 }
 
 /**
@@ -780,17 +794,15 @@ function Timeline({
   // The year is the canvas; anything that spills past it (a holiday promotion's
   // review in January) stretches the canvas rather than getting cut off. The
   // canvas is measured from every chain, folded or not, so opening the fold
-  // adds rows without moving the ones already drawn. A window built on a JBP
-  // date that is not a calendar day (the field is free text on the server)
-  // is left out, so one bad anchor cannot squash the whole scale.
+  // adds rows without moving the ones already drawn.
   const bounds = [
     `${data.season.year}-01-01`,
     `${data.season.year}-12-31`,
     today,
     ...every.flatMap((row) =>
       row.phases.flatMap((stat) => {
-        const window = stat.window ?? null;
-        return window === null ? [] : [window.start, window.end].filter(isIsoDay);
+        const window = windowOf(stat);
+        return window === null ? [] : [window.start, window.end];
       }),
     ),
   ];
@@ -859,11 +871,8 @@ function Timeline({
       {rows.map((row) => {
         // A segment keeps enough width to hold its label, so the tail of the
         // bar is measured from the drawn segments, not the raw dates.
-        // `?? null` because a dashboard served by a deployment that predates
-        // windows arrives without the field, and "unscheduled" is the honest
-        // reading of that too.
         const segments = row.phases.flatMap((stat) => {
-          const window = stat.window ?? null;
+          const window = windowOf(stat);
           if (window === null) return [];
           const left = x(window.start);
           const width = Math.max(x(window.end) - left, 3);
@@ -872,7 +881,7 @@ function Timeline({
         // Overlapping segments (phases 6 and 7 with no ETAs) take separate
         // lanes rather than painting over each other.
         const { placed, lanes } = assignLanes(segments);
-        const unscheduled = row.phases.filter((stat) => (stat.window ?? null) === null);
+        const unscheduled = row.phases.filter((stat) => windowOf(stat) === null);
         const tailX = segments.reduce((best, seg) => Math.max(best, seg.left + seg.width), 0);
         const headX = segments.reduce((best, seg) => Math.min(best, seg.left), 100);
         // Chips that would run off the right edge sit before the bar instead.
