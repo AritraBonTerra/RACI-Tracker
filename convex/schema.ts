@@ -198,6 +198,14 @@ export default defineSchema({
     entraUserType: v.optional(v.string()),
 
     lastSignInAt: v.number(),
+
+    // The Editor or Viewer an Administrator is currently looking through
+    // (CONTEXT.md: View as). Set only on Administrator rows, by
+    // `access.viewAs`; every wrapper in `convex/access.ts` reads it and
+    // answers the call with that account's scope instead. Kept on the row
+    // rather than passed as an argument so one write flips every open query.
+    // A pointer at an account that can no longer be viewed as is ignored.
+    viewingAs: v.optional(v.id("users")),
   })
     .index("by_clerk_user_id", ["clerkUserId"])
     .index("by_role", ["role"])

@@ -15,6 +15,7 @@ import {
   SessionExpiredScreen,
   SignInScreen,
   SsoCallback,
+  ViewingAsBar,
 } from "./AuthScreens";
 
 // The one place the app decides which world the caller is in. Everything the
@@ -72,6 +73,15 @@ export function useLanding(): Viewer["landing"] {
   return useViewer().landing;
 }
 
+/**
+ * The Editor or Viewer an Administrator is looking through, or null. While it
+ * is set, `useAccount` and everything the backend answers describe *them*;
+ * this is the one hook that knows whose eyes these are.
+ */
+export function useViewingAs(): Viewer["viewingAs"] {
+  return useViewer().viewingAs;
+}
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const { isLoading } = useConvexAuth();
   const ending = useSessionEnding();
@@ -101,7 +111,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
         ? "new"
         : me.state === "ineligible"
           ? `ineligible:${me.email ?? ""}`
-          : me.account.id;
+          : me.state === "deactivated"
+            ? me.account.id
+            : // The signed-in identity, not the account being viewed as: an
+              // Administrator turning a lens on has not signed in again.
+              me.callerId;
   // A failed call would otherwise leave nothing to change `signedInAs` — a
   // failed create keeps `me` unregistered and the pending screen up; a failed
   // refresh of a refused identity keeps the guard counting a stale address —
@@ -159,12 +173,26 @@ export function AuthGate({ children }: { children: ReactNode }) {
       return <IneligibleScreen email={me.email} />;
     case "deactivated":
       return <DeactivatedScreen email={me.account.email} />;
-    case "active":
+    case "active": {
+      // Through a lens the bar is the way back out, so it rides above whatever
+      // the account being viewed as would see — the app or the waiting screen.
+      const bar = me.viewingAs === null ? null : <ViewingAsBar viewingAs={me.viewingAs} />;
       // An Editor or Viewer with no Access Assignments waits for a grant — an
       // Administrator's grant is the next step, not a bug.
       if (me.account.role !== "administrator" && me.scopes.length === 0) {
-        return <NoAccessScreen email={me.account.email} />;
+        return (
+          <>
+            <NoAccessScreen email={me.account.email} />
+            {bar}
+          </>
+        );
       }
-      return <ViewerContext.Provider value={me}>{children}</ViewerContext.Provider>;
+      return (
+        <ViewerContext.Provider value={me}>
+          {children}
+          {bar}
+        </ViewerContext.Provider>
+      );
+    }
   }
 }
