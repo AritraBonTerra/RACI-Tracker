@@ -193,6 +193,12 @@ export type Scope = Readonly<{
   season: (seasonId: Id<"seasons">) => Reach;
   chainPlan: (plan: PlanAncestry) => Reach;
   promotion: (promotion: PromotionAncestry) => Reach;
+  /**
+   * Whether the viewer holds the Chain itself — a Chain grant, not a plan under
+   * it. The one question the other three cannot answer: may this viewer start
+   * the chain's plan in a year where none exists yet (ADR 0004)?
+   */
+  chain: (chainId: Id<"chains">) => boolean;
 }>;
 
 /** An Administrator reaches everything, so nothing has to be loaded to say so. */
@@ -201,6 +207,7 @@ const EVERYTHING: Scope = {
   season: () => "full",
   chainPlan: () => "full",
   promotion: () => "full",
+  chain: () => true,
 };
 
 /**
@@ -219,6 +226,7 @@ export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]
   const grantedSeasons = new Set<Id<"seasons">>();
   const grantedPlans = new Set<Id<"chainPlans">>();
   const grantedPromotions = new Set<Id<"promotions">>();
+  const heldChains = new Set<Id<"chains">>();
   // Ancestors of something granted: names, not doors.
   const contextSeasons = new Set<Id<"seasons">>();
   const contextPlans = new Set<Id<"chainPlans">>();
@@ -227,13 +235,19 @@ export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]
     if (scope.tier === "chain") {
       const chain = await ctx.db.get(scope.chainId);
       if (chain === null) continue;
+      heldChains.add(chain._id);
       const plans = await ctx.db
         .query("chainPlans")
         .withIndex("by_chain", (q) => q.eq("chainId", chain._id))
         .collect();
       for (const plan of plans) {
         grantedPlans.add(plan._id);
-        contextSeasons.add(plan.seasonId);
+      }
+      // A Chain grant covers the chain in every Plan Year, including the years
+      // where its plan has not been started yet — the holder is the one who
+      // starts it (ADR 0004). So every year is a name to them, never content.
+      for (const season of await ctx.db.query("seasons").collect()) {
+        contextSeasons.add(season._id);
       }
     } else if (scope.tier === "season") {
       const season = await ctx.db.get(scope.seasonId);
@@ -271,6 +285,7 @@ export async function expandScopes(ctx: QueryCtx, scopes: readonly AccessScope[]
       grantedPromotions.has(promotion._id)
         ? "full"
         : "none",
+    chain: (chainId) => heldChains.has(chainId),
   };
 }
 
@@ -463,6 +478,31 @@ export async function writableSeason(
   // the year label above their Chain Plan cannot rename the year.
   if (scope.season(season._id) !== "full") missing(TIER_LABEL.season);
   return season;
+}
+
+/**
+ * The slot a new Chain Plan is being created in: one Season x one Chain. Open to
+ * whoever holds the year in full, or holds the chain itself (ADR 0004) — a
+ * Chain grant covers its plans in every year, so the holder may start the
+ * plan the grant will then cover. Anything less is refused as a missing year:
+ * a plan-only or promotion-only Editor reaches the year as a label at most,
+ * and a label is not a handle.
+ *
+ * Both records are loaded and returned, so the caller never re-reads what the
+ * gate already checked.
+ */
+export async function writablePlanSlot(
+  ctx: QueryCtx,
+  scope: Scope,
+  seasonId: Id<"seasons">,
+  chainId: Id<"chains">,
+): Promise<{ season: Doc<"seasons">; chain: Doc<"chains"> }> {
+  const season = await mustGet(ctx, seasonId, TIER_LABEL.season);
+  const chain = await mustGet(ctx, chainId, TIER_LABEL.chain);
+  if (scope.season(season._id) !== "full" && !scope.chain(chain._id)) {
+    missing(TIER_LABEL.season);
+  }
+  return { season, chain };
 }
 
 /** A Chain Plan whose own fields and phase 1-3 checklist the viewer may write. */

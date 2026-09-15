@@ -6,7 +6,7 @@ import {
   editorsOf,
   readableChainPlan,
   writableChainPlan,
-  writableSeason,
+  writablePlanSlot,
 } from "./access";
 import {
   CHAIN_PLAN_PHASES,
@@ -91,8 +91,14 @@ export const get = authedQuery({
   },
 });
 
-/** Starting a plan under a year is an Administrator's alone (#22, story 29). */
-export const create = adminMutation({
+/**
+ * Starting a plan: an Administrator anywhere, or an Editor who holds the year
+ * or the chain (ADR 0004). The chain holder is the person the plan is *for* —
+ * the strategic account manager — so waiting on an Administrator to open a
+ * slot they will then own was a detour. The slot is loaded and asked, the same
+ * way a Member's task create is.
+ */
+export const create = authedMutation({
   args: {
     seasonId: v.id("seasons"),
     chainId: v.id("chains"),
@@ -101,9 +107,7 @@ export const create = adminMutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // The parent is loaded and asked, the same way a Member's task create is.
-    await writableSeason(ctx, ctx.scope, args.seasonId);
-    const chain = await mustGet(ctx, args.chainId, "chain");
+    const { chain } = await writablePlanSlot(ctx, ctx.scope, args.seasonId, args.chainId);
 
     // A chain plan is one chain x one season by definition.
     const existing = await ctx.db

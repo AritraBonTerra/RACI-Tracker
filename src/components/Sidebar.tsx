@@ -7,6 +7,7 @@ import { formatRange } from "../lib/dates";
 import { CONTEXT_HINT, PHASES, type PhaseNumber } from "../lib/domain";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
+import { useCanEditWork } from "./AuthGate";
 import { NewChainPlanModal } from "./NewChainPlanModal";
 import { PhaseBadge } from "./Phase";
 import { mergeRollups, type Rollup, RollupChips } from "./Rollup";
@@ -57,7 +58,11 @@ export function Sidebar({
   tree: Tree;
   route: Route;
   today: string;
-  /** Starting a chain plan is an Administrator's move (#22), so is its button. */
+  /**
+   * Gates the reference links and the "new chain" half of the plan modal. The
+   * plan buttons themselves follow `useCanEditWork`: the tree only lists a
+   * planless chain to someone who may start its plan (ADR 0004).
+   */
   isAdministrator: boolean;
   /** False for a Member whose whole world is one Promotion (#24). */
   showDashboard: boolean;
@@ -65,6 +70,7 @@ export function Sidebar({
   activePlanId?: Id<"chainPlans">;
 }) {
   const createPlan = useReportedMutation(api.chainPlans.create);
+  const canEdit = useCanEditWork();
   const [collapsed, setCollapsed] = useState(loadCollapsed);
   const [creating, setCreating] = useState(false);
 
@@ -100,6 +106,9 @@ export function Sidebar({
   ]);
 
   const planless = tree.chains.filter((chain) => chain.plans.length === 0);
+  // An Administrator can always name a new chain; an Editor only picks from the
+  // held chains the tree already lists as planless.
+  const canStartPlan = isAdministrator || (canEdit && planless.length > 0);
 
   return (
     <nav className="flex flex-col gap-1 px-3 py-4">
@@ -146,7 +155,7 @@ export function Sidebar({
         <>
           <GroupLabel
             action={
-              isAdministrator && (
+              canStartPlan && (
                 <button
                   type="button"
                   onClick={() => setCreating(true)}
@@ -167,7 +176,7 @@ export function Sidebar({
                 <TreeRow>
                   <div className="flex items-center justify-between gap-2 rounded-lg py-1 pr-1 pl-2">
                     <span className="min-w-0 truncate text-sm text-ink-500">{chain.name}</span>
-                    {isAdministrator && (
+                    {canEdit && (
                       <Button
                         size="xs"
                         variant="ghost"
@@ -207,11 +216,12 @@ export function Sidebar({
       <GroupLabel>Reference</GroupLabel>
       <ReferenceLinks route={route} isAdministrator={isAdministrator} />
 
-      {isAdministrator && creating && (
+      {canStartPlan && creating && (
         <NewChainPlanModal
           seasonId={tree.season._id}
           seasonLabel={tree.season.label}
           planless={planless.map(({ chain }) => chain)}
+          allowNewChain={isAdministrator}
           onClose={() => setCreating(false)}
         />
       )}

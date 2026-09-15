@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
-import { useIsAdministrator } from "../components/AuthGate";
+import { useCanEditWork, useIsAdministrator } from "../components/AuthGate";
 import { BrandToggles } from "../components/BrandToggles";
 import { InlineDate, InlineSelect, InlineText } from "../components/inline";
 import { Pathway } from "../components/Pathway";
@@ -53,9 +53,12 @@ export function ChainPlanView({
   const update = useReportedMutation(api.chainPlans.update);
   const remove = useReportedMutation(api.chainPlans.remove);
   const [creating, setCreating] = useState(false);
-  // Creating and deleting under a plan is an Administrator's alone (#22); a
-  // Member granted this plan reads and works it, but does not reshape it.
+  // Deleting the plan is an Administrator's alone (#22). Opening a promotion
+  // under it belongs to whoever holds the plan (ADR 0004): if this page
+  // rendered at all the viewer reaches it in full, so the role is the only
+  // remaining question. A Viewer reads; an Editor also opens.
   const isAdministrator = useIsAdministrator();
+  const canEdit = useCanEditWork();
 
   if (data === undefined) return <TierSkeleton />;
   if (data === null) return <NotFound />;
@@ -81,23 +84,25 @@ export function ChainPlanView({
         }
         title={data.chain.name}
         actions={
-          isAdministrator ? (
+          canEdit ? (
             <>
               <Button variant="primary" size="md" onClick={() => setCreating(true)}>
                 + Promotion
               </Button>
-              <ConfirmButton
-                size="md"
-                label="Delete plan"
-                confirmLabel="Delete this plan?"
-                onConfirm={async () => {
-                  const removed = await remove({ chainPlanId });
-                  if (!removed.ok) return;
-                  // Only an Administrator gets here, and their reach on the
-                  // year above is always full, so the year is where to land.
-                  navigate({ name: "season", seasonId: data.season._id });
-                }}
-              />
+              {isAdministrator && (
+                <ConfirmButton
+                  size="md"
+                  label="Delete plan"
+                  confirmLabel="Delete this plan?"
+                  onConfirm={async () => {
+                    const removed = await remove({ chainPlanId });
+                    if (!removed.ok) return;
+                    // Only an Administrator gets here, and their reach on the
+                    // year above is always full, so the year is where to land.
+                    navigate({ name: "season", seasonId: data.season._id });
+                  }}
+                />
+              )}
             </>
           ) : undefined
         }
@@ -158,7 +163,7 @@ export function ChainPlanView({
         title="Promotions"
         subtitle="Approved programs under this plan. Each carries its own phases 4–7."
         actions={
-          isAdministrator ? (
+          canEdit ? (
             <Button size="sm" onClick={() => setCreating(true)}>
               + Promotion
             </Button>
@@ -169,7 +174,7 @@ export function ChainPlanView({
           <EmptyState
             title="No promotions under this plan yet"
             action={
-              isAdministrator ? (
+              canEdit ? (
                 <Button variant="primary" size="md" onClick={() => setCreating(true)}>
                   + Promotion
                 </Button>
@@ -220,7 +225,7 @@ export function ChainPlanView({
         />
       ))}
 
-      {isAdministrator && creating && (
+      {canEdit && creating && (
         <NewPromotionModal
           chainPlanId={chainPlanId}
           chainName={data.chain.name}

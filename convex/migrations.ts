@@ -149,3 +149,53 @@ export const installEightPhaseDefaults = internalMutation({
     return { changed: true };
   },
 });
+
+// The demo *content*: everything a real customer replaces on day one. The
+// configuration a fresh account still needs — Functions, Brands, Task
+// Templates, the phase-default RACI matrix, sign-in Users and the audit
+// trail — stays put. Order matters only for reading: Convex has no foreign
+// keys, so children are listed before parents to mirror the app's own
+// "delete those first" rules.
+const DEMO_CONTENT_TABLES = [
+  "kpiEntries",
+  "retros",
+  "tasks",
+  "promotions",
+  "chainPlans",
+  "seasons",
+  "chains",
+  "people",
+] as const;
+
+/**
+ * Empties the demo content ahead of real use, leaving configuration intact.
+ * Refuses to run while any User is linked to a Person or any Access
+ * Assignment exists, because both would be left pointing at nothing.
+ *
+ * `bunx convex run migrations:clearDemoContent --deployment <name>`
+ */
+export const clearDemoContent = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const linked = (await ctx.db.query("users").collect()).filter(
+      (user) => user.personId !== undefined,
+    );
+    if (linked.length > 0) {
+      throw new Error(
+        `${linked.length} user(s) are linked to a Person. Unlink them in the Directory first.`,
+      );
+    }
+    const assignments = await ctx.db.query("accessAssignments").collect();
+    if (assignments.length > 0) {
+      throw new Error(`${assignments.length} access assignment(s) exist. Revoke them first.`);
+    }
+
+    const deleted: Record<string, number> = {};
+    for (const table of DEMO_CONTENT_TABLES) {
+      const rows = await ctx.db.query(table).collect();
+      for (const row of rows) await ctx.db.delete(row._id);
+      deleted[table] = rows.length;
+    }
+    return deleted;
+  },
+});
