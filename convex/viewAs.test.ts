@@ -240,8 +240,11 @@ test("a pointer invalidated by any other path is reported stale, so the shell ca
   const { t } = await world();
   const asAdmin = t.withIdentity(ADMIN);
   const marcus = await accountId(asAdmin, PLAN_MEMBER.email);
+  const priya = await accountId(asAdmin, PROMO_MEMBER.email);
   await asAdmin.mutation(api.access.viewAs, { userId: marcus });
   expect(await asAdmin.query(api.access.me, {})).toMatchObject({ staleLens: false });
+  // A lens that is still good is not something the cleanup touches.
+  expect(await asAdmin.mutation(api.access.dropStaleLens, {})).toBe(false);
 
   // Nothing in the app deletes a User; the dashboard or CLI can. The lens is
   // ignored, and `me` says the pointer is still there for the shell to clear.
@@ -251,6 +254,18 @@ test("a pointer invalidated by any other path is reported stale, so the shell ca
     viewingAs: null,
     staleLens: true,
   });
-  await asAdmin.mutation(api.access.stopViewingAs, {});
+
+  // Another tab turns a fresh lens on before this tab's cleanup lands: the
+  // cleanup re-judges staleness and leaves the new lens alone.
+  await asAdmin.mutation(api.access.viewAs, { userId: priya });
+  expect(await asAdmin.mutation(api.access.dropStaleLens, {})).toBe(false);
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({
+    viewingAs: { name: "Priya Raman" },
+    staleLens: false,
+  });
+
+  // With nothing fresh in the way, the stale pointer goes.
+  await t.run(async (ctx) => await ctx.db.delete(priya));
+  expect(await asAdmin.mutation(api.access.dropStaleLens, {})).toBe(true);
   expect(await asAdmin.query(api.access.me, {})).toMatchObject({ staleLens: false });
 });

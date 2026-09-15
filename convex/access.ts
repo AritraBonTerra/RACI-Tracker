@@ -1241,6 +1241,24 @@ export const stopViewingAs = mutation({
 });
 
 /**
+ * Put down a lens only if it is still stale (`me.staleLens`). Its own function
+ * rather than `stopViewingAs`, because the lens is shared across tabs: one tab
+ * may see a stale pointer while another turns a fresh one on, and a blanket
+ * stop racing in behind would clear the new lens. The staleness is re-judged
+ * inside this transaction, so a pointer that became valid again is left alone.
+ */
+export const dropStaleLens = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const self = await viewerOrNull(ctx);
+    if (self === null) deny();
+    if (self.viewingAs === undefined || (await lensOf(ctx, self)) !== null) return false;
+    await ctx.db.patch(self._id, { viewingAs: undefined });
+    return true;
+  },
+});
+
+/**
  * Who am I, and what should the shell render? The only public function that
  * answers for a caller who is not a usable viewer, because the sign-in,
  * "access comes next", ineligible and deactivated screens each need a different
@@ -1300,7 +1318,7 @@ export const me = query({
       viewingAs: lens === null ? null : { name: nameOf(lens), role: lens.role },
       // A pointer `lensOf` refused — the account went behind the domain gate,
       // or its row is gone. Queries cannot write, so the shell is asked to put
-      // it down (`stopViewingAs`) rather than leave it dormant to come back.
+      // it down (`dropStaleLens`) rather than leave it dormant to come back.
       staleLens: lens === null && user.viewingAs !== undefined,
     } as const;
   },

@@ -155,14 +155,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // A lens the server is ignoring (`me.staleLens`) is put down here, once,
   // rather than left dormant on the row to come back the day its account
   // qualifies again. Deactivation and promotion already clear it server-side;
-  // this catches the paths that cannot — the domain gate, a removed row.
-  const stopViewingAs = useMutation(api.access.stopViewingAs);
+  // this catches the paths that cannot — the domain gate, a removed row. The
+  // mutation re-checks staleness itself, so another tab turning a fresh lens
+  // on in the meantime is not undone by this one.
+  const dropStaleLens = useMutation(api.access.dropStaleLens);
   const staleLens = me?.state === "active" && me.staleLens;
   useEffect(() => {
     if (!staleLens) return;
     // A failure here leaves nothing worse than the dormant pointer.
-    stopViewingAs({}).catch(() => {});
-  }, [staleLens, stopViewingAs]);
+    dropStaleLens({}).catch(() => {});
+  }, [staleLens, dropStaleLens]);
 
   useRememberLocation();
 
