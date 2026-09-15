@@ -193,7 +193,7 @@ test("only an Administrator holds a lens, and only on an account with a view to 
   expect(offered.sort()).toEqual([NEWCOMER.email, YEAR_MEMBER.email].sort());
 });
 
-test("a lens on an account that stops qualifying falls away, and so does a demoted holder's", async () => {
+test("a lens on an account that stops qualifying is dropped, and so is a demoted holder's", async () => {
   const { t } = await world();
   const asAdmin = t.withIdentity(ADMIN);
   const marcus = await accountId(asAdmin, PLAN_MEMBER.email);
@@ -211,15 +211,16 @@ test("a lens on an account that stops qualifying falls away, and so does a demot
   });
   await expect(asAdmin.query(api.directory.roster, {})).resolves.toBeDefined();
 
-  // Reactivated, the stale pointer is honoured again — it was never cleared.
+  // Reactivating Marcus does not quietly put the lens back on: it was dropped,
+  // not merely ignored, and a lens is only ever turned on by hand.
   await asYolanda.mutation(api.directory.setActive, { userId: marcus, isActive: true });
-  expect(await asAdmin.query(api.access.me, {})).toMatchObject({
-    viewingAs: { name: "Marcus Bell" },
-  });
-  // Unless the holder puts it down, which clears the row for good.
-  await asAdmin.mutation(api.access.stopViewingAs, {});
-  await asYolanda.mutation(api.directory.setActive, { userId: marcus, isActive: false });
-  await asYolanda.mutation(api.directory.setActive, { userId: marcus, isActive: true });
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({ viewingAs: null });
+
+  // The same when the account is promoted underneath the lens and demoted back.
+  await asAdmin.mutation(api.access.viewAs, { userId: marcus });
+  await asYolanda.mutation(api.directory.setRole, { userId: marcus, role: "administrator" });
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({ viewingAs: null });
+  await asYolanda.mutation(api.directory.setRole, { userId: marcus, role: "member" });
   expect(await asAdmin.query(api.access.me, {})).toMatchObject({ viewingAs: null });
 
   // A lens is an Administrator's instrument: demotion drops it.

@@ -48,9 +48,11 @@ Rules that follow:
   Administrator sees what you see; a deactivated or gated account sees
   nothing. The Directory offers the button on the same predicate the server
   enforces (`viewableAs`).
-- **A stale pointer is ignored, not honoured.** If the account is deactivated
-  or promoted underneath the lens, the Administrator is themselves again on
-  the next call. Demotion drops the holder's lens outright.
+- **A lens is only ever turned on by hand.** Deactivating or promoting the
+  account clears every lens pointing at it, so reactivating or demoting them
+  later does not snap an Administrator back into a view they stopped seeing.
+  Demoting the holder drops their lens outright. A pointer left by any other
+  means is ignored, never honoured.
 - **Not audited.** No new access is granted or used — the Administrator
   already reaches everything the lens shows less of — so an audit event would
   record nothing the trail is for.

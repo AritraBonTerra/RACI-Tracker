@@ -178,14 +178,31 @@ export function viewableAs(user: Doc<"users">): boolean {
 
 /**
  * The account an Administrator's lens points at, if it is still one that can
- * be viewed as. A pointer at an account that has since been deactivated,
- * promoted or removed is ignored rather than honoured: the Administrator gets
- * themselves back, and `stopViewingAs` tidies the row.
+ * be viewed as. Deactivation and promotion clear the pointer on every holder
+ * (`dropLensesOn`), so this second check is the belt to that brace: a row
+ * removed by other means, or gated out by the domain since, is ignored rather
+ * than honoured, and the Administrator gets themselves back.
  */
 async function lensOf(ctx: QueryCtx, self: Viewer): Promise<Viewer | null> {
   if (self.role !== "administrator" || self.viewingAs === undefined) return null;
   const target = await ctx.db.get(self.viewingAs);
   return target !== null && viewableAs(target) ? target : null;
+}
+
+/**
+ * Put down every lens pointing at an account that can no longer be viewed as.
+ * Called when it is deactivated or promoted, so the pointer does not lie
+ * dormant and snap the Administrator back into the lens the day the account
+ * is reactivated or demoted — a lens is only ever turned on by hand.
+ */
+async function dropLensesOn(ctx: MutationCtx, userId: Id<"users">) {
+  const holders = await ctx.db
+    .query("users")
+    .withIndex("by_viewing_as", (q) => q.eq("viewingAs", userId))
+    .collect();
+  for (const holder of holders) {
+    await ctx.db.patch(holder._id, { viewingAs: undefined });
+  }
 }
 
 async function requireCaller(ctx: QueryCtx): Promise<Caller> {
@@ -972,11 +989,13 @@ export async function setUserRole(
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 
-  // A lens is an Administrator's instrument, so demotion puts it down too.
+  // A lens is an Administrator's instrument, so demotion puts it down — and
+  // a new Administrator has no view to borrow, so lenses on them go too.
   await ctx.db.patch(user._id, {
     role,
     ...(role === "administrator" ? {} : { viewingAs: undefined }),
   });
+  if (role === "administrator") await dropLensesOn(ctx, user._id);
   await recordAuditEvent(ctx, {
     action: "role_changed",
     actor,
@@ -1006,6 +1025,8 @@ export async function setUserActive(
   }
 
   await ctx.db.patch(user._id, { isActive });
+  // An offboarded account has no view; nobody stays looking through it.
+  if (!isActive) await dropLensesOn(ctx, user._id);
   await recordAuditEvent(ctx, {
     action: isActive ? "user_activated" : "user_deactivated",
     actor,

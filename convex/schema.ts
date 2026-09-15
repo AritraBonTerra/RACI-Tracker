@@ -204,12 +204,14 @@ export default defineSchema({
     // `access.viewAs`; every wrapper in `convex/access.ts` reads it and
     // answers the call with that account's scope instead. Kept on the row
     // rather than passed as an argument so one write flips every open query.
-    // A pointer at an account that can no longer be viewed as is ignored.
+    // Dropped from every holder when the account is deactivated or promoted
+    // (access.ts: dropLensesOn), which is what the index is for.
     viewingAs: v.optional(v.id("users")),
   })
     .index("by_clerk_user_id", ["clerkUserId"])
     .index("by_role", ["role"])
-    .index("by_person", ["personId"]),
+    .index("by_person", ["personId"])
+    .index("by_viewing_as", ["viewingAs"]),
 
   // One Editor or Viewer at one Chain, Plan Year, Chain Plan, or Promotion (CONTEXT.md: Access
   // Assignment). A Member's access is the *union* of their rows, expanded
