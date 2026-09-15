@@ -1,4 +1,4 @@
-# RACI Tracker
+# Integrated Commercial Sequence (ICS)
 
 Promotion tracking for chain retail — who owns what (RACI) across the
 Season → Chain Plan → Promotion lifecycle.

@@ -8,7 +8,7 @@ import { NotFound, TierSkeleton, ViewBoundary } from "./components/page";
 import { Sidebar, SidebarSkeleton, StaticNav } from "./components/Sidebar";
 import { Button, Field, inputClass, Modal, selectClass } from "./components/ui";
 import { formatDay, todayIso } from "./lib/dates";
-import { CONTEXT_HINT, isPlanYear } from "./lib/domain";
+import { CONTEXT_HINT, isPlanYear, PRODUCT_NAME, PRODUCT_SHORT } from "./lib/domain";
 import { usePeople } from "./lib/people";
 import { href, navigate, useRoute } from "./lib/router";
 import { ThemeToggle } from "./lib/theme";
@@ -120,10 +120,10 @@ export default function App() {
           </Button>
           <a href={href({ name: "home" })} className="flex min-w-0 items-baseline gap-2.5">
             <span className="text-sm font-semibold tracking-tight whitespace-nowrap text-ink-50">
-              RACI Tracker
+              {PRODUCT_SHORT}
             </span>
             <span className="hidden truncate text-2xs text-ink-500 md:inline">
-              Integrated Commercial Cycle · Viña Concha y Toro USA
+              {PRODUCT_NAME} · Viña Concha y Toro USA
             </span>
           </a>
         </div>
@@ -192,7 +192,7 @@ export default function App() {
             <aside className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col border-r border-ink-800 bg-ink-950 shadow-2xl shadow-black/50 lg:hidden">
               <div className="flex h-header shrink-0 items-center justify-between border-b border-ink-800 px-3">
                 <span className="text-sm font-semibold tracking-tight text-ink-50">
-                  RACI Tracker
+                  {PRODUCT_SHORT}
                 </span>
                 <Button
                   variant="ghost"

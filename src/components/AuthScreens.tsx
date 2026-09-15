@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { returnToUrl, useSignOut } from "../lib/auth";
-import { USER_ROLE_LABELS, type UserRole } from "../lib/domain";
+import { PRODUCT_NAME, PRODUCT_SHORT, USER_ROLE_LABELS, type UserRole } from "../lib/domain";
 import { useReportedMutation } from "../lib/toast";
 import { Button, Pill } from "./ui";
 
@@ -18,7 +18,7 @@ import { Button, Pill } from "./ui";
 function Wordmark() {
   return (
     <span className="text-sm font-semibold tracking-tight whitespace-nowrap text-ink-50">
-      RACI Tracker
+      {PRODUCT_SHORT}
     </span>
   );
 }
@@ -79,7 +79,7 @@ export function SignInScreen({ signedOut = false }: { signedOut?: boolean }) {
       )}
       <div className="flex items-baseline justify-center gap-2.5">
         <Wordmark />
-        <span className="text-2xs text-ink-500">Integrated Commercial Cycle</span>
+        <span className="text-2xs text-ink-500">{PRODUCT_NAME}</span>
       </div>
       <p className="text-xs text-ink-400">Viña Concha y Toro USA — internal employees only.</p>
       <ClerkSignIn />
@@ -157,7 +157,7 @@ export function DeactivatedScreen({ email }: { email?: string }) {
         <p className="mt-3 text-sm font-medium text-ink-100">This account is deactivated.</p>
         <p className="mt-1.5 text-xs leading-relaxed text-ink-400">
           {email === undefined ? "This account" : <span className="text-ink-200">{email}</span>} no
-          longer has access to RACI Tracker. If that's unexpected, contact an Administrator.
+          longer has access to {PRODUCT_SHORT}. If that's unexpected, contact an Administrator.
         </p>
         <Button size="md" className="mt-4" onClick={() => void signOut()}>
           Back to sign-in
