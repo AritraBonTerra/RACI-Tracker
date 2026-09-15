@@ -176,7 +176,7 @@ export default function App() {
       </header>
 
       <div className="flex items-start">
-        <aside className="sticky top-header hidden h-[calc(100dvh-var(--spacing-header))] w-72 shrink-0 overflow-y-auto border-r border-ink-800 bg-ink-900/25 lg:block">
+        <aside className="sticky top-header hidden h-[calc(100dvh-var(--spacing-header))] w-72 shrink-0 flex-col border-r border-ink-800 bg-ink-900/25 lg:flex">
           {nav}
         </aside>
 
@@ -203,7 +203,7 @@ export default function App() {
                   ✕
                 </Button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">{nav}</div>
+              <div className="flex min-h-0 flex-1 flex-col">{nav}</div>
             </aside>
           </>
         )}
