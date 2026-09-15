@@ -1024,8 +1024,12 @@ export async function setUserActive(
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 
-  await ctx.db.patch(user._id, { isActive });
-  // An offboarded account has no view; nobody stays looking through it.
+  // Offboarding puts down the account's own lens as well as every lens on
+  // it: an Administrator deactivated mid-lens must not come back inside it.
+  await ctx.db.patch(user._id, {
+    isActive,
+    ...(isActive ? {} : { viewingAs: undefined }),
+  });
   if (!isActive) await dropLensesOn(ctx, user._id);
   await recordAuditEvent(ctx, {
     action: isActive ? "user_activated" : "user_deactivated",

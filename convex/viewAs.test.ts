@@ -234,6 +234,15 @@ test("a lens on an account that stops qualifying is dropped, and so is a demoted
   // Promoted back, the lens does not silently return.
   await asYolanda.mutation(api.directory.setRole, { userId: dana, role: "administrator" });
   expect(await asAdmin.query(api.access.me, {})).toMatchObject({ viewingAs: null });
+
+  // Nor does it survive the holder's own deactivation and return.
+  await asAdmin.mutation(api.access.viewAs, { userId: marcus });
+  await asYolanda.mutation(api.directory.setActive, { userId: dana, isActive: false });
+  await asYolanda.mutation(api.directory.setActive, { userId: dana, isActive: true });
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({
+    account: { role: "administrator" },
+    viewingAs: null,
+  });
 });
 
 test("a pointer invalidated by any other path is reported stale, so the shell can drop it", async () => {
