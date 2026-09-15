@@ -196,28 +196,42 @@ async function stampDelivered(
 }
 
 /**
- * Hands every row nobody owns to the placeholder, delivered, and reports how
- * many. Rows a real person already holds are left exactly as they are: the
- * loader converges a checklist opened in the app, it does not overwrite work.
+ * A template row exactly as `stampTemplates` wrote it: nobody's, not started.
+ * Anything else — an owner, a status, a blocked reason — is somebody's work,
+ * and the loader converges a checklist opened in the app, it never overwrites.
  */
-async function adoptUnowned(
+function untouched(task: Doc<"tasks">) {
+  return (
+    responsiblesOf(task).length === 0 &&
+    task.accountablePersonId === undefined &&
+    task.status === "not_started"
+  );
+}
+
+/**
+ * No User made the loader's edits, so a row it rewrites drops the stamp of
+ * whoever opened the checklist rather than crediting them with the change.
+ */
+const UNSTAMPED = { lastModifiedBy: undefined, lastModifiedAt: undefined };
+
+/** Hands untouched rows to the placeholder, delivered, and reports how many. */
+async function adoptUntouched(
   ctx: MutationCtx,
   tasks: readonly Doc<"tasks">[],
   placeholder: Id<"people">,
 ) {
-  let adopted = 0;
-  for (const task of tasks) {
-    if (responsiblesOf(task).length > 0 || task.accountablePersonId !== undefined) continue;
+  const rows = tasks.filter(untouched);
+  for (const task of rows) {
     await ctx.db.patch(task._id, {
+      ...UNSTAMPED,
       responsiblePersonIds: [placeholder],
       responsiblePersonId: undefined,
       accountablePersonId: placeholder,
       status: "delivered",
       blockedReason: undefined,
     });
-    adopted += 1;
   }
-  return adopted;
+  return rows.length;
 }
 
 // --- Entry point ------------------------------------------------------------
@@ -279,10 +293,10 @@ export const seed2026 = internalMutation({
     if (season === null) throw new Error("Season vanished mid-run.");
     const seasonId = season._id;
 
-    // The year may have been opened in the app before this ran. Phase-0 rows
-    // nobody owns are the placeholder's too, and done: the year is a
+    // The year may have been opened in the app before this ran. Untouched
+    // phase-0 rows are the placeholder's too, and done: the year is a
     // promotions-only year whichever door it came in by.
-    const seasonTasksAdopted = await adoptUnowned(
+    const seasonTasksAdopted = await adoptUntouched(
       ctx,
       await ctx.db
         .query("tasks")
@@ -291,7 +305,10 @@ export const seed2026 = internalMutation({
       placeholder.id,
     );
 
+    // Opening a plan and converging one an Editor opened first both count
+    // against `batch`: either is a checklist's worth of writes.
     let plansCreated = 0;
+    let plansConverged = 0;
     let planTasksAdopted = 0;
     let remaining = 0;
     for (const chainId of chainIds) {
@@ -300,21 +317,26 @@ export const seed2026 = internalMutation({
         .withIndex("by_season_and_chain", (q) => q.eq("seasonId", seasonId).eq("chainId", chainId))
         .first();
       if (existing !== null) {
-        // Same convergence for a plan an Editor opened in the app first: its
-        // unowned phase 1-3 rows are delivered, and the plan stands at phase 3
-        // like the ones this loader opens. Work a real person holds is kept.
-        planTasksAdopted += await adoptUnowned(
-          ctx,
-          await ctx.db
-            .query("tasks")
-            .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", existing._id))
-            .collect(),
-          placeholder.id,
-        );
-        if (existing.currentPhase < 3) await ctx.db.patch(existing._id, { currentPhase: 3 });
+        // Same convergence as the year: untouched phase 1-3 rows are
+        // delivered, and the plan stands at phase 3 like the ones this loader
+        // opens. A plan already there costs nothing and is not a unit of work.
+        const tasks = await ctx.db
+          .query("tasks")
+          .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", existing._id))
+          .collect();
+        if (existing.currentPhase >= 3 && !tasks.some(untouched)) continue;
+        if (plansCreated + plansConverged >= batch) {
+          remaining += 1;
+          continue;
+        }
+        planTasksAdopted += await adoptUntouched(ctx, tasks, placeholder.id);
+        if (existing.currentPhase < 3) {
+          await ctx.db.patch(existing._id, { ...UNSTAMPED, currentPhase: 3 });
+        }
+        plansConverged += 1;
         continue;
       }
-      if (plansCreated >= batch) {
+      if (plansCreated + plansConverged >= batch) {
         remaining += 1;
         continue;
       }
@@ -330,6 +352,7 @@ export const seed2026 = internalMutation({
       seasonCreated,
       seasonTasksAdopted,
       plansCreated,
+      plansConverged,
       planTasksAdopted,
       remaining,
     };

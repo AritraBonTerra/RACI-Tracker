@@ -35,6 +35,7 @@ test("seed2026 opens every chain's plan, pre-delivered, and is idempotent across
     seasonCreated: false,
     seasonTasksAdopted: 0,
     plansCreated: 0,
+    plansConverged: 0,
     planTasksAdopted: 0,
     remaining: 0,
   });
@@ -124,8 +125,8 @@ test("seed2026 converges a plan an Editor opened in the app first, keeping owned
 
   // Kroger's 2026 plan already exists at phase 1 with its checklist stamped —
   // as it is when a chain Editor clicked "start one here" before the loader
-  // ran — and one row is already somebody's.
-  const { chainPlanId, ownedTaskId } = await t.run(async (ctx) => {
+  // ran. One row is already somebody's and one is blocked without an owner.
+  const { chainPlanId, ownedTaskId, blockedTaskId } = await t.run(async (ctx) => {
     const seasonId = await ctx.db.insert("seasons", { year: 2026, label: "2026" });
     const chainId = await ctx.db.insert("chains", { name: "Kroger" });
     const chainPlanId = await ctx.db.insert("chainPlans", { seasonId, chainId, currentPhase: 1 });
@@ -136,21 +137,33 @@ test("seed2026 converges a plan an Editor opened in the app first, keeping owned
       (r) => r.phase >= 1 && r.phase <= 3,
     );
     let ownedTaskId: Id<"tasks"> | undefined;
+    let blockedTaskId: Id<"tasks"> | undefined;
     for (const [order, template] of templates.entries()) {
       const id = await ctx.db.insert("tasks", {
         chainPlanId,
         phase: template.phase,
         name: template.name,
-        status: order === 0 ? "in_progress" : "not_started",
+        status: order === 0 ? "in_progress" : order === 1 ? "blocked" : "not_started",
+        blockedReason: order === 1 ? "Waiting on the buyer" : undefined,
         responsiblePersonIds: order === 0 ? [someone] : [],
         consultedPersonIds: [],
         informedPersonIds: [],
         order,
+        lastModifiedAt: 1,
       });
       if (order === 0) ownedTaskId = id;
+      if (order === 1) blockedTaskId = id;
     }
-    if (ownedTaskId === undefined) throw new Error("No templates");
-    return { chainPlanId, ownedTaskId };
+    if (ownedTaskId === undefined || blockedTaskId === undefined) throw new Error("No templates");
+    return { chainPlanId, ownedTaskId, blockedTaskId };
+  });
+
+  // Convergence is a unit of work like opening a plan: a zero batch does none.
+  expect(await t.mutation(internal.strategicAccounts.seed2026, { batch: 0 })).toMatchObject({
+    plansCreated: 0,
+    plansConverged: 0,
+    planTasksAdopted: 0,
+    remaining: 53,
   });
 
   const result = await t.mutation(internal.strategicAccounts.seed2026, { batch: 60 });
@@ -160,16 +173,17 @@ test("seed2026 converges a plan an Editor opened in the app first, keeping owned
         .length,
   );
   expect(result).toMatchObject({
-    chainsCreated: 52,
     seasonCreated: false,
     plansCreated: 52,
-    planTasksAdopted: perPlan - 1,
+    plansConverged: 1,
+    planTasksAdopted: perPlan - 2,
     remaining: 0,
   });
 
   // Idempotent: a second pass finds nothing left to adopt.
   expect(await t.mutation(internal.strategicAccounts.seed2026, {})).toMatchObject({
     plansCreated: 0,
+    plansConverged: 0,
     planTasksAdopted: 0,
     remaining: 0,
   });
@@ -179,6 +193,10 @@ test("seed2026 converges a plan an Editor opened in the app first, keeping owned
     const owned = await ctx.db.get(ownedTaskId);
     expect(owned?.status).toBe("in_progress");
     expect(owned?.accountablePersonId).toBeUndefined();
+    const blocked = await ctx.db.get(blockedTaskId);
+    expect(blocked?.status).toBe("blocked");
+    expect(blocked?.blockedReason).toBe("Waiting on the buyer");
+    expect(blocked?.lastModifiedAt).toBe(1);
     const placeholder = (await ctx.db.query("people").collect()).find(
       (person) => person.name === "Admin (placeholder)",
     );
@@ -187,11 +205,14 @@ test("seed2026 converges a plan an Editor opened in the app first, keeping owned
         .query("tasks")
         .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", chainPlanId))
         .collect()
-    ).filter((task) => task._id !== ownedTaskId);
-    expect(rest).toHaveLength(perPlan - 1);
+    ).filter((task) => task._id !== ownedTaskId && task._id !== blockedTaskId);
+    expect(rest).toHaveLength(perPlan - 2);
     expect(
       rest.every(
-        (task) => task.status === "delivered" && task.accountablePersonId === placeholder?._id,
+        (task) =>
+          task.status === "delivered" &&
+          task.accountablePersonId === placeholder?._id &&
+          task.lastModifiedAt === undefined,
       ),
     ).toBe(true);
   });
