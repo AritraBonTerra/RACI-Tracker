@@ -204,14 +204,22 @@ async function stampDelivered(
  * and adopting it changes nothing the template row would not have carried.
  */
 function untouchedBy(templates: readonly Doc<"taskTemplates">[]) {
-  const byKey = new Map(templates.map((row) => [`${row.phase}\u0000${row.name}`, row]));
+  // Keyed on everything a stamped row copies, so two templates that share a
+  // name but differ in spec, category or quantity each match their own row.
+  const keyOf = (
+    row: Pick<Doc<"taskTemplates">, "phase" | "name" | "spec" | "category" | "quantity">,
+  ) =>
+    JSON.stringify([
+      row.phase,
+      row.name,
+      row.spec ?? null,
+      row.category ?? null,
+      row.quantity ?? null,
+    ]);
+  const stamped = new Set(templates.map(keyOf));
   return (task: Doc<"tasks">) => {
-    const template = byKey.get(`${task.phase}\u0000${task.name}`);
     return (
-      template !== undefined &&
-      task.spec === template.spec &&
-      task.category === template.category &&
-      task.quantity === template.quantity &&
+      stamped.has(keyOf(task)) &&
       task.status === "not_started" &&
       responsiblesOf(task).length === 0 &&
       task.accountablePersonId === undefined &&
