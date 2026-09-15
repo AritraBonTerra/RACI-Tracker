@@ -41,8 +41,9 @@ Opening a record follows the same rule as writing one: the parent decides.
   has a plan, and the navigation tree lists the held, planless chain under the
   year as the "start one here" affordance. Viewers holding a chain see neither.
 
-Everything else stays where it was. Creating Plan Years, deleting any tier,
-and all reference data (chains, brands, People, Functions, Task Templates)
+Everything else stays where it was. Creating Plan Years, deleting a Chain
+Plan or Promotion (tasks were already the Editor's to delete), and all
+reference data (chains, brands, People, Functions, Task Templates)
 remain Administrator-only. The Editor's "new chain" shortcut in the plan modal
 is hidden, because naming a chain is reference data.
 
@@ -58,7 +59,7 @@ sentence that names the rule they hit (#27, scenario 15).
 - A Plan Year Editor can now open plans for any chain in their year. Before,
   the same person could edit every task under the year but not add a plan to
   it; the asymmetry was the odder state.
-- Deletion is still an Administrator's. An Editor who opens a promotion by
+- Deleting a plan or promotion is still an Administrator's. An Editor who opens a promotion by
   mistake asks an Administrator to remove it. If that becomes a queue of its
   own, extending `remove` along the same rule is a one-gate change.
 - `scopedWrites` and `chainAccess` carry the matrix: who opens what, and that

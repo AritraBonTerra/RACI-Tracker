@@ -195,6 +195,72 @@ async function stampDelivered(
   return rows.length;
 }
 
+/**
+ * Rows exactly as `stampTemplates` wrote them: a template's phase, name, spec,
+ * category and quantity, and nothing else — nobody's, not started, no notes,
+ * dates, proof or Consulted/Informed. Anything more is somebody's work, and
+ * the loader converges a checklist opened in the app, it never overwrites. A
+ * row added by hand that duplicates a template exactly is indistinguishable,
+ * and adopting it changes nothing the template row would not have carried.
+ */
+function untouchedBy(templates: readonly Doc<"taskTemplates">[]) {
+  // Keyed on everything a stamped row copies, so two templates that share a
+  // name but differ in spec, category or quantity each match their own row.
+  const keyOf = (
+    row: Pick<Doc<"taskTemplates">, "phase" | "name" | "spec" | "category" | "quantity">,
+  ) =>
+    JSON.stringify([
+      row.phase,
+      row.name,
+      row.spec ?? null,
+      row.category ?? null,
+      row.quantity ?? null,
+    ]);
+  const stamped = new Set(templates.map(keyOf));
+  return (task: Doc<"tasks">) => {
+    return (
+      stamped.has(keyOf(task)) &&
+      task.status === "not_started" &&
+      responsiblesOf(task).length === 0 &&
+      task.accountablePersonId === undefined &&
+      task.consultedPersonIds.length === 0 &&
+      task.informedPersonIds.length === 0 &&
+      task.blockedReason === undefined &&
+      task.eta === undefined &&
+      task.deliveredTo === undefined &&
+      task.proofOfExecution === undefined &&
+      task.notes === undefined
+    );
+  };
+}
+
+/**
+ * No User made the loader's edits, so a row it rewrites drops the stamp of
+ * whoever opened the checklist rather than crediting them with the change.
+ */
+const UNSTAMPED = { lastModifiedBy: undefined, lastModifiedAt: undefined };
+
+/** Hands untouched rows to the placeholder, delivered, and reports how many. */
+async function adoptUntouched(
+  ctx: MutationCtx,
+  tasks: readonly Doc<"tasks">[],
+  untouched: (task: Doc<"tasks">) => boolean,
+  placeholder: Id<"people">,
+) {
+  const rows = tasks.filter(untouched);
+  for (const task of rows) {
+    await ctx.db.patch(task._id, {
+      ...UNSTAMPED,
+      responsiblePersonIds: [placeholder],
+      responsiblePersonId: undefined,
+      accountablePersonId: placeholder,
+      status: "delivered",
+      blockedReason: undefined,
+    });
+  }
+  return rows.length;
+}
+
 // --- Entry point ------------------------------------------------------------
 
 /**
@@ -254,35 +320,52 @@ export const seed2026 = internalMutation({
     if (season === null) throw new Error("Season vanished mid-run.");
     const seasonId = season._id;
 
-    // The year may have been opened in the app before this ran. Phase-0 rows
-    // nobody owns are the placeholder's too, and done: the year is a
-    // promotions-only year whichever door it came in by. Rows a real person
-    // already holds are left exactly as they are.
-    let seasonTasksAdopted = 0;
-    for (const task of await ctx.db
-      .query("tasks")
-      .withIndex("by_season", (q) => q.eq("seasonId", seasonId))
-      .collect()) {
-      if (responsiblesOf(task).length > 0 || task.accountablePersonId !== undefined) continue;
-      await ctx.db.patch(task._id, {
-        responsiblePersonIds: [placeholder.id],
-        responsiblePersonId: undefined,
-        accountablePersonId: placeholder.id,
-        status: "delivered",
-        blockedReason: undefined,
-      });
-      seasonTasksAdopted += 1;
-    }
+    // The year may have been opened in the app before this ran. Untouched
+    // phase-0 rows are the placeholder's too, and done: the year is a
+    // promotions-only year whichever door it came in by.
+    const untouched = untouchedBy(templates);
+    const seasonTasksAdopted = await adoptUntouched(
+      ctx,
+      await ctx.db
+        .query("tasks")
+        .withIndex("by_season", (q) => q.eq("seasonId", seasonId))
+        .collect(),
+      untouched,
+      placeholder.id,
+    );
 
+    // Opening a plan and converging one an Editor opened first both count
+    // against `batch`: either is a checklist's worth of writes.
     let plansCreated = 0;
+    let plansConverged = 0;
+    let planTasksAdopted = 0;
     let remaining = 0;
     for (const chainId of chainIds) {
       const existing = await ctx.db
         .query("chainPlans")
         .withIndex("by_season_and_chain", (q) => q.eq("seasonId", seasonId).eq("chainId", chainId))
         .first();
-      if (existing !== null) continue;
-      if (plansCreated >= batch) {
+      if (existing !== null) {
+        // Same convergence as the year: untouched phase 1-3 rows are
+        // delivered, and the plan stands at phase 3 like the ones this loader
+        // opens. A plan already there costs nothing and is not a unit of work.
+        const tasks = await ctx.db
+          .query("tasks")
+          .withIndex("by_chain_plan", (q) => q.eq("chainPlanId", existing._id))
+          .collect();
+        if (existing.currentPhase >= 3 && !tasks.some(untouched)) continue;
+        if (plansCreated + plansConverged >= batch) {
+          remaining += 1;
+          continue;
+        }
+        planTasksAdopted += await adoptUntouched(ctx, tasks, untouched, placeholder.id);
+        if (existing.currentPhase < 3) {
+          await ctx.db.patch(existing._id, { ...UNSTAMPED, currentPhase: 3 });
+        }
+        plansConverged += 1;
+        continue;
+      }
+      if (plansCreated + plansConverged >= batch) {
         remaining += 1;
         continue;
       }
@@ -298,6 +381,8 @@ export const seed2026 = internalMutation({
       seasonCreated,
       seasonTasksAdopted,
       plansCreated,
+      plansConverged,
+      planTasksAdopted,
       remaining,
     };
   },

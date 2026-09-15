@@ -63,9 +63,9 @@ with deploy credentials.
 
 Reads answer over the caller's Access Assignments and writes obey the same
 scope: an Editor has full task control and in-scope field editing, and opens
-chain plans and promotions wherever a Plan Year or Chain grant reaches
-(`docs/adr/0004-…`), while plan years, deletions, the reference data and the
-People directory are Administrator-only.
+chain plans and promotions wherever their grant reaches in full
+(`docs/adr/0004-…`), while plan years, deleting a plan or promotion, the
+reference data and the People directory are Administrator-only.
 A Viewer has the same scoped reads, including notes and KPIs, but every work
 mutation is refused. New accounts default to Editor with no grants. Existing
 `member` records retain that stored value and are labeled Editor in the UI;
