@@ -1,5 +1,5 @@
 import type { UserIdentity } from "convex/server";
-import { ConvexError, type Infer } from "convex/values";
+import { ConvexError, type Infer, v } from "convex/values";
 import { customCtx, customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import type { Doc, Id } from "./_generated/dataModel";
 import { type MutationCtx, mutation, type QueryCtx, query } from "./_generated/server";
@@ -31,6 +31,10 @@ import type { accessScope } from "./schema";
 //                                  screens. Shaping only — never a gate.
 //   ensureUser                     first-sign-in entry point: any admissible
 //                                  identity may create its own zero-access User
+//   viewAs / stopViewingAs         an Administrator's lens (CONTEXT.md: View as):
+//                                  while it is on, every wrapper above answers
+//                                  for the Editor or Viewer being looked
+//                                  through, read-only
 //
 // Ahead of all of them sits the optional admission gate below
 // (`ALLOWED_EMAIL_DOMAIN`), which decides who may hold an account at all.
@@ -144,16 +148,88 @@ async function viewerOrNull(ctx: QueryCtx): Promise<Viewer | null> {
   return user;
 }
 
-async function requireViewer(ctx: QueryCtx): Promise<Viewer> {
-  const viewer = await viewerOrNull(ctx);
-  if (viewer === null) deny();
-  return viewer;
+// --- Viewing as someone else ----------------------------------------------
+// An Administrator may look through an Editor's or Viewer's access (CONTEXT.md:
+// View as). The choice sits on the Administrator's own row (`users.viewingAs`),
+// so one write flips every query the shell has open and nothing is threaded
+// through arguments. While it is on, the wrappers hand handlers the *other*
+// account as `viewer`, with that account's scope — the same path a real
+// sign-in by them takes, so what the Administrator sees is what they see, not
+// a preview computed a second way.
+//
+// It is a lens, not a takeover. Every write is refused while it is on, so no
+// edit is ever stamped with one person's id on another's behalf, and the
+// Administrator's own surfaces close with it, because the person being viewed
+// as cannot reach them. Only `viewAs` and `stopViewingAs` answer to the
+// Administrator behind the lens.
+
+/** Who is calling, and who the call is answered for. The same account unless a lens is on. */
+type Caller = { self: Viewer; viewer: Viewer };
+
+/**
+ * Whether an account can be looked through: an Editor or Viewer who can sign
+ * in. An Administrator already sees everything, and an account the door
+ * refuses sees nothing — neither has a view worth borrowing. Exported so the
+ * Directory offers the button on exactly the accounts the server accepts.
+ */
+export function viewableAs(user: Doc<"users">): boolean {
+  return user.role !== "administrator" && canSignIn(user);
 }
 
+/**
+ * The account an Administrator's lens points at, if it is still one that can
+ * be viewed as. Deactivation and promotion clear the pointer on every holder
+ * (`dropLensesOn`), so this second check is the belt to that brace: a row
+ * removed by other means, or gated out by the domain since, is ignored rather
+ * than honoured, and the Administrator gets themselves back.
+ */
+async function lensOf(ctx: QueryCtx, self: Viewer): Promise<Viewer | null> {
+  if (self.role !== "administrator" || self.viewingAs === undefined) return null;
+  const target = await ctx.db.get(self.viewingAs);
+  return target !== null && viewableAs(target) ? target : null;
+}
+
+/**
+ * Put down every lens pointing at an account that can no longer be viewed as.
+ * Called when it is deactivated or promoted, so the pointer does not lie
+ * dormant and snap the Administrator back into the lens the day the account
+ * is reactivated or demoted — a lens is only ever turned on by hand.
+ */
+async function dropLensesOn(ctx: MutationCtx, userId: Id<"users">) {
+  const holders = await ctx.db
+    .query("users")
+    .withIndex("by_viewing_as", (q) => q.eq("viewingAs", userId))
+    .collect();
+  for (const holder of holders) {
+    await ctx.db.patch(holder._id, { viewingAs: undefined });
+  }
+}
+
+async function requireCaller(ctx: QueryCtx): Promise<Caller> {
+  const self = await viewerOrNull(ctx);
+  if (self === null) deny();
+  const lens = await lensOf(ctx, self);
+  return { self, viewer: lens ?? self };
+}
+
+async function requireViewer(ctx: QueryCtx): Promise<Viewer> {
+  return (await requireCaller(ctx)).viewer;
+}
+
+/**
+ * Judged on the account the call is answered for: an Administrator looking
+ * through an Editor is refused here exactly as that Editor would be, which is
+ * what closes the Directory and Manage while the lens is on.
+ */
 async function requireAdministrator(ctx: QueryCtx): Promise<Viewer> {
   const viewer = await requireViewer(ctx);
   if (viewer.role !== "administrator") deny();
   return viewer;
+}
+
+/** What an account goes by on screen when the token carried no name. */
+export function nameOf(user: Doc<"users">): string {
+  return user.displayName ?? user.email ?? "Unnamed account";
 }
 
 // --- Expanded access ------------------------------------------------------
@@ -325,7 +401,14 @@ export const authedQuery = customQuery(
 export const authedMutation = customMutation(
   mutation,
   customCtx(async (ctx: MutationCtx) => {
-    const viewer = await requireViewer(ctx);
+    const { self, viewer } = await requireCaller(ctx);
+    // A lens is read-only. The caller is a verified Administrator, so the
+    // refusal can say why — the one place a refusal names its reason.
+    if (viewer !== self) {
+      throw new ConvexError(
+        `You're viewing as ${nameOf(viewer)}. Stop viewing as them to make changes.`,
+      );
+    }
     // Re-read on every mutation, including calls from an already-open editor.
     if (viewer.role !== "administrator" && viewer.role !== "member") deny();
     return { viewer, scope: await scopeOf(ctx, viewer), stamp: stampFor(viewer) };
@@ -906,7 +989,13 @@ export async function setUserRole(
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 
-  await ctx.db.patch(user._id, { role });
+  // A lens is an Administrator's instrument, so demotion puts it down — and
+  // a new Administrator has no view to borrow, so lenses on them go too.
+  await ctx.db.patch(user._id, {
+    role,
+    ...(role === "administrator" ? {} : { viewingAs: undefined }),
+  });
+  if (role === "administrator") await dropLensesOn(ctx, user._id);
   await recordAuditEvent(ctx, {
     action: "role_changed",
     actor,
@@ -935,7 +1024,13 @@ export async function setUserActive(
     throw new ConvexError(LAST_ADMINISTRATOR);
   }
 
-  await ctx.db.patch(user._id, { isActive });
+  // Offboarding puts down the account's own lens as well as every lens on
+  // it: an Administrator deactivated mid-lens must not come back inside it.
+  await ctx.db.patch(user._id, {
+    isActive,
+    ...(isActive ? {} : { viewingAs: undefined }),
+  });
+  if (!isActive) await dropLensesOn(ctx, user._id);
   await recordAuditEvent(ctx, {
     action: isActive ? "user_activated" : "user_deactivated",
     actor,
@@ -1103,6 +1198,71 @@ export const ensureUser = mutation({
 });
 
 /**
+ * Turn the lens on: from here, every call this Administrator makes is answered
+ * as `userId` would be. Switching straight from one account to another is one
+ * call, and answers to the Administrator behind the lens rather than through
+ * it — otherwise the lens could never be moved once on.
+ *
+ * Refusals here are sentences, not the opaque denial: the caller is a verified
+ * Administrator, and the button that reaches this is only offered on accounts
+ * that qualify, so a refusal means the account changed underneath them.
+ */
+export const viewAs = mutation({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const self = await viewerOrNull(ctx);
+    if (self === null || self.role !== "administrator") deny();
+    const target = await mustGet(ctx, args.userId, "account");
+    if (target._id === self._id) {
+      throw new ConvexError("That's you — you already see the app as yourself.");
+    }
+    if (target.role === "administrator") {
+      throw new ConvexError(
+        "An Administrator already sees everything; there is nothing to view as.",
+      );
+    }
+    if (!canSignIn(target)) {
+      throw new ConvexError("This account can't sign in, so there is nothing it sees.");
+    }
+    await ctx.db.patch(self._id, { viewingAs: target._id });
+    return null;
+  },
+});
+
+/**
+ * Put the lens down. Answers to the signed-in account whatever its row says,
+ * including a stale pointer at an account that can no longer be viewed as, so
+ * there is always a way back out.
+ */
+export const stopViewingAs = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const self = await viewerOrNull(ctx);
+    if (self === null) deny();
+    if (self.viewingAs !== undefined) await ctx.db.patch(self._id, { viewingAs: undefined });
+    return null;
+  },
+});
+
+/**
+ * Put down a lens only if it is still stale (`me.staleLens`). Its own function
+ * rather than `stopViewingAs`, because the lens is shared across tabs: one tab
+ * may see a stale pointer while another turns a fresh one on, and a blanket
+ * stop racing in behind would clear the new lens. The staleness is re-judged
+ * inside this transaction, so a pointer that became valid again is left alone.
+ */
+export const dropStaleLens = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const self = await viewerOrNull(ctx);
+    if (self === null) deny();
+    if (self.viewingAs === undefined || (await lensOf(ctx, self)) !== null) return false;
+    await ctx.db.patch(self._id, { viewingAs: undefined });
+    return true;
+  },
+});
+
+/**
  * Who am I, and what should the shell render? The only public function that
  * answers for a caller who is not a usable viewer, because the sign-in,
  * "access comes next", ineligible and deactivated screens each need a different
@@ -1134,16 +1294,36 @@ export const me = query({
     };
     if (!user.isActive) return { state: "deactivated", account } as const;
 
+    // Through the lens, `account`, `scopes` and `landing` all describe the
+    // account being viewed as — the shell renders their world and nothing
+    // else has to know. `callerId` stays the signed-in identity, which is what
+    // the sign-in refresh keys on, and `viewingAs` is the shell's cue to say
+    // whose eyes these are and offer the way back.
+    const lens = await lensOf(ctx, user);
+    const viewer = lens ?? user;
+
     // The Access Assignment roots themselves, not their expansion: the shell
     // only needs to know whether a Member has anything at all, and where a
     // single-Promotion Member should land. An Administrator reaches everything
     // regardless of what is in here.
-    const scopes = await scopesOf(ctx, user._id);
+    const scopes = await scopesOf(ctx, viewer._id);
     return {
       state: "active",
-      account: { ...account, role: user.role },
+      callerId: user._id,
+      account: {
+        id: viewer._id,
+        email: viewer.email,
+        displayName: viewer.displayName,
+        personId: viewer.personId,
+        role: viewer.role,
+      },
       scopes,
-      landing: landingFor(user.role, scopes),
+      landing: landingFor(viewer.role, scopes),
+      viewingAs: lens === null ? null : { name: nameOf(lens), role: lens.role },
+      // A pointer `lensOf` refused — the account went behind the domain gate,
+      // or its row is gone. Queries cannot write, so the shell is asked to put
+      // it down (`dropStaleLens`) rather than leave it dormant to come back.
+      staleLens: lens === null && user.viewingAs !== undefined,
     } as const;
   },
 });

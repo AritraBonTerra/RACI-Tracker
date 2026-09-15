@@ -17,6 +17,7 @@ import {
 } from "../components/ui";
 import { formatStamp } from "../lib/dates";
 import { USER_ROLE_LABELS, type UserRole } from "../lib/domain";
+import { navigate } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 
 // The Directory (#34): people-first access administration. The roster on the
@@ -223,6 +224,7 @@ function AccountPane({ userId, onGrant }: { userId: Id<"users">; onGrant: () => 
               Inert while deactivated — this is what reactivation hands back.
             </p>
           )}
+          {detail.viewableAs && <ViewAs detail={detail} />}
         </div>
 
         <AccountHistory userId={detail.userId} />
@@ -230,6 +232,36 @@ function AccountPane({ userId, onGrant }: { userId: Id<"users">; onGrant: () => 
         <Offboarding detail={detail} />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * The tree above says what the account reaches; this opens the app as them
+ * and shows it (CONTEXT.md: View as). Read-only, and it closes the Directory
+ * along with everything else they cannot see — so once it is on, the shell
+ * moves to the dashboard, and the floating bar is the way back.
+ */
+function ViewAs({ detail }: { detail: Detail }) {
+  const viewAs = useReportedMutation(api.access.viewAs);
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Button
+        size="xs"
+        className="self-start"
+        onClick={async () => {
+          // The lens closes this page underneath us, so leave once it is on —
+          // and only then: a refusal (the account changed since the pane
+          // loaded) keeps the Administrator here, with the toast beside it.
+          const result = await viewAs({ userId: detail.userId });
+          if (result.ok) navigate({ name: "home" });
+        }}
+      >
+        View the app as {detail.name}
+      </Button>
+      <span className="text-3xs text-ink-600">
+        Exactly their screens, read-only. Your Administrator pages come back when you stop.
+      </span>
+    </div>
   );
 }
 

@@ -11,6 +11,7 @@ import {
   grantScope,
   isLastActiveAdministrator,
   labelOf,
+  nameOf,
   type Reach,
   revokeScope,
   scopeOfAssignment,
@@ -18,6 +19,7 @@ import {
   setPersonLink,
   setUserActive,
   setUserRole,
+  viewableAs,
 } from "./access";
 import { fromUrl, memo, mustGet } from "./model";
 import { accessScope, userRole } from "./schema";
@@ -35,11 +37,6 @@ import { accessScope, userRole } from "./schema";
 // guard, the union semantics and the Audit events belong to the access model,
 // which the deploy-credential CLI shares, and a second implementation living
 // behind the buttons would be a second set of rules.
-
-/** What an account goes by when the token carried no name. */
-function nameOf(user: Doc<"users">): string {
-  return user.displayName ?? user.email ?? "Unnamed account";
-}
 
 // --- Scopes, named --------------------------------------------------------
 
@@ -135,6 +132,10 @@ async function summarize(ctx: QueryCtx, user: Doc<"users">) {
     // door (access.ts: canSignIn) — the roster has to say so, or an
     // Administrator grants and reactivates into a wall.
     canSignIn: canSignIn(user),
+    // Whether an Administrator can look through this account (access.ts:
+    // viewableAs) — the server's rule, so the pane offers the button on
+    // exactly the accounts `viewAs` accepts.
+    viewableAs: viewableAs(user),
     person: person === null ? null : { personId: person._id, name: person.name },
     grantCount: scopes.length,
     // The account sitting on the "access comes next" screen (#30, story 20).

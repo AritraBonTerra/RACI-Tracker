@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { returnToUrl, useSignOut } from "../lib/auth";
 import { USER_ROLE_LABELS, type UserRole } from "../lib/domain";
+import { useReportedMutation } from "../lib/toast";
 import { Button, Pill } from "./ui";
 
 // Every screen the app shows *outside* itself: the sign-in card, the three dead
@@ -335,6 +336,36 @@ export function AccountMenu({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The one piece of chrome that is the Administrator's while a lens is on
+ * (CONTEXT.md: View as). Everything else on screen is what the Editor or
+ * Viewer sees, so this is where the truth lives: whose eyes these are, that
+ * nothing can be changed through them, and the way back. Floats over the page
+ * rather than pushing it, because the page has to look exactly as it does to
+ * them — including the "access comes next" screen, which has no shell to
+ * mount a banner in.
+ */
+export function ViewingAsBar({ viewingAs }: { viewingAs: { name: string; role: UserRole } }) {
+  const stop = useReportedMutation(api.access.stopViewingAs);
+  return (
+    <div
+      role="status"
+      className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4"
+    >
+      <div className="pointer-events-auto flex max-w-full items-center gap-3 rounded-full border border-amber-400/40 bg-ink-900/95 py-1.5 pr-1.5 pl-4 shadow-2xl shadow-black/50 backdrop-blur">
+        <span aria-hidden className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-amber-400" />
+        <span className="min-w-0 truncate text-xs text-ink-300">
+          Viewing as <span className="font-semibold text-ink-50">{viewingAs.name}</span>
+          <span className="text-ink-500"> · {USER_ROLE_LABELS[viewingAs.role]} · read-only</span>
+        </span>
+        <Button size="xs" variant="primary" onClick={() => void stop({})}>
+          Stop viewing
+        </Button>
+      </div>
     </div>
   );
 }

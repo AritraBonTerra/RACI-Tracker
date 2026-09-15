@@ -58,6 +58,13 @@ conversation.
   granted, so the *name* shows for orientation and nothing else — a plain
   label, never a link, never a phase or a count. **None**: absent, and
   indistinguishable from deleted. Administrators reach everything in full.
+- **View as** — an Administrator looking through an Editor's or Viewer's
+  access: every screen answers exactly as it would for that account, with the
+  same Reach, and nothing can be edited until the Administrator stops. A lens,
+  not a takeover — the Administrator's own surfaces (Directory, Manage) close
+  while it is on, and no audit event or last-edited stamp is ever written
+  through it. Started from the Directory, ended from the floating bar.
+  _Avoid_: impersonate, takeover, log in as.
 - **Audit event** — one access-management action (role change, grant, revoke,
   activation, deactivation, Person link) with its actor and timestamp, kept
   indefinitely. The actor is a User, or the operator holding deploy
