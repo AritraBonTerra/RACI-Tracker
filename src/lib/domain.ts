@@ -14,6 +14,14 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
  */
 export const CONTEXT_HINT = "Shown for context — you don't have access to this";
 
+/**
+ * The product's name, long and short. The wordmark wears the short form and
+ * the long form sits beside it wherever there is room; the browser title
+ * carries both.
+ */
+export const PRODUCT_NAME = "Integrated Commercial Sequence";
+export const PRODUCT_SHORT = "ICS";
+
 export type PhaseNumber = Doc<"tasks">["phase"];
 export type TaskStatus = Doc<"tasks">["status"];
 export type UserRole = Doc<"users">["role"];

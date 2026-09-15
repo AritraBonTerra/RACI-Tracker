@@ -3,12 +3,13 @@ import type { FunctionReturnType } from "convex/server";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
+import { FoldButton, useFold } from "../components/Fold";
 import { PhaseBadge, PhaseSteps, PhaseTitle, phaseStyle } from "../components/Phase";
 import { HeaderSkeleton, NotFound, PageHeader } from "../components/page";
 import { AssignButton } from "../components/RaciEditor";
 import { type Rollup, RollupChips } from "../components/Rollup";
 import { EmptyState, Skeleton } from "../components/ui";
-import { daysBetween, dueLabel, formatDay, formatRange, isOverdue } from "../lib/dates";
+import { daysBetween, dueLabel, formatDay, formatRange, isIsoDay, isOverdue } from "../lib/dates";
 import {
   ALL_PHASES,
   CONTEXT_HINT,
@@ -19,6 +20,7 @@ import {
 } from "../lib/domain";
 import { monthTicks } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
+import { PlanSortSelect, sortPlans, usePlanSort } from "../lib/planSort";
 import { href, placeRoute } from "../lib/router";
 import { assignLanes } from "../lib/timeline";
 
@@ -32,6 +34,10 @@ import { assignLanes } from "../lib/timeline";
 // attention rail. "Timeline" lays the same plans and promotions across the
 // calendar year, one bar each, segmented by phase, with today drawn down the
 // page. The headline numbers and the attention lists are the same in both.
+//
+// The chains follow the saved sort (src/lib/planSort.tsx) and fold past the
+// first few in both views. The headline, the cycle strip and the attention rail
+// always count every chain — the fold hides sections, never numbers.
 
 type Dashboard = NonNullable<FunctionReturnType<typeof api.home.dashboard>>;
 type ChainGroup = Dashboard["chains"][number];
@@ -41,6 +47,10 @@ type AttentionItem = Attention["unassigned"][number];
 
 type View = "cycle" | "timeline";
 const VIEW_KEY = "raci.dashboard.view";
+
+/** Chain sections are tall in the Cycle view; timeline rows are one line each. */
+const CYCLE_FOLD = 5;
+const TIMELINE_FOLD = 12;
 
 function savedView(): View {
   return localStorage.getItem(VIEW_KEY) === "timeline" ? "timeline" : "cycle";
@@ -57,14 +67,24 @@ export function HomeView({
 }) {
   const data = useQuery(api.home.dashboard, { seasonId, today });
   const [view, setView] = useState<View>(savedView);
+  const sort = usePlanSort();
+  const chains = sortPlans(data?.chains ?? [], sort, (group) => ({
+    name: group.chain?.name ?? "Chain",
+    rollup: group.reach === "full" ? group.rollup : null,
+    jbpDate: group.reach === "full" ? group.plan.jbpDate : undefined,
+  }));
+  const fold = useFold(chains, view === "cycle" ? CYCLE_FOLD : TIMELINE_FOLD);
 
   if (data === undefined) return <DashboardSkeleton />;
   if (data === null) return <NotFound />;
 
   const promotionCount = data.chains.reduce((count, group) => count + group.promotions.length, 0);
+  // Each view has its own fold size, so a list opened in one starts short in
+  // the other rather than carrying an "everything" over to the taller layout.
   const choose = (next: View) => {
     localStorage.setItem(VIEW_KEY, next);
     setView(next);
+    fold.collapse();
   };
 
   return (
@@ -97,19 +117,47 @@ export function HomeView({
             <NeedsAttention attention={data.attention} today={today} people={people} />
             <div className="flex flex-col gap-4 xl:-order-1">
               {data.phaseZero !== null && <SeasonCard data={data} phaseZero={data.phaseZero} />}
-              {data.chains.map((group) => (
+              {chains.length > 1 && <ChainListBar count={chains.length} />}
+              {fold.shown.map((group) => (
                 <ChainSection key={group.chainPlanId} group={group} today={today} />
               ))}
-              {data.chains.length === 0 && <NoChains />}
+              <FoldButton
+                hidden={fold.hidden}
+                expanded={fold.expanded}
+                noun="chain plans"
+                onToggle={fold.toggle}
+                className="border border-dashed border-ink-800 py-2.5"
+              />
+              {chains.length === 0 && <NoChains />}
             </div>
           </div>
         </>
       ) : (
         <>
-          <Timeline data={data} today={today} />
+          {chains.length > 1 && <ChainListBar count={chains.length} />}
+          <Timeline data={data} chains={chains} drawn={fold.shown.length} today={today} />
+          <FoldButton
+            hidden={fold.hidden}
+            expanded={fold.expanded}
+            noun="chain plans"
+            onToggle={fold.toggle}
+            className="-mt-3 border border-dashed border-ink-800 py-2.5"
+          />
           <NeedsAttention attention={data.attention} today={today} people={people} wide />
         </>
       )}
+    </div>
+  );
+}
+
+/** The line over the chains: how many there are, and the order they are in. */
+function ChainListBar({ count }: { count: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-1">
+      <h2 className="text-xs font-semibold tracking-wider text-ink-500 uppercase">
+        {count} chain plans
+      </h2>
+      <PlanSortSelect />
     </div>
   );
 }
@@ -658,7 +706,11 @@ type TimelineRow = {
   context?: string;
 };
 
-function timelineRows(data: Dashboard, today: string): TimelineRow[] {
+function timelineRows(
+  data: Dashboard,
+  chains: readonly ChainGroup[],
+  today: string,
+): TimelineRow[] {
   const rows: TimelineRow[] = [];
   if (data.phaseZero !== null)
     rows.push({
@@ -671,7 +723,7 @@ function timelineRows(data: Dashboard, today: string): TimelineRow[] {
       rollup: data.phaseZero.rollup,
       phases: data.phaseZero.phases,
     });
-  for (const group of data.chains) {
+  for (const group of chains) {
     if (group.reach === "full")
       rows.push({
         key: group.chainPlanId,
@@ -683,7 +735,9 @@ function timelineRows(data: Dashboard, today: string): TimelineRow[] {
         rollup: group.rollup,
         phases: group.phases,
         mark:
-          group.plan.jbpDate === undefined ? undefined : { iso: group.plan.jbpDate, label: "JBP" },
+          group.plan.jbpDate !== undefined && isIsoDay(group.plan.jbpDate)
+            ? { iso: group.plan.jbpDate, label: "JBP" }
+            : undefined,
       });
     for (const node of group.promotions)
       rows.push({
@@ -704,24 +758,50 @@ function timelineRows(data: Dashboard, today: string): TimelineRow[] {
 }
 
 /**
+ * A phase's window, or null when it has none — or when one end is not a
+ * calendar day. The JBP date is free text on the server, so a plan can carry
+ * an anchor that never parses; drawn, it would sit on the left edge at zero
+ * width, so it is listed as unscheduled instead. `?? null` because a dashboard
+ * served by a deployment that predates windows arrives without the field.
+ */
+function windowOf(stat: PhaseStat) {
+  const window = stat.window ?? null;
+  return window !== null && isIsoDay(window.start) && isIsoDay(window.end) ? window : null;
+}
+
+/**
  * The year as a calendar: one row per plan and promotion, its phases drawn as
  * segments where their windows fall, today as a line down the whole page. The
  * current phase is the only segment at full strength; a finished one is solid
  * but quieter; the rest are washes. A phase with no window (no anchor, no
  * ETAs) is listed after the bar as a hollow chip rather than guessed at.
  */
-function Timeline({ data, today }: { data: Dashboard; today: string }) {
-  const rows = timelineRows(data, today);
+function Timeline({
+  data,
+  chains,
+  drawn,
+  today,
+}: {
+  data: Dashboard;
+  /** Every chain, already sorted. All of them set the scale; only the first `drawn` are rows. */
+  chains: readonly ChainGroup[];
+  drawn: number;
+  today: string;
+}) {
+  const every = timelineRows(data, chains, today);
+  const rows = timelineRows(data, chains.slice(0, drawn), today);
 
   // The year is the canvas; anything that spills past it (a holiday promotion's
-  // review in January) stretches the canvas rather than getting cut off.
+  // review in January) stretches the canvas rather than getting cut off. The
+  // canvas is measured from every chain, folded or not, so opening the fold
+  // adds rows without moving the ones already drawn.
   const bounds = [
     `${data.season.year}-01-01`,
     `${data.season.year}-12-31`,
     today,
-    ...rows.flatMap((row) =>
+    ...every.flatMap((row) =>
       row.phases.flatMap((stat) => {
-        const window = stat.window ?? null;
+        const window = windowOf(stat);
         return window === null ? [] : [window.start, window.end];
       }),
     ),
@@ -791,11 +871,8 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
       {rows.map((row) => {
         // A segment keeps enough width to hold its label, so the tail of the
         // bar is measured from the drawn segments, not the raw dates.
-        // `?? null` because a dashboard served by a deployment that predates
-        // windows arrives without the field, and "unscheduled" is the honest
-        // reading of that too.
         const segments = row.phases.flatMap((stat) => {
-          const window = stat.window ?? null;
+          const window = windowOf(stat);
           if (window === null) return [];
           const left = x(window.start);
           const width = Math.max(x(window.end) - left, 3);
@@ -804,7 +881,7 @@ function Timeline({ data, today }: { data: Dashboard; today: string }) {
         // Overlapping segments (phases 6 and 7 with no ETAs) take separate
         // lanes rather than painting over each other.
         const { placed, lanes } = assignLanes(segments);
-        const unscheduled = row.phases.filter((stat) => (stat.window ?? null) === null);
+        const unscheduled = row.phases.filter((stat) => windowOf(stat) === null);
         const tailX = segments.reduce((best, seg) => Math.max(best, seg.left + seg.width), 0);
         const headX = segments.reduce((best, seg) => Math.min(best, seg.left), 100);
         // Chips that would run off the right edge sit before the bar instead.

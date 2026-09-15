@@ -4,6 +4,7 @@ import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { useCanEditWork, useIsAdministrator } from "../components/AuthGate";
+import { FoldButton, useFold } from "../components/Fold";
 import { InlineText } from "../components/inline";
 import { NewChainPlanModal } from "../components/NewChainPlanModal";
 import { Pathway } from "../components/Pathway";
@@ -25,17 +26,24 @@ import { formatDay } from "../lib/dates";
 import { CHAIN_PLAN_PHASES, SEASON_PHASES } from "../lib/domain";
 import { buildPathway } from "../lib/pathway";
 import type { PeopleDirectory } from "../lib/people";
+import { PlanSortSelect, sortPlans, usePlanSort } from "../lib/planSort";
 import { href } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 
 // Tier one: the planning year. Phase 0 is the company-wide work everything else
 // is planned against, so the season page is also where the chain plans are
-// listed and started.
+// listed and started. Both lists of them here — the positions under the
+// Pathway and the cards at the bottom — follow the saved sort and fold past
+// the first few, the same as the sidebar.
 
 type Tree = NonNullable<FunctionReturnType<typeof api.seasons.tree>>;
 type PlanNode = Tree["chains"][number]["plans"][number];
 /** A chain plan this viewer can open, with the chain name to title it. */
 type PlanCard = { chainName: string; node: Extract<PlanNode, { reach: "full" }> };
+
+/** Positions are one line each; cards are three to a row. */
+const POSITION_FOLD = 10;
+const CARD_FOLD = 9;
 
 export function SeasonView({
   seasonId,
@@ -59,19 +67,29 @@ export function SeasonView({
   const isAdministrator = useIsAdministrator();
   const canEdit = useCanEditWork();
   const [creating, setCreating] = useState(false);
-
-  if (data === undefined) return <TierSkeleton panels={2} />;
-  if (data === null) return <NotFound />;
+  const sort = usePlanSort();
 
   // Only plans the viewer can open are cards on this page. A chain plan reached
   // as context has no phases to show and no page to link to, so it is not one.
-  const planCards = tree.chains.flatMap((chain) =>
-    chain.plans.flatMap((node) =>
-      node.reach === "full" ? [{ chainName: chain.chain.name, node }] : [],
+  const planCards = sortPlans(
+    tree.chains.flatMap((chain) =>
+      chain.plans.flatMap((node) =>
+        node.reach === "full" ? [{ chainName: chain.chain.name, node }] : [],
+      ),
     ),
+    sort,
+    ({ chainName, node }) => ({
+      name: chainName,
+      rollup: node.rollup,
+      jbpDate: node.plan.jbpDate,
+    }),
   );
+  const cardFold = useFold(planCards, CARD_FOLD);
   const planless = tree.chains.filter((chain) => chain.plans.length === 0).map((c) => c.chain);
   const canStartPlan = isAdministrator || (canEdit && planless.length > 0);
+
+  if (data === undefined) return <TierSkeleton panels={2} />;
+  if (data === null) return <NotFound />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -134,11 +152,14 @@ export function SeasonView({
         title="Chain plans"
         subtitle="One per retail account. Phases 1–3 live here."
         actions={
-          canStartPlan ? (
-            <Button size="sm" onClick={() => setCreating(true)}>
-              + Chain plan
-            </Button>
-          ) : undefined
+          <>
+            {planCards.length > 1 && <PlanSortSelect />}
+            {canStartPlan && (
+              <Button size="sm" onClick={() => setCreating(true)}>
+                + Chain plan
+              </Button>
+            )}
+          </>
         }
       >
         {planCards.length === 0 ? (
@@ -157,7 +178,7 @@ export function SeasonView({
           </EmptyState>
         ) : (
           <div className={cardGrid(planCards.length)}>
-            {planCards.map(({ chainName, node }) => (
+            {cardFold.shown.map(({ chainName, node }) => (
               <a
                 key={node.chainPlanId}
                 href={href({ name: "plan", chainPlanId: node.chainPlanId })}
@@ -180,6 +201,13 @@ export function SeasonView({
                 </p>
               </a>
             ))}
+            <FoldButton
+              hidden={cardFold.hidden}
+              expanded={cardFold.expanded}
+              noun="chain plans"
+              onToggle={cardFold.toggle}
+              className="col-span-full py-2"
+            />
           </div>
         )}
       </Panel>
@@ -200,9 +228,10 @@ export function SeasonView({
 // Where every chain sits on phases 1-3, so the year view answers "what's
 // where" without a single click (CONTEXT.md: Pathway).
 function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: string }) {
+  const fold = useFold(plans, POSITION_FOLD);
   return (
     <div className="mt-3 grid gap-1.5 border-t border-ink-800 pt-3">
-      {plans.map(({ chainName, node }) => (
+      {fold.shown.map(({ chainName, node }) => (
         <a
           key={node.chainPlanId}
           href={href({ name: "plan", chainPlanId: node.chainPlanId })}
@@ -237,6 +266,13 @@ function ChainPositions({ plans, today }: { plans: readonly PlanCard[]; today: s
           </span>
         </a>
       ))}
+      <FoldButton
+        hidden={fold.hidden}
+        expanded={fold.expanded}
+        noun="chain plans"
+        onToggle={fold.toggle}
+        className="justify-self-start px-1 py-0.5"
+      />
     </div>
   );
 }

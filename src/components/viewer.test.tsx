@@ -109,7 +109,10 @@ test("Viewers can read every tier and expanded work details without editing cont
   ]) {
     expect(html).toContain(detail);
   }
-  expect(html).not.toMatch(/<(input|textarea|select|form)\b/);
+  // The chain-plan sort is a way of reading the list, not of editing it, so it
+  // is the one control a Viewer keeps.
+  const reading = html.replace(/<select aria-label="Sort chain plans"[\s\S]*?<\/select>/g, "");
+  expect(reading).not.toMatch(/<(input|textarea|select|form)\b/);
   expect(html).not.toMatch(
     /Click to edit|Click to set|Assign R|Remove Carol|Move up|Delete\?|Add the first task|Add task to phase|Click to override/,
   );

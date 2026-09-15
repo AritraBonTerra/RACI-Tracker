@@ -5,9 +5,11 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import { formatRange } from "../lib/dates";
 import { CONTEXT_HINT, PHASES, type PhaseNumber } from "../lib/domain";
+import { PlanSortSelect, sortPlans, usePlanSort } from "../lib/planSort";
 import { href, navigate, type Route } from "../lib/router";
 import { useReportedMutation } from "../lib/toast";
 import { useCanEditWork } from "./AuthGate";
+import { FoldButton, useFold } from "./Fold";
 import { NewChainPlanModal } from "./NewChainPlanModal";
 import { PhaseBadge } from "./Phase";
 import { mergeRollups, type Rollup, RollupChips } from "./Rollup";
@@ -21,8 +23,17 @@ import { Button, Pill, Skeleton } from "./ui";
 // it, so closing a branch can never hide a fire. Collapse state lives in
 // localStorage; the branch holding the current page always renders open.
 //
-// The reference-data views hang off the bottom, which makes this the one
-// complete map of the app: the mobile drawer renders exactly this.
+// The reference-data views are pinned to the bottom of the rail, and the
+// tree above them is the part that scrolls, so People, Manage and the
+// Directory are one click away however many chain plans are open. This is
+// the one complete map of the app: the mobile drawer renders exactly this.
+//
+// The chain plans are one flat list under the year, in the saved sort order
+// (src/lib/planSort.tsx) and folded past the first few: with fifty accounts the
+// tree would otherwise be a wall, and the reference links would scroll off the
+// bottom. The plan the current page lives under is pinned past the fold so
+// navigating never lands inside a hidden node. Chains with no plan yet sit
+// after the plans: they have nothing to sort by and are only a "+ Plan" door.
 //
 // It is also where scoped navigation shows up (#24). The backend has already
 // decided what belongs in the tree, so a node here is a link when its reach is
@@ -37,6 +48,9 @@ type ChainNode = Tree["chains"][number];
 type PlanNode = ChainNode["plans"][number];
 
 const COLLAPSE_KEY = "raci.sidebar.collapsed";
+
+/** How many chain plans the tree shows before folding the rest. */
+const PLAN_FOLD = 8;
 
 function loadCollapsed(): ReadonlySet<string> {
   try {
@@ -110,111 +124,132 @@ export function Sidebar({
   // held chains the tree already lists as planless.
   const canStartPlan = isAdministrator || (canEdit && planless.length > 0);
 
+  const sort = usePlanSort();
+  const planRows = sortPlans(
+    tree.chains.flatMap(({ chain, plans }) =>
+      plans.map((node) => ({ chainName: chain.name, node })),
+    ),
+    sort,
+    ({ chainName, node }) => ({
+      name: chainName,
+      rollup: node.reach === "full" ? node.rollup : null,
+      jbpDate: node.reach === "full" ? node.plan.jbpDate : undefined,
+    }),
+  );
+  const fold = useFold(planRows, PLAN_FOLD, ({ node }) => node.chainPlanId === activePlanId);
+
   return (
-    <nav className="flex flex-col gap-1 px-3 py-4">
-      {showDashboard && (
-        <TreeRow>
-          <NodeLink
-            // Named year, so Dashboard stays on the year you are looking at.
-            to={{ name: "home", seasonId: tree.season._id }}
-            active={route.name === "home"}
-            label="Dashboard"
-            meta="Everything that needs attention"
-            rollup={everything}
-          />
-        </TreeRow>
-      )}
-
-      <GroupLabel>Plan year</GroupLabel>
-
-      <TreeRow
-        chevron={{
-          open: yearOpen,
-          label: `Year ${tree.season.label}`,
-          onToggle: () => toggle(tree.season._id),
-        }}
-      >
-        {tree.reach === "full" ? (
-          <NodeLink
-            to={{ name: "season", seasonId: tree.season._id }}
-            active={route.name === "season"}
-            label={`Year ${tree.season.label}`}
-            meta={PHASES[0].title}
-            phase={0}
-            // Folded, the year answers for everything inside it.
-            rollup={yearOpen ? (tree.seasonRollup ?? everything) : everything}
-          />
-        ) : (
-          // The year above someone's chain plan or promotion: a name, so they
-          // know which year they are in, and no phase 0 behind it.
-          <ContextNode label={`Year ${tree.season.label}`} />
+    <nav className="flex h-full flex-col">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+        {showDashboard && (
+          <TreeRow>
+            <NodeLink
+              // Named year, so Dashboard stays on the year you are looking at.
+              to={{ name: "home", seasonId: tree.season._id }}
+              active={route.name === "home"}
+              label="Dashboard"
+              meta="Everything that needs attention"
+              rollup={everything}
+            />
+          </TreeRow>
         )}
-      </TreeRow>
 
-      {yearOpen && (
-        <>
-          <GroupLabel
-            action={
-              canStartPlan && (
-                <button
-                  type="button"
-                  onClick={() => setCreating(true)}
-                  title="New chain plan"
-                  className="rounded px-1 text-2xs font-semibold text-ink-500 transition hover:bg-ink-800 hover:text-ink-200"
-                >
-                  + New
-                </button>
-              )
-            }
-          >
-            Chain plans
-          </GroupLabel>
+        <GroupLabel>Plan year</GroupLabel>
 
-          {tree.chains.map(({ chain, plans }) => (
-            <div key={chain._id}>
-              {plans.length === 0 ? (
-                <TreeRow>
-                  <div className="flex items-center justify-between gap-2 rounded-lg py-1 pr-1 pl-2">
-                    <span className="min-w-0 truncate text-sm text-ink-500">{chain.name}</span>
-                    {canEdit && (
-                      <Button
-                        size="xs"
-                        variant="ghost"
-                        title={`Start a ${chain.name} plan for ${tree.season.label}`}
-                        onClick={async () => {
-                          const plan = await createPlan({
-                            seasonId: tree.season._id,
-                            chainId: chain._id,
-                          });
-                          // Same landing as the modal path: straight onto the new plan.
-                          if (plan.ok) navigate({ name: "plan", chainPlanId: plan.value });
-                        }}
-                      >
-                        + Plan
-                      </Button>
-                    )}
-                  </div>
-                </TreeRow>
-              ) : (
-                plans.map((node) => (
-                  <PlanBranch
-                    key={node.chainPlanId}
-                    chainName={chain.name}
-                    node={node}
-                    route={route}
-                    today={today}
-                    open={!collapsed.has(node.chainPlanId) || node.chainPlanId === activePlanId}
-                    onToggle={() => toggle(node.chainPlanId)}
-                  />
-                ))
-              )}
-            </div>
-          ))}
-        </>
-      )}
+        <TreeRow
+          chevron={{
+            open: yearOpen,
+            label: `Year ${tree.season.label}`,
+            onToggle: () => toggle(tree.season._id),
+          }}
+        >
+          {tree.reach === "full" ? (
+            <NodeLink
+              to={{ name: "season", seasonId: tree.season._id }}
+              active={route.name === "season"}
+              label={`Year ${tree.season.label}`}
+              meta={PHASES[0].title}
+              phase={0}
+              // Folded, the year answers for everything inside it.
+              rollup={yearOpen ? (tree.seasonRollup ?? everything) : everything}
+            />
+          ) : (
+            // The year above someone's chain plan or promotion: a name, so they
+            // know which year they are in, and no phase 0 behind it.
+            <ContextNode label={`Year ${tree.season.label}`} />
+          )}
+        </TreeRow>
 
-      <GroupLabel>Reference</GroupLabel>
-      <ReferenceLinks route={route} isAdministrator={isAdministrator} />
+        {yearOpen && (
+          <>
+            <GroupLabel
+              action={
+                <span className="flex items-center gap-1">
+                  {planRows.length > 1 && <PlanSortSelect compact />}
+                  {canStartPlan && (
+                    <button
+                      type="button"
+                      onClick={() => setCreating(true)}
+                      title="New chain plan"
+                      className="rounded px-1 text-2xs font-semibold text-ink-500 transition hover:bg-ink-800 hover:text-ink-200"
+                    >
+                      + New
+                    </button>
+                  )}
+                </span>
+              }
+            >
+              Chain plans
+            </GroupLabel>
+
+            {fold.shown.map(({ chainName, node }) => (
+              <PlanBranch
+                key={node.chainPlanId}
+                chainName={chainName}
+                node={node}
+                route={route}
+                today={today}
+                open={!collapsed.has(node.chainPlanId) || node.chainPlanId === activePlanId}
+                onToggle={() => toggle(node.chainPlanId)}
+              />
+            ))}
+            <FoldButton
+              hidden={fold.hidden}
+              expanded={fold.expanded}
+              noun="chain plans"
+              onToggle={fold.toggle}
+              className="mt-0.5 ml-4 py-1.5"
+            />
+
+            {planless.map(({ chain }) => (
+              <TreeRow key={chain._id}>
+                <div className="flex items-center justify-between gap-2 rounded-lg py-1 pr-1 pl-2">
+                  <span className="min-w-0 truncate text-sm text-ink-500">{chain.name}</span>
+                  {canEdit && (
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      title={`Start a ${chain.name} plan for ${tree.season.label}`}
+                      onClick={async () => {
+                        const plan = await createPlan({
+                          seasonId: tree.season._id,
+                          chainId: chain._id,
+                        });
+                        // Same landing as the modal path: straight onto the new plan.
+                        if (plan.ok) navigate({ name: "plan", chainPlanId: plan.value });
+                      }}
+                    >
+                      + Plan
+                    </Button>
+                  )}
+                </div>
+              </TreeRow>
+            ))}
+          </>
+        )}
+      </div>
+
+      <ReferenceRail route={route} isAdministrator={isAdministrator} />
 
       {canStartPlan && creating && (
         <NewChainPlanModal
@@ -297,16 +332,27 @@ function PlanBranch({
  */
 export function StaticNav({ route, isAdministrator }: { route: Route; isAdministrator: boolean }) {
   return (
-    <nav className="flex flex-col gap-1 px-3 py-4">
-      <PlainLink
-        to={{ name: "home" }}
-        active={route.name === "home"}
-        label="Dashboard"
-        meta="Everything that needs attention"
-      />
+    <nav className="flex h-full flex-col">
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
+        <PlainLink
+          to={{ name: "home" }}
+          active={route.name === "home"}
+          label="Dashboard"
+          meta="Everything that needs attention"
+        />
+      </div>
+      <ReferenceRail route={route} isAdministrator={isAdministrator} />
+    </nav>
+  );
+}
+
+/** The reference links as the fixed foot of the rail, under a rule. */
+function ReferenceRail({ route, isAdministrator }: { route: Route; isAdministrator: boolean }) {
+  return (
+    <div className="flex shrink-0 flex-col gap-1 border-t border-ink-800 bg-ink-950/40 px-3 pt-1 pb-3">
       <GroupLabel>Reference</GroupLabel>
       <ReferenceLinks route={route} isAdministrator={isAdministrator} />
-    </nav>
+    </div>
   );
 }
 
