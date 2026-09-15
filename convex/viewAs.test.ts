@@ -235,3 +235,22 @@ test("a lens on an account that stops qualifying is dropped, and so is a demoted
   await asYolanda.mutation(api.directory.setRole, { userId: dana, role: "administrator" });
   expect(await asAdmin.query(api.access.me, {})).toMatchObject({ viewingAs: null });
 });
+
+test("a pointer invalidated by any other path is reported stale, so the shell can drop it", async () => {
+  const { t } = await world();
+  const asAdmin = t.withIdentity(ADMIN);
+  const marcus = await accountId(asAdmin, PLAN_MEMBER.email);
+  await asAdmin.mutation(api.access.viewAs, { userId: marcus });
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({ staleLens: false });
+
+  // Nothing in the app deletes a User; the dashboard or CLI can. The lens is
+  // ignored, and `me` says the pointer is still there for the shell to clear.
+  await t.run(async (ctx) => await ctx.db.delete(marcus));
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({
+    account: { role: "administrator" },
+    viewingAs: null,
+    staleLens: true,
+  });
+  await asAdmin.mutation(api.access.stopViewingAs, {});
+  expect(await asAdmin.query(api.access.me, {})).toMatchObject({ staleLens: false });
+});

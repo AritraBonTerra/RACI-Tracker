@@ -152,6 +152,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return () => clearTimeout(timer);
   }, [signedInAs, ensureUser, retry]);
 
+  // A lens the server is ignoring (`me.staleLens`) is put down here, once,
+  // rather than left dormant on the row to come back the day its account
+  // qualifies again. Deactivation and promotion already clear it server-side;
+  // this catches the paths that cannot — the domain gate, a removed row.
+  const stopViewingAs = useMutation(api.access.stopViewingAs);
+  const staleLens = me?.state === "active" && me.staleLens;
+  useEffect(() => {
+    if (!staleLens) return;
+    // A failure here leaves nothing worse than the dormant pointer.
+    stopViewingAs({}).catch(() => {});
+  }, [staleLens, stopViewingAs]);
+
   useRememberLocation();
 
   // Google sends the browser back here; Clerk finishes and moves it along.

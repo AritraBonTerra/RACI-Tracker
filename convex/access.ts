@@ -1298,6 +1298,10 @@ export const me = query({
       scopes,
       landing: landingFor(viewer.role, scopes),
       viewingAs: lens === null ? null : { name: nameOf(lens), role: lens.role },
+      // A pointer `lensOf` refused — the account went behind the domain gate,
+      // or its row is gone. Queries cannot write, so the shell is asked to put
+      // it down (`stopViewingAs`) rather than leave it dormant to come back.
+      staleLens: lens === null && user.viewingAs !== undefined,
     } as const;
   },
 });
