@@ -8,5 +8,5 @@
       "destination": "/index.html"
     }
   ],
-  "installCommand": "curl -fsSL https://bun.sh/install | bash -s bun-v1.4.0 && ~/.bun/bin/bun install --frozen-lockfile"
+  "installCommand": "bash scripts/vercel-install.sh"
 }
