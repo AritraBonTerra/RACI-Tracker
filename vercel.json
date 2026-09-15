@@ -8,5 +8,5 @@
       "destination": "/index.html"
     }
   ],
-  "installCommand": "bun install --frozen-lockfile"
+  "installCommand": "bash scripts/vercel-install.sh"
 }
